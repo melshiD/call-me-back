@@ -1,0 +1,8 @@
+Following are things to consider while designing the tech stack and implementation.
+
+- In the scheduled call section, we need to add an edit option to go with the existing cancel option.
+- We need each user's DB object to retain info about the current context sizes for that user's instance of a persona.  With smartMemory, we can design personas to be consistent in many traits, but also have special knowledge of each user.  As this special knowledge for a user grows, the cost of storage needs to be calculated into the cost/min or connection cost.  Long un-used persona profiles (user-specific background information for the persona to ingest) will be stored in a more inert, less-costly location
+- Add an option (at cost?) to allow a pre-recorded script from the bot to play either as a fallback or an intended result of some config during call request
+- The frontend UI needs to be more modern, and we should use tailwind CSS.  Use the context-7 MCP server to view updated docs on tailwind CSS.  See https://preline.co/ for template examples, as well as https://tailwindcss.com/plus
+
+It looks great so far, let's keep it up!
