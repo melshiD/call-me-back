@@ -1,0 +1,46 @@
+application "call-me-back" {
+
+  service "api-gateway" {
+    visibility = "public"
+  }
+
+  service "voice-pipeline" {
+    visibility = "private"
+  }
+
+  service "auth-manager" {
+    visibility = "private"
+  }
+
+  service "call-orchestrator" {
+    visibility = "private"
+  }
+
+  service "persona-manager" {
+    visibility = "private"
+  }
+
+  service "payment-processor" {
+    visibility = "private"
+  }
+
+  service "webhook-handler" {
+    visibility = "private"
+  }
+
+  smartsql "call-me-back-db" {
+  }
+
+  smartmemory "conversation-memory" {
+  }
+
+  smartbucket "call-transcripts" {
+  }
+
+  kv_cache "token-blacklist" {
+  }
+
+  kv_cache "rate-limit-cache" {
+  }
+
+}
