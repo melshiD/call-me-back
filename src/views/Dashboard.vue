@@ -77,6 +77,12 @@
             <div class="call-cost">${{ call.cost.toFixed(2) }}</div>
           </div>
 
+          <!-- NEW: Show scenario if present -->
+          <div v-if="call.call_scenario" class="call-scenario-badge">
+            <span class="scenario-icon">🎭</span>
+            <span class="scenario-preview">{{ truncateScenario(call.call_scenario) }}</span>
+          </div>
+
           <div class="call-details">
             <div class="call-detail">
               <strong>Duration:</strong> {{ Math.floor(call.duration / 60) }}m {{ call.duration % 60 }}s
@@ -135,6 +141,11 @@ const formatDate = (isoString) => {
     hour: 'numeric',
     minute: '2-digit'
   })
+}
+
+const truncateScenario = (scenario) => {
+  if (!scenario) return ''
+  return scenario.length > 60 ? scenario.substring(0, 60) + '...' : scenario
 }
 
 const formatScheduledTime = (isoString) => {
@@ -310,6 +321,29 @@ onMounted(async () => {
   font-size: 1.3rem;
   font-weight: 700;
   color: #667eea;
+}
+
+.call-scenario-badge {
+  background: #f8f9fa;
+  border-left: 3px solid #667eea;
+  padding: 0.75rem;
+  margin: 0.75rem 0;
+  border-radius: 4px;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.scenario-icon {
+  font-size: 1.2em;
+  flex-shrink: 0;
+}
+
+.scenario-preview {
+  color: #495057;
+  font-size: 0.9rem;
+  font-style: italic;
+  line-height: 1.4;
 }
 
 .call-details {

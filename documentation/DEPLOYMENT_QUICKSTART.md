@@ -35,9 +35,9 @@ cd /usr/code/ai_championship/call-me-back
 pnpm raindrop info
 ```
 
-Look for the `api-gateway` service URL. It will look something like:
+**Your API Base URL:**
 ```
-https://call-me-back-api-gateway-<id>.raindrop.app
+https://svc-01k9fhfycrjp84j2sg746gwy9q.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run
 ```
 
 **Save this URL** - you'll use it for all API calls.
@@ -209,7 +209,7 @@ Authorization: Bearer YOUR_TOKEN_HERE
 ### Quick Test Script (JavaScript/Node.js):
 
 ```javascript
-const API_BASE = 'https://your-api-url.raindrop.app';
+const API_BASE = 'https://svc-01k9fhfycrjp84j2sg746gwy9q.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run';
 
 // 1. Register a new user
 const registerResponse = await fetch(`${API_BASE}/api/auth/register`, {
@@ -252,7 +252,7 @@ console.log('Call history:', calls);
 
 ```bash
 # 1. Register
-TOKEN=$(curl -X POST https://your-api-url.raindrop.app/api/auth/register \
+TOKEN=$(curl -X POST https://svc-01k9fhfycrjp84j2sg746gwy9q.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Test User",
@@ -264,11 +264,11 @@ TOKEN=$(curl -X POST https://your-api-url.raindrop.app/api/auth/register \
 echo "Token: $TOKEN"
 
 # 2. Test token
-curl -X GET https://your-api-url.raindrop.app/api/auth/me \
+curl -X GET https://svc-01k9fhfycrjp84j2sg746gwy9q.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run/api/auth/me \
   -H "Authorization: Bearer $TOKEN"
 
 # 3. Get call history
-curl -X GET https://your-api-url.raindrop.app/api/calls \
+curl -X GET https://svc-01k9fhfycrjp84j2sg746gwy9q.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run/api/calls \
   -H "Authorization: Bearer $TOKEN"
 ```
 

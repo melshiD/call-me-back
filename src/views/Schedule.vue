@@ -54,10 +54,60 @@
             />
           </div>
 
+          <!-- NEW: Call Scenario Section -->
+          <div class="form-group scenario-section">
+            <label class="form-label">
+              Call Scenario (Optional)
+              <span class="scenario-badge">🎭</span>
+            </label>
+            <p class="form-hint">
+              Set the context for this call - what should the persona know about this specific situation?
+            </p>
+
+            <!-- Template Quick-Select -->
+            <div v-if="scenarioTemplates.length > 0" class="template-chips">
+              <button
+                v-for="template in scenarioTemplates"
+                :key="template.id"
+                type="button"
+                class="template-chip"
+                @click="useTemplate(template)"
+                :class="{ 'template-chip-active': quickCall.selectedTemplate === template.id }"
+              >
+                {{ template.icon }} {{ template.name }}
+              </button>
+            </div>
+
+            <!-- Custom Scenario Text -->
+            <textarea
+              id="quick-scenario"
+              v-model="quickCall.scenario"
+              class="form-control scenario-textarea"
+              placeholder="Example: 'Call to save me from a potentially lame date. Talk about movies and your mother to give me an excuse to leave.'"
+              rows="3"
+            />
+
+            <div v-if="quickCall.scenario" class="scenario-meta">
+              <small class="scenario-tokens">
+                ~{{ estimateTokens(quickCall.scenario) }} tokens
+                {{ estimateTokens(quickCall.scenario) > 500 ? '⚠️ Long scenario may increase cost' : '' }}
+              </small>
+            </div>
+
+            <!-- Save as Template -->
+            <label v-if="quickCall.scenario && quickCall.scenario.length > 20" class="save-template-checkbox">
+              <input
+                type="checkbox"
+                v-model="quickCall.saveAsTemplate"
+              />
+              Save this scenario as a reusable template
+            </label>
+          </div>
+
           <div v-if="quickCall.cost" class="cost-estimate">
             <strong>Estimated Cost:</strong> ${{ quickCall.cost.toFixed(2) }}
             <br />
-            <small>(Connection fee: $0.25 + $0.40/min)</small>
+            <small>(Connection fee: $0.25 + $0.40/min{{ quickCall.scenario ? ' + scenario context' : '' }})</small>
           </div>
 
           <div v-if="quickCallError" class="error-message">
@@ -206,12 +256,38 @@ const quickCall = ref({
   phoneNumber: '',
   personaId: '',
   estimatedDuration: 5,
-  cost: 2.25
+  cost: 2.25,
+  scenario: '',
+  selectedTemplate: null,
+  saveAsTemplate: false
 })
 
 const quickCallLoading = ref(false)
 const quickCallError = ref('')
 const quickCallSuccess = ref(false)
+
+// Scenario templates
+const scenarioTemplates = ref([
+  // Default templates (can be loaded from API later)
+  {
+    id: 'default-1',
+    name: 'Save Me From Bad Date',
+    icon: '🆘',
+    scenario_text: 'You\'re calling to save me from a potentially lame date. Act like there\'s an emergency or important situation that requires my immediate attention. Be convincing but not too serious - maybe talk about movies and your mother to give me an excuse to leave gracefully.'
+  },
+  {
+    id: 'default-2',
+    name: 'Boss Emergency',
+    icon: '💼',
+    scenario_text: 'You\'re my boss calling about an urgent work matter. There\'s a critical issue that needs my immediate attention. Be professional and direct, but understanding of the interruption.'
+  },
+  {
+    id: 'default-3',
+    name: 'Party Planning',
+    icon: '🎉',
+    scenario_text: 'We\'re planning a surprise party together and you\'re calling to coordinate last-minute details. Be excited and conspiratorial, making sure to act natural if someone might be listening nearby.'
+  }
+])
 
 // Scheduled call form
 const scheduledCall = ref({
@@ -227,10 +303,35 @@ const scheduleSuccess = ref(false)
 
 const cancelLoading = ref({})
 
-// Calculate cost based on estimated duration
+// Calculate cost based on estimated duration and scenario
 watch(() => quickCall.value.estimatedDuration, (duration) => {
-  quickCall.value.cost = 0.25 + (duration * 0.40)
+  const baseCost = 0.25 + (duration * 0.40)
+  const scenarioTokens = quickCall.value.scenario ? estimateTokens(quickCall.value.scenario) : 0
+  const scenarioCost = (scenarioTokens / 1000000) * 0.10 * (duration * 4) // Rough estimate
+  quickCall.value.cost = baseCost + scenarioCost
 })
+
+watch(() => quickCall.value.scenario, () => {
+  // Recalculate cost when scenario changes
+  const duration = quickCall.value.estimatedDuration
+  const baseCost = 0.25 + (duration * 0.40)
+  const scenarioTokens = quickCall.value.scenario ? estimateTokens(quickCall.value.scenario) : 0
+  const scenarioCost = (scenarioTokens / 1000000) * 0.10 * (duration * 4)
+  quickCall.value.cost = baseCost + scenarioCost
+})
+
+// Helper function to estimate token count
+const estimateTokens = (text) => {
+  if (!text) return 0
+  return Math.ceil(text.length / 4)
+}
+
+// Use a scenario template
+const useTemplate = (template) => {
+  quickCall.value.scenario = template.scenario_text
+  quickCall.value.selectedTemplate = template.id
+  // TODO: Increment template use count via API when integrated
+}
 
 // Minimum date for scheduling (today)
 const minDate = computed(() => {
@@ -244,14 +345,25 @@ const handleQuickCall = async () => {
   quickCallSuccess.value = false
 
   try {
+    // Save scenario as template if requested
+    if (quickCall.value.saveAsTemplate && quickCall.value.scenario) {
+      const templateName = prompt('Enter a name for this scenario template:')
+      if (templateName) {
+        // TODO: API call to save template when backend is integrated
+        // await callsStore.saveScenarioTemplate(templateName, quickCall.value.scenario)
+        console.log('Would save template:', templateName, quickCall.value.scenario)
+      }
+    }
+
     // First, create payment intent
     const paymentIntent = await userStore.createPaymentIntent(quickCall.value.estimatedDuration)
 
-    // Then trigger the call
+    // Then trigger the call with scenario
     await callsStore.triggerCall(
       quickCall.value.phoneNumber,
       quickCall.value.personaId,
-      paymentIntent.payment_intent_id
+      paymentIntent.payment_intent_id,
+      quickCall.value.scenario || null  // Include scenario
     )
 
     quickCallSuccess.value = true
@@ -262,7 +374,10 @@ const handleQuickCall = async () => {
         phoneNumber: '',
         personaId: '',
         estimatedDuration: 5,
-        cost: 2.25
+        cost: 2.25,
+        scenario: '',
+        selectedTemplate: null,
+        saveAsTemplate: false
       }
       quickCallSuccess.value = false
     }, 3000)
@@ -452,6 +567,90 @@ onMounted(async () => {
   color: #6c757d;
 }
 
+/* Scenario Section Styles */
+.scenario-section {
+  background: #f8f9fa;
+  padding: 1.25rem;
+  border-radius: 8px;
+  border: 2px dashed #dee2e6;
+  transition: border-color 0.3s;
+}
+
+.scenario-section:focus-within {
+  border-color: #007bff;
+  background: #fff;
+}
+
+.scenario-badge {
+  font-size: 1.2em;
+  margin-left: 0.5rem;
+}
+
+.template-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.template-chip {
+  background: white;
+  border: 2px solid #dee2e6;
+  border-radius: 20px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #495057;
+}
+
+.template-chip:hover {
+  border-color: #007bff;
+  background: #e7f3ff;
+  transform: translateY(-2px);
+}
+
+.template-chip-active {
+  border-color: #007bff;
+  background: #007bff;
+  color: white;
+}
+
+.scenario-textarea {
+  margin-top: 0.75rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.scenario-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.scenario-tokens {
+  color: #6c757d;
+  font-size: 0.85rem;
+}
+
+.save-template-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+  color: #495057;
+  cursor: pointer;
+}
+
+.save-template-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
 @media (max-width: 768px) {
   .schedule-container {
     grid-template-columns: 1fr;
@@ -465,6 +664,15 @@ onMounted(async () => {
 
   .scheduled-call-item .btn {
     width: 100%;
+  }
+
+  .template-chips {
+    flex-direction: column;
+  }
+
+  .template-chip {
+    width: 100%;
+    text-align: left;
   }
 }
 </style>
