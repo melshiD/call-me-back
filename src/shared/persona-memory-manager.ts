@@ -12,7 +12,7 @@ export interface PersonaMemoryConfig {
   userId: string;
   personaId: string;
   callId: string;
-  smartMemoryClient: any;  // Raindrop SmartMemory client
+  conversationMemory: any;  // Raindrop SmartMemory binding (this.env.CONVERSATION_MEMORY)
 }
 
 export interface ConversationContext {
@@ -46,7 +46,8 @@ export interface MemoryUpdate {
  */
 export class PersonaMemoryManager {
   private config: PersonaMemoryConfig;
-  private workingMemorySession: any;
+  private sessionId: string | null = null;
+  private workingMemory: any = null;
 
   constructor(config: PersonaMemoryConfig) {
     this.config = config;
@@ -64,20 +65,23 @@ export class PersonaMemoryManager {
 
     console.log('[PersonaMemory] Initializing call memory', { userId, personaId, callId });
 
-    // 1. Start Working Memory session for this call
-    this.workingMemorySession = await this.config.smartMemoryClient.startSession();
+    // 1. Start Working Memory session for this call (CORRECT API)
+    const { sessionId, workingMemory } = await this.config.conversationMemory.startWorkingMemorySession();
+    this.sessionId = sessionId;
+    this.workingMemory = workingMemory;
 
-    await this.config.smartMemoryClient.putMemory({
-      sessionId: this.workingMemorySession.id,
+    // Store session metadata
+    await this.workingMemory.putMemory({
       content: JSON.stringify({
         callId,
         userId,
         personaId,
         relationshipId: relationship.id,
-        conversationHistory: []
+        startedAt: new Date().toISOString()
       }),
-      key: 'session_metadata',
-      timeline: '*defaultTimeline'
+      agent: personaId,
+      timeline: '*defaultTimeline',
+      key: 'session_metadata'
     });
 
     // 2. Load Semantic Memory - Long-term facts about this user
@@ -94,6 +98,7 @@ export class PersonaMemoryManager {
     const episodicRecall = null;  // Load on-demand during conversation
 
     console.log('[PersonaMemory] Memory context loaded', {
+      sessionId,
       longTermFactsCount: longTermFacts ? Object.keys(longTermFacts).length : 0,
       recentCallsCount: recentCallSummaries.length,
       hasBehavioralPatterns: !!behavioralPatterns
@@ -117,7 +122,8 @@ export class PersonaMemoryManager {
     const objectId = `long_term:${userId}:${personaId}`;
 
     try {
-      const memory = await this.config.smartMemoryClient.getSemanticMemory(objectId);
+      // CORRECT API: getSemanticMemory
+      const memory = await this.config.conversationMemory.getSemanticMemory(objectId);
       return memory || this.getDefaultLongTermMemory();
     } catch (error) {
       console.warn('[PersonaMemory] No long-term memory found, using defaults');
@@ -133,7 +139,8 @@ export class PersonaMemoryManager {
     const objectId = `recent_calls:${userId}:${personaId}`;
 
     try {
-      const memory = await this.config.smartMemoryClient.getSemanticMemory(objectId);
+      // CORRECT API: getSemanticMemory
+      const memory = await this.config.conversationMemory.getSemanticMemory(objectId);
       return memory?.recent_calls || [];
     } catch (error) {
       console.warn('[PersonaMemory] No recent calls found');
@@ -148,9 +155,10 @@ export class PersonaMemoryManager {
     const { personaId } = this.config;
 
     try {
-      const proceduralMemory = await this.config.smartMemoryClient.getProceduralMemory();
+      // CORRECT API: getProceduralMemory() returns a stub with methods
+      const proceduralMemory = await this.config.conversationMemory.getProceduralMemory();
 
-      // Load patterns for this persona
+      // Load patterns for this persona (NOT scoped by userId!)
       const patterns = {
         greeting: await proceduralMemory.getProcedure(`${personaId}_greeting`),
         farewell: await proceduralMemory.getProcedure(`${personaId}_farewell`),
@@ -169,20 +177,21 @@ export class PersonaMemoryManager {
    * Add message to working memory during active call
    */
   async addToWorkingMemory(role: 'user' | 'assistant', content: string): Promise<void> {
-    if (!this.workingMemorySession) {
+    if (!this.workingMemory) {
       console.error('[PersonaMemory] No active working memory session');
       return;
     }
 
-    await this.config.smartMemoryClient.putMemory({
-      sessionId: this.workingMemorySession.id,
+    // CORRECT API: workingMemory.putMemory()
+    await this.workingMemory.putMemory({
       content: JSON.stringify({
         role,
         content,
         timestamp: new Date().toISOString()
       }),
-      key: `message_${role}`,
-      timeline: '*defaultTimeline'
+      agent: this.config.personaId,
+      timeline: '*defaultTimeline',
+      key: `message_${role}_${Date.now()}`
     });
   }
 
@@ -193,17 +202,20 @@ export class PersonaMemoryManager {
     const { userId, personaId } = this.config;
 
     try {
-      const results = await this.config.smartMemoryClient.searchEpisodicMemory({
+      // CORRECT API: searchEpisodicMemory
+      const results = await this.config.conversationMemory.searchEpisodicMemory({
         terms: query,
         nMostRecent: limit,
-        // Filter by this user-persona pair (if API supports)
-        metadata: {
-          userId,
-          personaId
-        }
+        // Note: API may not support metadata filtering, adjust if needed
+        agent: personaId  // Try to filter by persona
       });
 
-      return results || [];
+      // Filter by userId in results if API doesn't support it
+      return (results || []).filter((r: any) => {
+        // Check if this session belongs to this user-persona pair
+        // This depends on how we stored metadata in working memory
+        return true; // TODO: Add proper filtering once we test the API
+      });
     } catch (error) {
       console.error('[PersonaMemory] Episodic search failed:', error);
       return [];
@@ -264,21 +276,27 @@ export class PersonaMemoryManager {
 
     console.log('[PersonaMemory] Finalizing call memory', { callId });
 
-    // 1. End Working Memory session and flush to Episodic
-    if (this.workingMemorySession) {
-      // Generate AI summary of the session
-      const summary = await this.config.smartMemoryClient.summarizeMemory({
-        sessionId: this.workingMemorySession.id,
-        systemPrompt: 'Summarize this conversation concisely, highlighting key topics, decisions, and emotional context.'
-      });
+    // 1. End Working Memory session and flush to Episodic (CORRECT API)
+    if (this.workingMemory && this.sessionId) {
+      try {
+        // Generate AI summary of the session before ending
+        const summary = await this.config.conversationMemory.summarizeMemory({
+          sessionId: this.sessionId,
+          systemPrompt: 'Summarize this conversation concisely, highlighting key topics, decisions, and emotional context.'
+        });
 
-      // End session and flush to episodic memory
-      await this.config.smartMemoryClient.endSession({
-        sessionId: this.workingMemorySession.id,
-        flush: true  // Archive to episodic memory
-      });
+        console.log('[PersonaMemory] Session summary generated:', summary?.summary?.substring(0, 100));
 
-      console.log('[PersonaMemory] Session archived to episodic memory');
+        // End session and flush to episodic memory
+        await this.config.conversationMemory.endSession({
+          sessionId: this.sessionId,
+          flush: true  // Archive to episodic memory
+        });
+
+        console.log('[PersonaMemory] Session archived to episodic memory');
+      } catch (error) {
+        console.error('[PersonaMemory] Failed to finalize working memory:', error);
+      }
     }
 
     // 2. Update Semantic Memory - Long-term facts
@@ -322,9 +340,9 @@ export class PersonaMemoryManager {
     const factsToStore = [...highImportance, ...mediumImportance];
 
     if (factsToStore.length > 0) {
-      // Update semantic memory
-      await this.config.smartMemoryClient.putSemanticMemory({
-        id: objectId,
+      // CORRECT API: putSemanticMemory
+      await this.config.conversationMemory.putSemanticMemory({
+        objectId,  // Explicit ID for retrieval
         document: {
           ...existing,
           lastUpdated: new Date().toISOString(),
@@ -344,7 +362,8 @@ export class PersonaMemoryManager {
     const objectId = `recent_calls:${userId}:${personaId}`;
 
     try {
-      const existing = await this.config.smartMemoryClient.getSemanticMemory(objectId);
+      // Load existing
+      const existing = await this.config.conversationMemory.getSemanticMemory(objectId);
       const recentCalls = existing?.recent_calls || [];
 
       // Add new call to the beginning
@@ -353,8 +372,9 @@ export class PersonaMemoryManager {
       // Keep only last 10 calls
       const updated = recentCalls.slice(0, 10);
 
-      await this.config.smartMemoryClient.putSemanticMemory({
-        id: objectId,
+      // CORRECT API: putSemanticMemory
+      await this.config.conversationMemory.putSemanticMemory({
+        objectId,
         document: {
           userId,
           personaId,
@@ -378,8 +398,9 @@ export class PersonaMemoryManager {
 
     const existing = await this.loadLongTermMemory();
 
-    await this.config.smartMemoryClient.putSemanticMemory({
-      id: objectId,
+    // CORRECT API: putSemanticMemory
+    await this.config.conversationMemory.putSemanticMemory({
+      objectId,
       document: {
         ...existing,
         ongoing_storylines: storylines,

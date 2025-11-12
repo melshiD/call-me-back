@@ -16,6 +16,7 @@ import { ElevenLabsTTSHandler, TTSHandlers, VOICE_IDS } from './elevenlabs-tts';
 import { ConversationManager, ConversationState, TranscriptSegment } from './conversation-manager';
 import { LLMServiceFactory } from '../shared/ai-services';
 import { CostTracker } from '../shared/cost-tracker';
+import { PersonaMemoryManager, ConversationContext, MemoryUpdate } from '../shared/persona-memory-manager';
 
 export interface VoicePipelineConfig {
   // API Keys
@@ -24,10 +25,12 @@ export interface VoicePipelineConfig {
 
   // Voice Settings
   voiceId: string;
+  voiceSettings?: any;
 
-  // Database & Cost Tracking
+  // IDs for tracking and memory
   callId: string;
   userId: string;
+  personaId: string;
 
   // Optional overrides
   conversationConfig?: any;
@@ -56,6 +59,14 @@ export class VoicePipelineOrchestrator {
   private ttsHandler: ElevenLabsTTSHandler;
   private conversationManager: ConversationManager;
   private costTracker: CostTracker;
+  private memoryManager: PersonaMemoryManager | null = null;
+
+  // Memory & Persona
+  private conversationMemory: any;  // SmartMemory binding
+  private corePersona: any;
+  private relationship: any;
+  private systemPrompt: string = '';
+  private memoryContext: ConversationContext | null = null;
 
   // State
   private callStartTime: number = 0;
@@ -64,9 +75,18 @@ export class VoicePipelineOrchestrator {
   private currentTranscript: string = '';
   private conversationHistory: Array<{ role: 'user' | 'assistant', content: string }> = [];
 
-  constructor(config: VoicePipelineConfig, costTracker: CostTracker) {
+  constructor(
+    config: VoicePipelineConfig,
+    costTracker: CostTracker,
+    conversationMemory: any,  // SmartMemory from this.env
+    corePersona: any,
+    relationship: any
+  ) {
     this.config = config;
     this.costTracker = costTracker;
+    this.conversationMemory = conversationMemory;
+    this.corePersona = corePersona;
+    this.relationship = relationship;
 
     // Initialize conversation manager
     this.conversationManager = new ConversationManager(config.conversationConfig);
@@ -112,6 +132,26 @@ export class VoicePipelineOrchestrator {
   async start(twilioWs: WebSocket): Promise<void> {
     console.log('[VoicePipeline] Starting pipeline');
     this.callStartTime = Date.now();
+
+    // Initialize memory manager
+    this.memoryManager = new PersonaMemoryManager({
+      userId: this.config.userId,
+      personaId: this.config.personaId,
+      callId: this.config.callId,
+      conversationMemory: this.conversationMemory
+    });
+
+    // Load memory context from all tiers
+    console.log('[VoicePipeline] Loading memory context...');
+    this.memoryContext = await this.memoryManager.initializeCallMemory(
+      this.corePersona,
+      this.relationship
+    );
+
+    // Build composite system prompt with memory context
+    this.systemPrompt = this.memoryManager.buildSystemPrompt(this.memoryContext);
+
+    console.log('[VoicePipeline] Memory context loaded, system prompt built');
 
     // Connect Twilio WebSocket
     this.twilioHandler.handleConnection(twilioWs);
@@ -193,6 +233,11 @@ export class VoicePipelineOrchestrator {
           content: text
         });
 
+        // Add to working memory
+        if (this.memoryManager) {
+          await this.memoryManager.addToWorkingMemory('user', text);
+        }
+
         // Mark as final transcript
         const segment: TranscriptSegment = {
           text,
@@ -273,19 +318,18 @@ export class VoicePipelineOrchestrator {
         return;
       }
 
-      // Build conversation context
-      const messages = this.conversationHistory.slice(-10); // Last 10 messages
+      // Build conversation context (recent history for immediate context)
+      const conversationContext = this.conversationHistory.slice(-10)
+        .map(m => `${m.role}: ${m.content}`)
+        .join('\n');
 
-      // Generate response with Cerebras
+      // Generate response with Cerebras using COMPOSITE SYSTEM PROMPT
       const llmService = LLMServiceFactory.getCerebras();
-
-      const systemPrompt = 'You are a helpful AI assistant in a voice conversation. Keep responses concise and natural for speech.';
-      const userPrompt = messages.map(m => `${m.role}: ${m.content}`).join('\n');
 
       const startTime = Date.now();
       const response = await llmService.complete({
-        systemPrompt,
-        prompt: userPrompt,
+        systemPrompt: this.systemPrompt,  // Full memory context!
+        prompt: conversationContext,       // Recent conversation
         maxTokens: 150,
         temperature: 0.7
       });
@@ -309,6 +353,11 @@ export class VoicePipelineOrchestrator {
         role: 'assistant',
         content: responseText
       });
+
+      // Add to working memory
+      if (this.memoryManager) {
+        await this.memoryManager.addToWorkingMemory('assistant', responseText);
+      }
 
       // Mark AI as speaking
       this.conversationManager.startSpeaking();
@@ -392,6 +441,13 @@ export class VoicePipelineOrchestrator {
   async stop(): Promise<void> {
     console.log('[VoicePipeline] Stopping pipeline');
 
+    // Extract facts and update memory
+    if (this.memoryManager && this.conversationHistory.length > 0) {
+      console.log('[VoicePipeline] Extracting memory updates...');
+      const memoryUpdate = await this.extractMemoryUpdates();
+      await this.memoryManager.finalizeCallMemory(memoryUpdate);
+    }
+
     // Disconnect all services
     this.sttHandler.disconnect();
     this.ttsHandler.disconnect();
@@ -402,5 +458,62 @@ export class VoicePipelineOrchestrator {
     await this.costTracker.finalize(callDuration);
 
     console.log('[VoicePipeline] Pipeline stopped');
+  }
+
+  /**
+   * Extract memory updates from conversation using Cerebras
+   */
+  private async extractMemoryUpdates(): Promise<MemoryUpdate> {
+    const conversationText = this.conversationHistory
+      .map(m => `${m.role}: ${m.content}`)
+      .join('\n');
+
+    const llmService = LLMServiceFactory.getCerebras();
+
+    const extractionPrompt = `Analyze this conversation and extract structured information:
+
+Conversation:
+${conversationText}
+
+Extract:
+1. New facts learned about the user (as objects with category, content, importance)
+2. Brief conversation summary (2-3 sentences)
+3. Key topics discussed (array of strings)
+4. Emotional tone (single word like "happy", "stressed", "neutral")
+5. Any decisions the user made (array of strings)
+6. Any ongoing situations to follow up on (array of objects with topic, status, summary)
+
+Respond ONLY with valid JSON in this exact format:
+{
+  "newFacts": [{"category": "personal", "content": "likes coffee", "importance": "medium"}],
+  "conversationSummary": "Brief summary here",
+  "keyTopics": ["topic1", "topic2"],
+  "emotionalTone": "neutral",
+  "decisions": ["decision1"],
+  "ongoingStorylines": [{"topic": "work", "status": "ongoing", "summary": "dealing with project"}]
+}`;
+
+    try {
+      const response = await llmService.complete({
+        systemPrompt: 'You are a memory extraction assistant. Extract structured information from conversations and respond ONLY with valid JSON.',
+        prompt: extractionPrompt,
+        maxTokens: 500,
+        temperature: 0.3  // Lower temp for consistent extraction
+      });
+
+      // Parse JSON response
+      const extracted = JSON.parse(response.text.trim());
+      console.log('[VoicePipeline] Memory extraction complete:', extracted);
+      return extracted;
+
+    } catch (error) {
+      console.error('[VoicePipeline] Failed to parse memory extraction:', error);
+      // Fallback to basic summary
+      return {
+        conversationSummary: `Conversation with ${this.conversationHistory.length} exchanges`,
+        keyTopics: [],
+        emotionalTone: 'neutral'
+      };
+    }
   }
 }

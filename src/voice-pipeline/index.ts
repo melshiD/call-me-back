@@ -22,31 +22,58 @@ export default class extends Service<Env> {
   /**
    * Handle WebSocket connection from Twilio Media Streams
    */
-  async handleConnection(ws: WebSocket, callId: string, userId: string, personaId?: string): Promise<{ status: string }> {
+  async handleConnection(ws: WebSocket, callId: string, userId: string, personaId: string): Promise<{ status: string }> {
     try {
-      this.env.logger.info('Handling voice pipeline connection', { callId, userId });
+      this.env.logger.info('Handling voice pipeline connection', { callId, userId, personaId });
 
       // Initialize cost tracker for this call
       const costTracker = new CostTracker(this.env.CALL_ME_BACK_DB, callId, userId);
       await costTracker.initialize();
 
+      // Load persona from database
+      const persona = await this.loadPersona(personaId);
+      if (!persona) {
+        throw new Error(`Persona not found: ${personaId}`);
+      }
+
+      // Load or create user-persona relationship
+      const relationship = await this.loadOrCreateRelationship(userId, personaId);
+
+      // Extract voice configuration from relationship
+      const voiceId = relationship.voice_id || persona.default_voice_id || this.env.DEFAULT_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb';
+      const voiceSettings = relationship.voice_settings || {
+        stability: 0.5,
+        similarity_boost: 0.75,
+        style: 0.0,
+        use_speaker_boost: true,
+        speed: 1.0
+      };
+
       // Create pipeline configuration
       const config: VoicePipelineConfig = {
         elevenLabsApiKey: this.env.ELEVENLABS_API_KEY,
         cerebrasApiKey: this.env.CEREBRAS_API_KEY,
-        voiceId: personaId || this.env.DEFAULT_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb', // Rachel
+        voiceId,
+        voiceSettings,
         callId,
-        userId
+        userId,
+        personaId
       };
 
-      // Create and start pipeline
-      const pipeline = new VoicePipelineOrchestrator(config, costTracker);
+      // Create and start pipeline with SmartMemory
+      const pipeline = new VoicePipelineOrchestrator(
+        config,
+        costTracker,
+        this.env.CONVERSATION_MEMORY,  // SmartMemory binding
+        persona,
+        relationship
+      );
       await pipeline.start(ws);
 
       // Store active pipeline
       this.activePipelines.set(callId, pipeline);
 
-      this.env.logger.info('Voice pipeline started', { callId });
+      this.env.logger.info('Voice pipeline started', { callId, personaId });
 
       return {
         status: 'connected',
@@ -58,6 +85,66 @@ export default class extends Service<Env> {
       });
       throw error;
     }
+  }
+
+  /**
+   * Load persona from database
+   */
+  private async loadPersona(personaId: string): Promise<any> {
+    const result = await this.env.CALL_ME_BACK_DB.query(
+      'SELECT * FROM personas WHERE id = ?',
+      [personaId]
+    );
+
+    if (!result.rows || result.rows.length === 0) {
+      return null;
+    }
+
+    return result.rows[0];
+  }
+
+  /**
+   * Load or create user-persona relationship
+   */
+  private async loadOrCreateRelationship(userId: string, personaId: string): Promise<any> {
+    // Try to load existing relationship
+    const result = await this.env.CALL_ME_BACK_DB.query(
+      'SELECT * FROM user_persona_relationships WHERE user_id = ? AND persona_id = ?',
+      [userId, personaId]
+    );
+
+    if (result.rows && result.rows.length > 0) {
+      return result.rows[0];
+    }
+
+    // Create new relationship with defaults
+    await this.env.CALL_ME_BACK_DB.query(
+      `INSERT INTO user_persona_relationships
+       (user_id, persona_id, relationship_type, custom_system_prompt, voice_id, voice_settings, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        userId,
+        personaId,
+        'friend',  // Default relationship type
+        '',        // No custom prompt initially
+        null,      // Will use persona default
+        JSON.stringify({
+          stability: 0.5,
+          similarity_boost: 0.75,
+          speed: 1.0,
+          style: 0.0
+        }),
+        new Date().toISOString()
+      ]
+    );
+
+    // Load the newly created relationship
+    const newResult = await this.env.CALL_ME_BACK_DB.query(
+      'SELECT * FROM user_persona_relationships WHERE user_id = ? AND persona_id = ?',
+      [userId, personaId]
+    );
+
+    return newResult.rows![0];
   }
 
   /**
