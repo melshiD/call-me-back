@@ -1,6 +1,7 @@
 // Call Cost Tracker - Real-time cost accumulation during calls
 import type { SmartSql } from '@liquidmetal-ai/raindrop-framework';
 import { executeSQL } from './db-helpers';
+import { calculateTTSCost, calculateAICost, calculateSTTCost, calculateCallCost, calculatePaymentFee, getPricing } from './pricing';
 
 export interface CostBreakdown {
   id: string;
@@ -50,13 +51,15 @@ export class CallCostTracker {
    */
   async initialize(): Promise<void> {
     const id = this.generateId();
+    const twilioPricing = getPricing('twilio', 'voice');
+    const connectionFee = twilioPricing?.connectionFee || 25;
 
     await executeSQL(
       this.db,
       `INSERT INTO call_cost_breakdowns (
         id, call_id, user_id, twilio_connection_fee_cents
       ) VALUES (?, ?, ?, ?)`,
-      [id, this.callId, this.userId, 25]
+      [id, this.callId, this.userId, connectionFee]
     );
 
     this.breakdownId = id;
@@ -69,8 +72,9 @@ export class CallCostTracker {
     if (!this.breakdownId) throw new Error('Cost tracker not initialized');
 
     const characters = text.length;
-    const costPerChar = 0.30 / 1000; // $0.30 per 1K characters
-    const costCents = characters * costPerChar;
+    const costCents = calculateTTSCost('elevenlabs', model, characters);
+    const pricing = getPricing('elevenlabs', model);
+    const costPerChar = pricing?.cost ? pricing.cost / 1000 : 0;
 
     // Log the event
     await this.logEvent({
@@ -107,6 +111,7 @@ export class CallCostTracker {
     inputTokens: number,
     outputTokens: number,
     provider: 'cerebras' | 'openai' = 'cerebras',
+    model?: string,
     fallbackReason?: string
   ): Promise<number> {
     if (!this.breakdownId) throw new Error('Cost tracker not initialized');
@@ -115,17 +120,19 @@ export class CallCostTracker {
     let costCents: number;
 
     if (provider === 'cerebras') {
-      // $0.10 per 1M tokens (input + output combined)
-      costCents = (totalTokens / 1_000_000) * 10;
+      // Use centralized pricing config
+      const modelName = model || 'llama3.1-8b';
+      costCents = calculateAICost('cerebras', modelName, inputTokens, outputTokens);
+      const pricing = getPricing('cerebras', modelName);
 
       await this.logEvent({
         event_type: 'ai_inference',
         service: 'cerebras',
         tokens_input: inputTokens,
         tokens_output: outputTokens,
-        unit_cost: 0.10,
+        unit_cost: pricing?.cost || 0,
         calculated_cost_cents: costCents,
-        model_used: 'llama3.1-8b',
+        model_used: modelName,
         metadata: { total_tokens: totalTokens }
       });
 
@@ -142,10 +149,10 @@ export class CallCostTracker {
         [inputTokens, outputTokens, totalTokens, costCents, this.breakdownId]
       );
     } else {
-      // OpenAI: $10/1M input, $30/1M output
-      const inputCost = (inputTokens / 1_000_000) * 1000;
-      const outputCost = (outputTokens / 1_000_000) * 3000;
-      costCents = inputCost + outputCost;
+      // Use centralized pricing config for OpenAI
+      const modelName = model || 'gpt-4-turbo-preview';
+      costCents = calculateAICost('openai', modelName, inputTokens, outputTokens);
+      const pricing = getPricing('openai', modelName);
 
       await this.logEvent({
         event_type: 'ai_inference',
@@ -153,8 +160,12 @@ export class CallCostTracker {
         tokens_input: inputTokens,
         tokens_output: outputTokens,
         calculated_cost_cents: costCents,
-        model_used: 'gpt-4-turbo-preview',
-        metadata: { total_tokens: totalTokens, input_cost: inputCost, output_cost: outputCost }
+        model_used: modelName,
+        metadata: {
+          total_tokens: totalTokens,
+          input_cost: pricing?.inputCost || 0,
+          output_cost: pricing?.outputCost || 0
+        }
       });
 
       await executeSQL(
@@ -181,20 +192,19 @@ export class CallCostTracker {
   /**
    * Track Speech-to-Text processing
    */
-  async trackSTT(audioDurationSeconds: number): Promise<number> {
+  async trackSTT(audioDurationSeconds: number, model: string = 'nova-2'): Promise<number> {
     if (!this.breakdownId) throw new Error('Cost tracker not initialized');
 
-    const costPerMinute = 0.43 / 100; // $0.43 per 100 minutes = $0.0043/min
-    const minutes = audioDurationSeconds / 60;
-    const costCents = minutes * costPerMinute;
+    const costCents = calculateSTTCost('deepgram', model, audioDurationSeconds);
+    const pricing = getPricing('deepgram', model);
 
     await this.logEvent({
       event_type: 'stt_chunk',
       service: 'deepgram',
       duration_seconds: audioDurationSeconds,
-      unit_cost: costPerMinute,
+      unit_cost: pricing?.cost || 0,
       calculated_cost_cents: costCents,
-      model_used: 'nova-2',
+      model_used: model,
       metadata: { audio_duration_seconds: audioDurationSeconds }
     });
 
@@ -221,8 +231,7 @@ export class CallCostTracker {
     if (!this.breakdownId) throw new Error('Cost tracker not initialized');
 
     const durationSeconds = Math.floor((Date.now() - this.startTime) / 1000);
-    const minutes = durationSeconds / 60;
-    const costCents = minutes * 40; // $0.40 per minute
+    const costCents = calculateCallCost('twilio', 'voice', durationSeconds);
 
     await executeSQL(
       this.db,
@@ -343,8 +352,8 @@ export class CallCostTracker {
 
     const { subtotal_cents } = await this.getCurrentTotal();
 
-    // Calculate Stripe fee (2.9% + $0.30)
-    const stripeFee = (subtotal_cents * 0.029) + 30;
+    // Calculate Stripe fee using centralized pricing
+    const stripeFee = calculatePaymentFee('stripe', 'payment', subtotal_cents);
     const totalCost = subtotal_cents + stripeFee;
 
     await executeSQL(
