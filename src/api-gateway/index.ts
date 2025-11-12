@@ -8,6 +8,11 @@ export default class extends Service<Env> {
     const path = url.pathname;
 
     try {
+      // Twilio voice routes
+      if (path.startsWith('/api/voice')) {
+        return await this.handleVoiceRoutes(request, path, url);
+      }
+
       // Scenario template routes
       if (path.startsWith('/api/scenario-templates')) {
         return await this.handleScenarioTemplates(request, path);
@@ -19,6 +24,152 @@ export default class extends Service<Env> {
         error: error instanceof Error ? error.message : String(error)
       });
       return new Response('Internal Server Error', { status: 500 });
+    }
+  }
+
+  /**
+   * Handle Twilio voice routes
+   */
+  private async handleVoiceRoutes(request: Request, path: string, url: URL): Promise<Response> {
+    // POST /api/voice/answer - Return TwiML for incoming calls
+    if (request.method === 'POST' && path === '/api/voice/answer') {
+      return await this.handleVoiceAnswer(request);
+    }
+
+    // WebSocket /api/voice/stream - Handle Twilio Media Streams
+    if (path === '/api/voice/stream') {
+      const upgradeHeader = request.headers.get('Upgrade');
+      if (upgradeHeader !== 'websocket') {
+        return new Response('Expected WebSocket', { status: 426 });
+      }
+
+      return await this.handleVoiceStream(request, url);
+    }
+
+    return new Response('Not Found', { status: 404 });
+  }
+
+  /**
+   * Handle incoming call - Return TwiML with Media Streams
+   */
+  private async handleVoiceAnswer(request: Request): Promise<Response> {
+    try {
+      // Parse Twilio request body (form-encoded)
+      const formData = await request.formData();
+      const callSid = formData.get('CallSid') as string;
+      const from = formData.get('From') as string;
+      const to = formData.get('To') as string;
+
+      this.env.logger.info('Incoming call', { callSid, from, to });
+
+      // Extract userId and personaId from query params or default
+      // For now, use a default persona - later we'll do phone number lookup
+      const userId = 'demo_user'; // TODO: Lookup user by phone number
+      const personaId = 'brad_001'; // TODO: Get from user preferences or call context
+
+      // Build WebSocket URL for Media Streams
+      const baseUrl = new URL(request.url).origin;
+      const streamUrl = `${baseUrl.replace('http', 'ws')}/api/voice/stream?callId=${callSid}&userId=${userId}&personaId=${personaId}`;
+
+      // Generate TwiML response with Media Streams
+      const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say>Connecting you now.</Say>
+    <Connect>
+        <Stream url="${streamUrl}" />
+    </Connect>
+</Response>`;
+
+      return new Response(twiml, {
+        headers: {
+          'Content-Type': 'text/xml'
+        }
+      });
+    } catch (error) {
+      this.env.logger.error('Voice answer error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      // Return error TwiML
+      const errorTwiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say>Sorry, we encountered an error. Please try again later.</Say>
+    <Hangup/>
+</Response>`;
+
+      return new Response(errorTwiml, {
+        headers: {
+          'Content-Type': 'text/xml'
+        }
+      });
+    }
+  }
+
+  /**
+   * Handle WebSocket connection for Twilio Media Streams
+   */
+  private async handleVoiceStream(request: Request, url: URL): Promise<Response> {
+    try {
+      // Extract parameters from query string
+      const callId = url.searchParams.get('callId');
+      const userId = url.searchParams.get('userId');
+      const personaId = url.searchParams.get('personaId');
+
+      if (!callId || !userId || !personaId) {
+        return new Response('Missing required parameters', { status: 400 });
+      }
+
+      this.env.logger.info('WebSocket connection request', { callId, userId, personaId });
+
+      // Upgrade to WebSocket
+      const webSocketPair = new WebSocketPair();
+      const [client, server] = Object.values(webSocketPair);
+
+      // Accept the WebSocket connection
+      server.accept();
+
+      // Start the voice pipeline in the background
+      this.startVoicePipeline(server, callId, userId, personaId);
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client
+      });
+    } catch (error) {
+      this.env.logger.error('Voice stream error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return new Response('Internal Server Error', { status: 500 });
+    }
+  }
+
+  /**
+   * Start the voice pipeline (runs in background)
+   */
+  private async startVoicePipeline(
+    ws: WebSocket,
+    callId: string,
+    userId: string,
+    personaId: string
+  ): Promise<void> {
+    try {
+      // Call the voice-pipeline service
+      const result = await this.env.VOICE_PIPELINE.handleConnection(
+        ws,
+        callId,
+        userId,
+        personaId
+      );
+
+      this.env.logger.info('Voice pipeline started', { callId, status: result.status });
+    } catch (error) {
+      this.env.logger.error('Failed to start voice pipeline', {
+        callId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      // Close WebSocket on error
+      ws.close(1011, 'Internal error');
     }
   }
 
