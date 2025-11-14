@@ -7,13 +7,13 @@ export interface Env {
   };
   AI: Ai;
   annotation: Annotation<Omit<MRNObject, 'type' | 'applicationName' | 'versionId'>>;
+  API_GATEWAY: ServiceStub<import('../api-gateway/index.js').default>;
   AUTH_MANAGER: ServiceStub<import('../auth-manager/index.js').default>;
   CALL_ME_BACK_DB: SmartSql;
   CALL_ORCHESTRATOR: ServiceStub<import('../call-orchestrator/index.js').default>;
   CALL_TRANSCRIPTS: SmartBucket;
   CEREBRAS_API_KEY: string;
   CONVERSATION_MEMORY: SmartMemory;
-  DATABASE_PROXY: ServiceStub<import('../database-proxy/index.js').default>;
   ELEVENLABS_API_KEY: string;
   logger: Logger;
   mem: KvCache;

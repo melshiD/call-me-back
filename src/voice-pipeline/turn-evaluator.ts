@@ -118,7 +118,8 @@ Answer:`;
       console.log('[TurnEvaluator] Falling back to heuristic evaluation');
       const heuristic = new HeuristicTurnEvaluator();
       const decision = heuristic.evaluate(this.extractTranscript(prompt));
-      return decision;
+      // Convert decision enum to string
+      return decision === TurnDecision.RESPOND ? 'RESPOND' : decision === TurnDecision.WAIT ? 'WAIT' : 'UNCLEAR';
     }
   }
 
@@ -127,7 +128,7 @@ Answer:`;
    */
   private extractTranscript(prompt: string): string {
     const match = prompt.match(/User said: "([^"]+)"/);
-    return match ? match[1] : prompt;
+    return match ? (match[1] || prompt) : prompt;
   }
 
   /**
@@ -139,7 +140,8 @@ Answer:`;
     await new Promise(resolve => setTimeout(resolve, 100));
 
     // Simple heuristic-based mock
-    const transcript = prompt.match(/User said: "([^"]+)"/)?.[1] || '';
+    const match = prompt.match(/User said: "([^"]+)"/);
+    const transcript = match?.[1] || '';
 
     // Check for incomplete indicators
     const incompleteWords = ['um', 'uh', 'so', 'and', 'but', 'because', 'like'];
@@ -210,7 +212,7 @@ export class HeuristicTurnEvaluator {
 
     // Ends with incomplete markers
     const incompleteEndings = ['um', 'uh', 'so', 'and', 'but', 'or', 'because', 'like', 'actually'];
-    const lastWord = words[words.length - 1];
+    const lastWord = words[words.length - 1] || '';
     if (incompleteEndings.includes(lastWord)) return TurnDecision.WAIT;
 
     // Ends with question mark or period (from STT)

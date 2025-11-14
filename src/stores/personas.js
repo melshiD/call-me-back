@@ -59,8 +59,8 @@ export const usePersonasStore = defineStore('personas', () => {
     }
   ]
 
-  personas.value = mockPersonas
-  userContacts.value = [mockPersonas[0], mockPersonas[1]] // Friend and Boss as default contacts
+  // Initialize personas by fetching from API
+  // This will be called when the component mounts
 
   /**
    * Fetch all public personas
@@ -136,22 +136,56 @@ export const usePersonasStore = defineStore('personas', () => {
    *   - System personas cannot be edited or deleted
    */
   const fetchPersonas = async (page = 1, limit = 20, search = '') => {
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        let filtered = mockPersonas
-        if (search) {
-          filtered = filtered.filter(p =>
-            p.name.toLowerCase().includes(search.toLowerCase()) ||
-            p.description.toLowerCase().includes(search.toLowerCase())
-          )
-        }
-        resolve({
-          personas: filtered,
-          pagination: { page, limit, total: filtered.length, pages: 1 }
-        })
-      }, 300)
-    })
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/personas`)
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch personas: ${response.statusText}`)
+      }
+
+      const fetchedPersonas = await response.json()
+
+      // Apply client-side filtering if search is provided
+      let filtered = fetchedPersonas
+      if (search) {
+        filtered = filtered.filter(p =>
+          p.name.toLowerCase().includes(search.toLowerCase()) ||
+          p.description.toLowerCase().includes(search.toLowerCase())
+        )
+      }
+
+      // Update personas
+      personas.value = filtered
+
+      // ALWAYS update userContacts with the fetched personas
+      // This ensures we show real database personas, not mock data
+      if (filtered.length > 0) {
+        userContacts.value = filtered.slice(0, Math.min(2, filtered.length))
+      }
+
+      return {
+        personas: filtered,
+        pagination: { page, limit, total: filtered.length, pages: 1 }
+      }
+    } catch (error) {
+      console.error('Failed to fetch personas:', error)
+      // Fallback to mock data if API fails
+      let filtered = mockPersonas
+      if (search) {
+        filtered = filtered.filter(p =>
+          p.name.toLowerCase().includes(search.toLowerCase()) ||
+          p.description.toLowerCase().includes(search.toLowerCase())
+        )
+      }
+      personas.value = filtered
+      if (userContacts.value.length === 0) {
+        userContacts.value = [mockPersonas[0], mockPersonas[1]]
+      }
+      return {
+        personas: filtered,
+        pagination: { page, limit, total: filtered.length, pages: 1 }
+      }
+    }
   }
 
   /**
@@ -405,12 +439,12 @@ export const usePersonasStore = defineStore('personas', () => {
    *   - Cache for 1 minute
    */
   const fetchContacts = async () => {
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ contacts: userContacts.value })
-      }, 300)
-    })
+    // First fetch all personas to populate the list
+    await fetchPersonas()
+
+    // For now, return userContacts which are set by fetchPersonas
+    // TODO: In the future, this should fetch user's saved contacts from the API
+    return { contacts: userContacts.value }
   }
 
   /**

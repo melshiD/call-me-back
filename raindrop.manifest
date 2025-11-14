@@ -1,5 +1,33 @@
 application "call-me-back" {
 
+  env "TWILIO_ACCOUNT_SID" {
+    secret = true
+  }
+
+  env "TWILIO_AUTH_TOKEN" {
+    secret = true
+  }
+
+  env "TWILIO_PHONE_NUMBER" {
+    default = "+17622526613"
+  }
+
+  env "ELEVENLABS_API_KEY" {
+    secret = true
+  }
+
+  env "CEREBRAS_API_KEY" {
+    secret = true
+  }
+
+  env "VULTR_DB_API_URL" {
+    secret = true
+  }
+
+  env "VULTR_DB_API_KEY" {
+    secret = true
+  }
+
   service "api-gateway" {
     visibility = "public"
   }
@@ -17,6 +45,10 @@ application "call-me-back" {
   }
 
   service "persona-manager" {
+    visibility = "private"
+  }
+
+  service "database-proxy" {
     visibility = "private"
   }
 

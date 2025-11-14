@@ -8,7 +8,7 @@ export interface Persona {
   systemPrompt: string;
   isPublic: boolean;
   createdBy: string;
-  tags?: string;
+  tags?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -19,7 +19,7 @@ export interface CreatePersonaInput {
   voice: string;
   systemPrompt: string;
   isPublic?: boolean;
-  tags?: string;
+  tags?: string[];
 }
 
 export interface UpdatePersonaInput {
@@ -28,7 +28,7 @@ export interface UpdatePersonaInput {
   voice?: string;
   systemPrompt?: string;
   isPublic?: boolean;
-  tags?: string;
+  tags?: string[];
 }
 
 export interface Contact {

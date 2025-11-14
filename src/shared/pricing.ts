@@ -302,7 +302,7 @@ export function getPricingMetadata() {
   for (const [provider, models] of Object.entries(PRICING_CONFIG)) {
     metadata[provider] = {};
     for (const [model, pricing] of Object.entries(models)) {
-      let costDisplay: string;
+      let costDisplay: string = 'N/A';
 
       if (pricing.inputCost && pricing.outputCost) {
         costDisplay = `$${pricing.inputCost / 100} input / $${pricing.outputCost / 100} output ${pricing.unit}`;
@@ -348,7 +348,7 @@ export function checkPricingFreshness(): { stale: boolean; oldestDate: string; d
 
   return {
     stale,
-    oldestDate: oldestDate.toISOString().split('T')[0],
+    oldestDate: oldestDate.toISOString().split('T')[0] || '',
     daysOld
   };
 }

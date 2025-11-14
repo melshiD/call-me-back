@@ -8,6 +8,16 @@ export default class extends Service<Env> {
     const path = url.pathname;
 
     try {
+      // Persona routes
+      if (path.startsWith('/api/personas')) {
+        return await this.handlePersonaRoutes(request, path);
+      }
+
+      // Call trigger routes
+      if (path.startsWith('/api/calls')) {
+        return await this.handleCallRoutes(request, path);
+      }
+
       // Twilio voice routes
       if (path.startsWith('/api/voice')) {
         return await this.handleVoiceRoutes(request, path, url);
@@ -16,6 +26,22 @@ export default class extends Service<Env> {
       // Scenario template routes
       if (path.startsWith('/api/scenario-templates')) {
         return await this.handleScenarioTemplates(request, path);
+      }
+
+      // Debug endpoint - check env vars
+      if (path === '/api/debug/env') {
+        return new Response(JSON.stringify({
+          hasVultrUrl: !!this.env.VULTR_DB_API_URL,
+          hasVultrKey: !!this.env.VULTR_DB_API_KEY,
+          vultrUrl: this.env.VULTR_DB_API_URL || 'NOT_SET'
+        }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Temporary seed endpoint - REMOVE AFTER USE
+      if (request.method === 'POST' && path === '/api/seed-personas') {
+        return await this.handleSeedPersonas(request);
       }
 
       return new Response('Not Found', { status: 404 });
@@ -121,18 +147,16 @@ export default class extends Service<Env> {
 
       this.env.logger.info('WebSocket connection request', { callId, userId, personaId });
 
-      // Upgrade to WebSocket
-      const webSocketPair = new WebSocketPair();
-      const [client, server] = Object.values(webSocketPair);
-
-      // Accept the WebSocket connection
-      server.accept();
+      // Upgrade to WebSocket (Cloudflare Workers API)
+      const pair = new (WebSocket as any).WebSocketPair();
+      const [client, server] = [pair[0], pair[1]];
 
       // Start the voice pipeline in the background
-      this.startVoicePipeline(server, callId, userId, personaId);
+      this.startVoicePipeline(server as WebSocket, callId, userId, personaId);
 
       return new Response(null, {
         status: 101,
+        // @ts-ignore - Cloudflare Workers WebSocket API
         webSocket: client
       });
     } catch (error) {
@@ -171,6 +195,36 @@ export default class extends Service<Env> {
       // Close WebSocket on error
       ws.close(1011, 'Internal error');
     }
+  }
+
+  /**
+   * Handle persona routes
+   */
+  private async handlePersonaRoutes(request: Request, path: string): Promise<Response> {
+    // GET /api/personas - List all public personas
+    if (request.method === 'GET' && path === '/api/personas') {
+      try {
+        this.env.logger.info('Calling PERSONA_MANAGER.getPersonas()');
+        const personas = await this.env.PERSONA_MANAGER.getPersonas();
+        this.env.logger.info('Got personas', { count: personas.length });
+        return new Response(JSON.stringify(personas), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        this.env.logger.error('Failed to fetch personas', {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        return new Response(JSON.stringify({
+          error: error instanceof Error ? error.message : String(error)
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
+    return new Response('Not Found', { status: 404 });
   }
 
   private async handleScenarioTemplates(request: Request, path: string): Promise<Response> {
@@ -260,6 +314,139 @@ export default class extends Service<Env> {
     }
 
     return new Response('Not Found', { status: 404 });
+  }
+
+  /**
+   * Handle call trigger routes
+   */
+  private async handleCallRoutes(request: Request, path: string): Promise<Response> {
+    // POST /api/calls/trigger - Initiate an outbound call
+    if (request.method === 'POST' && path === '/api/calls/trigger') {
+      return await this.handleCallTrigger(request);
+    }
+
+    return new Response('Not Found', { status: 404 });
+  }
+
+  /**
+   * Handle call trigger - initiate outbound call via Twilio
+   */
+  private async handleCallTrigger(request: Request): Promise<Response> {
+    try {
+      const body = await request.json() as {
+        phoneNumber: string;
+        personaId?: string;
+        userId?: string;
+      };
+
+      if (!body.phoneNumber) {
+        return new Response(JSON.stringify({ error: 'Phone number is required' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // For now, use demo user - TODO: implement proper auth
+      const userId = body.userId || 'demo_user';
+      const personaId = body.personaId || 'brad_001';
+
+      this.env.logger.info('Triggering call', { phoneNumber: body.phoneNumber, userId, personaId });
+
+      // Call the call-orchestrator service to initiate the call
+      const result = await this.env.CALL_ORCHESTRATOR.initiateCall({
+        userId,
+        personaId,
+        phoneNumber: body.phoneNumber
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        callId: result.id,
+        status: result.status,
+        message: 'Call initiated successfully. You should receive a call shortly.'
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      this.env.logger.error('Call trigger error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to initiate call'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  /**
+   * Temporary seed endpoint to populate personas - REMOVE AFTER USE
+   */
+  private async handleSeedPersonas(request: Request): Promise<Response> {
+    try {
+      const personas = [
+        {
+          name: 'Brad',
+          description: 'Your bro who keeps it real and helps you get stuff done',
+          systemPrompt: 'You are Brad, a decisive and confident friend who speaks directly and honestly.',
+          voice: 'pNInz6obpgDQGcFmaJgB',
+          tags: ['coach']
+        },
+        {
+          name: 'Sarah',
+          description: 'A warm, empathetic friend who really listens and understands',
+          systemPrompt: 'You are Sarah, a warm and empathetic friend who creates a safe space for people to share.',
+          voice: 'EXAVITQu4vr4xnSDxMaL',
+          tags: ['friend']
+        },
+        {
+          name: 'Alex',
+          description: 'An energetic creative who helps you think outside the box',
+          systemPrompt: 'You are Alex, an energetic and creative friend who helps people see new possibilities.',
+          voice: 'pNInz6obpgDQGcFmaJgB',
+          tags: ['creative']
+        }
+      ];
+
+      const results = [];
+      for (const persona of personas) {
+        try {
+          // Note: isPublic controls is_system_persona in the database
+          const created = await this.env.PERSONA_MANAGER.createPersona({
+            name: persona.name,
+            description: persona.description,
+            systemPrompt: persona.systemPrompt,
+            voice: persona.voice,
+            isPublic: false, // This actually doesn't matter since createPersona always sets is_system_persona to false
+            tags: persona.tags
+          });
+          results.push({ success: true, persona: created });
+        } catch (error: any) {
+          results.push({ success: false, name: persona.name, error: error.message });
+        }
+      }
+
+      return new Response(JSON.stringify({ 
+        message: 'Seed complete',
+        results 
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      this.env.logger.error('Seed personas error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return new Response(JSON.stringify({
+        error: error instanceof Error ? error.message : 'Failed to seed personas'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
   }
 
   private async getUserIdFromAuth(request: Request): Promise<string | null> {

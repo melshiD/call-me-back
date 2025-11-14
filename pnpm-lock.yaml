@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@liquidmetal-ai/raindrop-framework':
-        specifier: ^0.9.2
-        version: 0.9.2
+        specifier: ^0.10.0
+        version: 0.10.0
       '@types/bcryptjs':
         specifier: ^3.0.0
         version: 3.0.0
@@ -365,12 +365,12 @@ packages:
   '@jridgewell/sourcemap-codec@1.5.5':
     resolution: {integrity: sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==}
 
-  '@liquidmetal-ai/noway@0.2.2':
-    resolution: {integrity: sha512-vvs1x+9rKT0l3wes1Qht8SMzKldGXSKbTcfPzfDVGpjuIz5uKtvxgpVQcj3Mgzz7kQBmYWBkWRGNpW1Nj6yPQA==}
+  '@liquidmetal-ai/noway@0.3.0':
+    resolution: {integrity: sha512-EI64xWqzrRw7HIwGxPPR4BRzUdckvZewvk5HWUwnBptVwknN1JfMkivLZ7120SE0JXlB0PvPFpIuyMGK9lbPqg==}
     engines: {node: '>=18.0.0'}
 
-  '@liquidmetal-ai/raindrop-framework@0.9.2':
-    resolution: {integrity: sha512-B11QK4aJF5OAZM33zadU/we0YEQebnhS/RQu3DctqV0Bf5qtnaAHo6YHAtH4Ic1/WC2Z5BNaE2xHswTRqXphAg==}
+  '@liquidmetal-ai/raindrop-framework@0.10.0':
+    resolution: {integrity: sha512-kPCbxrupLq+beEINBGxs0Ba542GMeQhxHu5oyx7+7WU3I4L0gwm4gDYMRL+3b4CJ8hyJOmJawq9UinoXH8GjqQ==}
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
@@ -1041,13 +1041,13 @@ snapshots:
 
   '@jridgewell/sourcemap-codec@1.5.5': {}
 
-  '@liquidmetal-ai/noway@0.2.2':
+  '@liquidmetal-ai/noway@0.3.0':
     dependencies:
       jose: 5.10.0
 
-  '@liquidmetal-ai/raindrop-framework@0.9.2':
+  '@liquidmetal-ai/raindrop-framework@0.10.0':
     dependencies:
-      '@liquidmetal-ai/noway': 0.2.2
+      '@liquidmetal-ai/noway': 0.3.0
       zod: 3.25.76
 
   '@polka/url@1.0.0-next.29': {}

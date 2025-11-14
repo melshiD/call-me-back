@@ -1,0 +1,12 @@
+Ok, back to the design questions you had:
+1. Does the memory key structure make sense?
+2. Is the integration timing right (initialize at call start, finalize at call end)?
+3. Should we use Cerebras to extract facts/summaries automatically, or have a separate service?
+4. Any concerns about the composite system prompt getting too large (token limits)?
+
+1. Yes, but I think we may take a step back for a moment.
+2. I think so, we'll see when we finally get to fire all this up.
+3. Yes, we should use cerebras for as much inference as we can.  I think we get 1M free tokens a day during the hackathon.  If we need a fallback, we'll OpenAI.
+4. Yes, I have concerns.  I think I'm at a point where I can see that, for our stated use case, we don't really NEED the 4-tier system.  Our average user could get by with hardly any memory at all, and you and I could come up with a clever way of using Cerebras at the end of each convo to modify a set of database-stored pieces of prompts, which when put together, sort of simulate a long, familiar relationship or knowledgebase of the user.  But not everyone will even want that.
+
+To my next point.  For the hackathon, we should definitely go all-out with the design of our personas.  So for the purposes of our hackathon, and what we'll call a premium product, we'll stick with the smartMemory and just try to manage it properly.  I would like to make a note to, at some point, design the well-trimmed system; It may even be good to have it ready for the hackathon deadline.  But for now, let's lean into smartMemory.  Review the docs on it again, and let me know what you think of how we're implementing it; just give me your thoughts

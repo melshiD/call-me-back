@@ -1,7 +1,8 @@
 import { Service } from '@liquidmetal-ai/raindrop-framework';
 import { Env } from './raindrop.gen';
 import { VoicePipelineOrchestrator, VoicePipelineConfig } from './voice-pipeline-orchestrator';
-import { CostTracker } from '../shared/cost-tracker';
+import { CallCostTracker } from '../shared/cost-tracker';
+import { executeSQL } from '../shared/db-helpers';
 
 /**
  * Voice Pipeline Service
@@ -27,7 +28,7 @@ export default class extends Service<Env> {
       this.env.logger.info('Handling voice pipeline connection', { callId, userId, personaId });
 
       // Initialize cost tracker for this call
-      const costTracker = new CostTracker(this.env.CALL_ME_BACK_DB, callId, userId);
+      const costTracker = new CallCostTracker(callId, userId, this.env.CALL_ME_BACK_DB);
       await costTracker.initialize();
 
       // Load persona from database
@@ -40,7 +41,7 @@ export default class extends Service<Env> {
       const relationship = await this.loadOrCreateRelationship(userId, personaId);
 
       // Extract voice configuration from relationship
-      const voiceId = relationship.voice_id || persona.default_voice_id || this.env.DEFAULT_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb';
+      const voiceId = relationship.voice_id || persona.default_voice_id || 'JBFqnCBsd6RMkjVDRZzb';
       const voiceSettings = relationship.voice_settings || {
         stability: 0.5,
         similarity_boost: 0.75,
@@ -51,8 +52,8 @@ export default class extends Service<Env> {
 
       // Create pipeline configuration
       const config: VoicePipelineConfig = {
-        elevenLabsApiKey: this.env.ELEVENLABS_API_KEY,
-        cerebrasApiKey: this.env.CEREBRAS_API_KEY,
+        elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
+        cerebrasApiKey: process.env.CEREBRAS_API_KEY || '',
         voiceId,
         voiceSettings,
         callId,
@@ -91,12 +92,13 @@ export default class extends Service<Env> {
    * Load persona from database
    */
   private async loadPersona(personaId: string): Promise<any> {
-    const result = await this.env.CALL_ME_BACK_DB.query(
+    const result = await executeSQL(
+      this.env.CALL_ME_BACK_DB,
       'SELECT * FROM personas WHERE id = ?',
       [personaId]
     );
 
-    if (!result.rows || result.rows.length === 0) {
+    if (!result || !result.rows || result.rows.length === 0) {
       return null;
     }
 
@@ -108,21 +110,25 @@ export default class extends Service<Env> {
    */
   private async loadOrCreateRelationship(userId: string, personaId: string): Promise<any> {
     // Try to load existing relationship
-    const result = await this.env.CALL_ME_BACK_DB.query(
+    const result = await executeSQL(
+      this.env.CALL_ME_BACK_DB,
       'SELECT * FROM user_persona_relationships WHERE user_id = ? AND persona_id = ?',
       [userId, personaId]
     );
 
-    if (result.rows && result.rows.length > 0) {
+    if (result && result.rows && result.rows.length > 0) {
       return result.rows[0];
     }
 
     // Create new relationship with defaults
-    await this.env.CALL_ME_BACK_DB.query(
+    const relationshipId = crypto.randomUUID();
+    await executeSQL(
+      this.env.CALL_ME_BACK_DB,
       `INSERT INTO user_persona_relationships
-       (user_id, persona_id, relationship_type, custom_system_prompt, voice_id, voice_settings, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (id, user_id, persona_id, relationship_type, custom_system_prompt, voice_id, voice_settings, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
+        relationshipId,
         userId,
         personaId,
         'friend',  // Default relationship type
@@ -139,12 +145,13 @@ export default class extends Service<Env> {
     );
 
     // Load the newly created relationship
-    const newResult = await this.env.CALL_ME_BACK_DB.query(
+    const newResult = await executeSQL(
+      this.env.CALL_ME_BACK_DB,
       'SELECT * FROM user_persona_relationships WHERE user_id = ? AND persona_id = ?',
       [userId, personaId]
     );
 
-    return newResult.rows![0];
+    return newResult.rows[0];
   }
 
   /**
@@ -182,8 +189,10 @@ export default class extends Service<Env> {
 }
 
 // Re-export voice pipeline components for external use
-export { VoicePipelineOrchestrator, VoicePipelineConfig } from './voice-pipeline-orchestrator';
-export { ConversationManager, ConversationState, TurnDecision } from './conversation-manager';
+export { VoicePipelineOrchestrator } from './voice-pipeline-orchestrator';
+export type { VoicePipelineConfig } from './voice-pipeline-orchestrator';
+export { ConversationManager } from './conversation-manager';
+export type { ConversationState, TurnDecision } from './conversation-manager';
 export { TurnEvaluator } from './turn-evaluator';
 export { TwilioMediaStreamHandler, generateMediaStreamTwiML } from './twilio-media-stream';
 export { ElevenLabsSTTHandler } from './elevenlabs-stt';

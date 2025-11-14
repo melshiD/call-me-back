@@ -95,7 +95,7 @@ export class PersonaMemoryManager {
 
     // 5. Optional: Search Episodic Memory for specific context
     // (Can be triggered by user query like "remember when we talked about X")
-    const episodicRecall = null;  // Load on-demand during conversation
+    const episodicRecall: any[] | undefined = undefined;  // Load on-demand during conversation
 
     console.log('[PersonaMemory] Memory context loaded', {
       sessionId,

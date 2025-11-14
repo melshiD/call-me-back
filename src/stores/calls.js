@@ -207,21 +207,41 @@ export const useCallsStore = defineStore('calls', () => {
    *   - Connection fee: $0.25, Per-minute rate: $0.40
    */
   const triggerCall = async (phoneNumber, personaId, paymentIntentId) => {
-    // Mock implementation - replace with actual API call
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const newCall = {
-          id: Date.now().toString(),
-          sid: 'CA' + Math.random().toString(36).substr(2, 9),
-          status: 'initiated',
-          persona_id: personaId,
-          phone_number: phoneNumber,
-          created_at: new Date().toISOString()
-        }
-        calls.value.unshift(newCall)
-        resolve({ call: newCall })
-      }, 500)
-    })
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/calls/trigger`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          phoneNumber,
+          personaId,
+          paymentIntentId
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to trigger call')
+      }
+
+      const result = await response.json()
+
+      // Add to local state
+      const newCall = {
+        id: result.callId,
+        status: result.status,
+        persona_id: personaId,
+        phone_number: phoneNumber,
+        created_at: new Date().toISOString()
+      }
+      calls.value.unshift(newCall)
+
+      return { call: newCall, message: result.message }
+    } catch (error) {
+      console.error('Failed to trigger call:', error)
+      throw error
+    }
   }
 
   /**

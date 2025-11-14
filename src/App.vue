@@ -2,7 +2,9 @@
   <div id="app" :class="{ 'logged-in': authStore.isAuthenticated }">
     <nav v-if="authStore.isAuthenticated" class="navbar">
       <div class="navbar-brand">
-        <h1>📞 Call Me Back</h1>
+        <router-link to="/dashboard" class="brand-link">
+          <h1>📞 Call Me Back</h1>
+        </router-link>
       </div>
       <div class="navbar-menu">
         <router-link to="/dashboard" class="nav-link">Dashboard</router-link>
@@ -49,10 +51,20 @@ const handleLogout = () => {
   flex-wrap: wrap;
 }
 
+.brand-link {
+  text-decoration: none;
+}
+
 .navbar-brand h1 {
   margin: 0;
   font-size: 1.5rem;
   color: #667eea;
+  cursor: pointer;
+  transition: opacity 0.3s;
+}
+
+.navbar-brand h1:hover {
+  opacity: 0.8;
 }
 
 .navbar-menu {

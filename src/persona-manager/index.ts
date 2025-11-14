@@ -1,7 +1,6 @@
 import { Service } from '@liquidmetal-ai/raindrop-framework';
 import { Env } from './raindrop.gen';
 import type { CreatePersonaInput, Persona, Contact } from './interfaces';
-import { executeSQL } from '../shared/db-helpers';
 
 export default class extends Service<Env> {
   async fetch(request: Request): Promise<Response> {
@@ -10,23 +9,29 @@ export default class extends Service<Env> {
 
   async getPersonas(): Promise<Persona[]> {
     try {
-      this.env.logger.info('Fetching personas');
+      this.env.logger.info('Fetching personas via database-proxy service');
 
-      const result = await executeSQL(
-        this.env.CALL_ME_BACK_DB,
-        'SELECT * FROM personas WHERE is_public = 1 ORDER BY created_at DESC',
-        []
-      );
+      // Call the database-proxy service (no external URL restrictions!)
+      const rows = await this.env.DATABASE_PROXY.getPersonas();
 
-      return result.rows.map((row: any) => ({
+      this.env.logger.info('Fetched personas via database-proxy', {
+        count: rows.length
+      });
+
+      if (!rows || rows.length === 0) {
+        this.env.logger.warn('No personas found in database');
+        return [];
+      }
+
+      return rows.map((row: any) => ({
         id: row.id,
         name: row.name,
         description: row.description,
-        voice: row.voice,
-        systemPrompt: row.system_prompt,
-        isPublic: Boolean(row.is_public),
-        createdBy: row.created_by,
-        tags: row.tags,
+        voice: row.default_voice_id,
+        systemPrompt: row.core_system_prompt,
+        isPublic: Boolean(row.is_system_persona),
+        createdBy: row.is_system_persona ? 'system' : 'user',
+        tags: row.category ? [row.category] : [],
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }));
@@ -38,27 +43,22 @@ export default class extends Service<Env> {
 
   async createPersona(input: CreatePersonaInput): Promise<Persona> {
     try {
-      this.env.logger.info('Creating persona', { name: input.name });
+      this.env.logger.info('Creating persona via database-proxy', { name: input.name });
 
       const personaId = crypto.randomUUID();
-      const createdBy = 'system';
+      const createdBy = 'user'; // User-created personas
 
-      await executeSQL(
-        this.env.CALL_ME_BACK_DB,
-        'INSERT INTO personas (id, name, description, voice, system_prompt, is_public, created_by, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          personaId,
-          input.name,
-          input.description,
-          input.voice,
-          input.systemPrompt,
-          input.isPublic ? 1 : 0,
-          createdBy,
-          input.tags || null,
-        ]
-      );
+      // Call the database-proxy service
+      await this.env.DATABASE_PROXY.createPersona({
+        id: personaId,
+        name: input.name,
+        description: input.description,
+        systemPrompt: input.systemPrompt,
+        voice: input.voice,
+        category: (input.tags && input.tags.length > 0 ? input.tags[0] : null) ?? null
+      });
 
-      this.env.logger.info('Persona created', { personaId, name: input.name });
+      this.env.logger.info('Persona created via database-proxy', { personaId, name: input.name });
 
       return {
         id: personaId,
@@ -66,7 +66,7 @@ export default class extends Service<Env> {
         description: input.description,
         voice: input.voice,
         systemPrompt: input.systemPrompt,
-        isPublic: input.isPublic ?? false,
+        isPublic: false,
         createdBy,
         tags: input.tags,
         createdAt: new Date().toISOString(),
@@ -80,17 +80,18 @@ export default class extends Service<Env> {
 
   async addContact(input: { userId: string; personaId: string }): Promise<Contact> {
     try {
-      this.env.logger.info('Adding contact', { userId: input.userId, personaId: input.personaId });
+      this.env.logger.info('Adding contact via database-proxy', { userId: input.userId, personaId: input.personaId });
 
       const contactId = crypto.randomUUID();
 
-      await executeSQL(
-        this.env.CALL_ME_BACK_DB,
-        'INSERT INTO contacts (id, user_id, persona_id) VALUES (?, ?, ?)',
-        [contactId, input.userId, input.personaId]
-      );
+      // Call the database-proxy service
+      await this.env.DATABASE_PROXY.addContact({
+        id: contactId,
+        userId: input.userId,
+        personaId: input.personaId
+      });
 
-      this.env.logger.info('Contact added', { contactId });
+      this.env.logger.info('Contact added via database-proxy', { contactId });
 
       return {
         id: contactId,

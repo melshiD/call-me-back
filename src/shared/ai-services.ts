@@ -97,7 +97,7 @@ export class CerebrasService {
       content: request.prompt
     });
 
-    const body = {
+    const body: Record<string, any> = {
       model: this.config.model,
       messages,
       max_tokens: request.maxTokens || this.config.defaultMaxTokens,
@@ -132,9 +132,9 @@ export class CerebrasService {
       }
 
       return await response.json();
-    } catch (error) {
+    } catch (error: any) {
       clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
+      if (error?.name === 'AbortError') {
         throw new Error(`Request timeout after ${this.config.timeoutMs}ms`);
       }
       throw error;
@@ -219,7 +219,7 @@ export class OpenAIService {
       content: request.prompt
     });
 
-    const body = {
+    const body: Record<string, any> = {
       model: this.config.model,
       messages,
       max_tokens: request.maxTokens || this.config.defaultMaxTokens,
@@ -252,9 +252,9 @@ export class OpenAIService {
       }
 
       return await response.json();
-    } catch (error) {
+    } catch (error: any) {
       clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
+      if (error?.name === 'AbortError') {
         throw new Error(`Request timeout after ${this.config.timeoutMs}ms`);
       }
       throw error;

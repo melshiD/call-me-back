@@ -15,7 +15,7 @@ import { ElevenLabsSTTHandler, STTHandlers } from './elevenlabs-stt';
 import { ElevenLabsTTSHandler, TTSHandlers, VOICE_IDS } from './elevenlabs-tts';
 import { ConversationManager, ConversationState, TranscriptSegment } from './conversation-manager';
 import { LLMServiceFactory } from '../shared/ai-services';
-import { CostTracker } from '../shared/cost-tracker';
+import { CallCostTracker } from '../shared/cost-tracker';
 import { PersonaMemoryManager, ConversationContext, MemoryUpdate } from '../shared/persona-memory-manager';
 
 export interface VoicePipelineConfig {
@@ -58,7 +58,7 @@ export class VoicePipelineOrchestrator {
   private sttHandler: ElevenLabsSTTHandler;
   private ttsHandler: ElevenLabsTTSHandler;
   private conversationManager: ConversationManager;
-  private costTracker: CostTracker;
+  private costTracker: CallCostTracker;
   private memoryManager: PersonaMemoryManager | null = null;
 
   // Memory & Persona
@@ -77,7 +77,7 @@ export class VoicePipelineOrchestrator {
 
   constructor(
     config: VoicePipelineConfig,
-    costTracker: CostTracker,
+    costTracker: CallCostTracker,
     conversationMemory: any,  // SmartMemory from this.env
     corePersona: any,
     relationship: any
@@ -250,7 +250,7 @@ export class VoicePipelineOrchestrator {
         // Track STT cost
         const charCount = text.length;
         const durationSecs = charCount / 15; // Rough estimate: ~15 chars/second
-        await this.costTracker.trackSTT(durationSecs, 'elevenlabs', 'scribe_v2_realtime');
+        await this.costTracker.trackSTT(durationSecs, 'scribe_v2_realtime');
 
         // Trigger response generation based on conversation state
         this.checkAndGenerateResponse();
@@ -388,7 +388,7 @@ export class VoicePipelineOrchestrator {
     this.ttsHandler.complete();
 
     // Track TTS cost
-    await this.costTracker.trackTTS(text.length, 'elevenlabs', 'eleven_turbo_v2');
+    await this.costTracker.trackTTS(text, this.config.voiceId, 'eleven_turbo_v2');
   }
 
   /**
@@ -454,8 +454,7 @@ export class VoicePipelineOrchestrator {
     this.twilioHandler.close();
 
     // Finalize cost tracking
-    const callDuration = (Date.now() - this.callStartTime) / 1000;
-    await this.costTracker.finalize(callDuration);
+    await this.costTracker.finalize(new Date());
 
     console.log('[VoicePipeline] Pipeline stopped');
   }

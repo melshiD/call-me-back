@@ -12,13 +12,21 @@ export interface Env {
   CALL_ME_BACK_DB: SmartSql;
   CALL_ORCHESTRATOR: ServiceStub<import('../call-orchestrator/index.js').default>;
   CALL_TRANSCRIPTS: SmartBucket;
+  CEREBRAS_API_KEY: string;
   CONVERSATION_MEMORY: SmartMemory;
+  DATABASE_PROXY: ServiceStub<import('../database-proxy/index.js').default>;
+  ELEVENLABS_API_KEY: string;
   logger: Logger;
   mem: KvCache;
   PERSONA_MANAGER: ServiceStub<import('../persona-manager/index.js').default>;
   RATE_LIMIT_CACHE: KvCache;
   TOKEN_BLACKLIST: KvCache;
   tracer: Tracer;
+  TWILIO_ACCOUNT_SID: string;
+  TWILIO_AUTH_TOKEN: string;
+  TWILIO_PHONE_NUMBER: string;
   VOICE_PIPELINE: ServiceStub<import('../voice-pipeline/index.js').default>;
+  VULTR_DB_API_KEY: string;
+  VULTR_DB_API_URL: string;
   WEBHOOK_HANDLER: ServiceStub<import('../webhook-handler/index.js').default>;
 }
