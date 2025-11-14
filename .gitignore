@@ -26,3 +26,4 @@ dist-ssr
 .env
 .vercel
 UPON_RESUMPTION.md
+set-vlutr-env.sh
