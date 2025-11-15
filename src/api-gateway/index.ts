@@ -13,6 +13,11 @@ export default class extends Service<Env> {
         return await this.handlePersonaRoutes(request, path);
       }
 
+      // Auth routes
+      if (path.startsWith('/api/auth')) {
+        return await this.handleAuthRoutes(request, path);
+      }
+
       // Call trigger routes
       if (path.startsWith('/api/calls')) {
         return await this.handleCallRoutes(request, path);
@@ -493,13 +498,94 @@ export default class extends Service<Env> {
     }
   }
 
-  private async getUserIdFromAuth(request: Request): Promise<string | null> {
-    // TODO: Extract user ID from JWT token in Authorization header
-    // For now, return null to indicate auth is not implemented
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader) return null;
+  /**
+   * Handle authentication routes
+   */
+  private async handleAuthRoutes(request: Request, path: string): Promise<Response> {
+    try {
+      // POST /api/auth/register - User registration
+      if (request.method === 'POST' && path === '/api/auth/register') {
+        const body = await request.json() as any;
+        const result = await this.env.AUTH_MANAGER.register(body);
+        return new Response(JSON.stringify(result), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
 
-    // Placeholder - implement JWT verification
+      // POST /api/auth/login - User login
+      if (request.method === 'POST' && path === '/api/auth/login') {
+        const body = await request.json() as any;
+        const result = await this.env.AUTH_MANAGER.login(body);
+        return new Response(JSON.stringify(result), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // POST /api/auth/logout - User logout
+      if (request.method === 'POST' && path === '/api/auth/logout') {
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return new Response('Unauthorized', { status: 401 });
+        }
+        const token = authHeader.substring(7);
+        await this.env.AUTH_MANAGER.logout(token);
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // GET /api/auth/validate - Validate token
+      if (request.method === 'GET' && path === '/api/auth/validate') {
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return new Response('Unauthorized', { status: 401 });
+        }
+        const token = authHeader.substring(7);
+        const result = await this.env.AUTH_MANAGER.validateToken(token);
+        if (!result.valid) {
+          return new Response(JSON.stringify(result), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        return new Response(JSON.stringify(result), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      return new Response('Not Found', { status: 404 });
+    } catch (error) {
+      this.env.logger.error('Auth route error', {
+        error: error instanceof Error ? error.message : String(error),
+        path
+      });
+      return new Response(JSON.stringify({
+        error: error instanceof Error ? error.message : 'Authentication error'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  private async getUserIdFromAuth(request: Request): Promise<string | null> {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+
+    const token = authHeader.substring(7);
+    try {
+      const validation = await this.env.AUTH_MANAGER.validateToken(token);
+      if (validation.valid && validation.userId) {
+        return validation.userId;
+      }
+    } catch (error) {
+      this.env.logger.error('Token validation error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+
     return null;
   }
 }

@@ -44,31 +44,37 @@ The api-gateway/index.ts needs routes for:
 - ✅ `/api/scenario-templates` - Templates
 - ❌ `/api/auth/*` - **NOT IMPLEMENTED**
 
-## Next Steps Required
+## Recent Updates - Auth Routes Implementation ✅
 
-### 1. Add Auth Routes to API Gateway
-Need to add a new section in api-gateway/index.ts:
-```typescript
-// Auth routes
-if (path.startsWith('/api/auth')) {
-  return await this.handleAuthRoutes(request, path);
-}
-```
+### 1. Auth Routes Added to API Gateway ✅
+Successfully added auth routes to api-gateway/index.ts:
+- `/api/auth/register` - User registration
+- `/api/auth/login` - User login
+- `/api/auth/logout` - User logout
+- `/api/auth/validate` - Token validation
 
-And implement `handleAuthRoutes` method that calls the AUTH_MANAGER service.
+The handleAuthRoutes method properly forwards requests to the AUTH_MANAGER service.
 
-### 2. Test Authentication Flow
-Once auth routes are added:
-- Test user registration
-- Test user login
+### 2. Deployment Status 🚀
+- Successfully deployed with auth routes (version: 01ka40by...)
+- Currently in sandbox mode after fresh generate
+- Waiting for deployment to propagate across edge locations
+
+## Next Steps - Testing & Verification
+
+### 1. Test Authentication Flow
+Once deployment propagates (takes 1-2 minutes):
+- Test user registration endpoint
+- Test user login endpoint
 - Verify JWT tokens work
 - Test protected endpoints
 
-### 3. Test Call Triggering
-After auth works:
+### 2. Test Call Triggering
+After auth verification:
 - Test demo mode calling
 - Verify database records are created
-- Check payment flow integration
+- Implement 11labs voice integration
+- Test full call flow with actual phone numbers
 
 ## Database Architecture Summary
 

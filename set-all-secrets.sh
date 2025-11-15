@@ -11,7 +11,8 @@ set -a
 source .env 2>/dev/null
 set +a
 
-echo "Setting database secrets (CRITICAL)..."
+echo "Setting authentication and database secrets (CRITICAL)..."
+raindrop build env set env:JWT_SECRET "$JWT_SECRET" && echo "✓ JWT_SECRET"
 raindrop build env set env:VULTR_DB_API_URL "$VULTR_DB_API_URL" && echo "✓ VULTR_DB_API_URL"
 raindrop build env set env:VULTR_DB_API_KEY "$VULTR_DB_API_KEY" && echo "✓ VULTR_DB_API_KEY"
 
