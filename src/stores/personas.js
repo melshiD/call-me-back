@@ -147,12 +147,6 @@ export const usePersonasStore = defineStore('personas', () => {
       // Update personas
       personas.value = filtered
 
-      // ALWAYS update userContacts with the fetched personas
-      // This ensures we show real database personas, not mock data
-      if (filtered.length > 0) {
-        userContacts.value = filtered.slice(0, Math.min(2, filtered.length))
-      }
-
       return {
         personas: filtered,
         pagination: { page, limit, total: filtered.length, pages: 1 }
@@ -175,9 +169,6 @@ export const usePersonasStore = defineStore('personas', () => {
         )
       }
       personas.value = filtered
-      if (userContacts.value.length === 0) {
-        userContacts.value = [mockPersonas[0], mockPersonas[1]]
-      }
       return {
         personas: filtered,
         pagination: { page, limit, total: filtered.length, pages: 1 }
@@ -436,12 +427,34 @@ export const usePersonasStore = defineStore('personas', () => {
    *   - Cache for 1 minute
    */
   const fetchContacts = async () => {
-    // First fetch all personas to populate the list
-    await fetchPersonas()
+    const apiUrl = import.meta.env.VITE_API_URL
+    const token = localStorage.getItem('authToken')
 
-    // For now, return userContacts which are set by fetchPersonas
-    // TODO: In the future, this should fetch user's saved contacts from the API
-    return { contacts: userContacts.value }
+    if (!token) {
+      console.warn('No auth token found, cannot fetch contacts')
+      userContacts.value = []
+      return { contacts: [] }
+    }
+
+    try {
+      const response = await fetch(`${apiUrl}/api/contacts`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch contacts: ${response.status}`)
+      }
+
+      const contacts = await response.json()
+      userContacts.value = contacts
+      return { contacts }
+    } catch (error) {
+      console.error('Failed to fetch contacts:', error)
+      userContacts.value = []
+      return { contacts: [] }
+    }
   }
 
   /**
@@ -493,16 +506,40 @@ export const usePersonasStore = defineStore('personas', () => {
    *   - Limit to 50 contacts per user
    */
   const addToContacts = async (personaId) => {
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const persona = personas.value.find(p => p.id === personaId)
-        if (persona && !userContacts.value.find(c => c.id === personaId)) {
-          userContacts.value.push(persona)
-        }
-        resolve({ contact: { id: 'contact-' + Date.now(), persona_id: personaId, added_at: new Date().toISOString() } })
-      }, 300)
-    })
+    const apiUrl = import.meta.env.VITE_API_URL
+    const token = localStorage.getItem('authToken')
+
+    if (!token) {
+      throw new Error('Authentication required')
+    }
+
+    try {
+      const response = await fetch(`${apiUrl}/api/contacts`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ personaId })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to add contact: ${response.status}`)
+      }
+
+      const contact = await response.json()
+
+      // Update local state: Add persona to userContacts
+      const persona = personas.value.find(p => p.id === personaId)
+      if (persona && !userContacts.value.find(c => c.id === personaId)) {
+        userContacts.value.push(persona)
+      }
+
+      return contact
+    } catch (error) {
+      console.error('Failed to add contact:', error)
+      throw error
+    }
   }
 
   /**
@@ -516,13 +553,33 @@ export const usePersonasStore = defineStore('personas', () => {
    *   }
    */
   const removeFromContacts = async (personaId) => {
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        userContacts.value = userContacts.value.filter(c => c.id !== personaId)
-        resolve({ message: 'Removed from contacts' })
-      }, 300)
-    })
+    const apiUrl = import.meta.env.VITE_API_URL
+    const token = localStorage.getItem('authToken')
+
+    if (!token) {
+      throw new Error('Authentication required')
+    }
+
+    try {
+      const response = await fetch(`${apiUrl}/api/contacts/${personaId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to remove contact: ${response.status}`)
+      }
+
+      // Update local state: Remove from userContacts
+      userContacts.value = userContacts.value.filter(c => c.id !== personaId)
+
+      return await response.json()
+    } catch (error) {
+      console.error('Failed to remove contact:', error)
+      throw error
+    }
   }
 
   return {
