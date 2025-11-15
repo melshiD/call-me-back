@@ -3,7 +3,6 @@
 import * as bcrypt from 'bcryptjs';
 import * as jose from 'jose';
 import type { JWTPayload, TokenValidationResult } from './interfaces';
-import { executeSQL } from '../shared/db-helpers';
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = await bcrypt.genSalt(10);
@@ -53,10 +52,16 @@ export async function validateToken(token: string, secret: string): Promise<Toke
 }
 
 export async function blacklistToken(tokenId: string, userId: string, expiresAt: string, db: any): Promise<void> {
-  await executeSQL(db, 'INSERT INTO token_blacklist (token_id, user_id, expires_at) VALUES (?, ?, ?)', [tokenId, userId, expiresAt]);
+  await db.executeQuery(
+    'INSERT INTO token_blacklist (token_id, user_id, expires_at) VALUES ($1, $2, $3)',
+    [tokenId, userId, expiresAt]
+  );
 }
 
 export async function isTokenBlacklisted(tokenId: string, db: any): Promise<boolean> {
-  const result = await executeSQL(db, 'SELECT token_id FROM token_blacklist WHERE token_id = ? AND expires_at > datetime("now")', [tokenId]);
+  const result = await db.executeQuery(
+    'SELECT token_id FROM token_blacklist WHERE token_id = $1 AND expires_at > NOW()',
+    [tokenId]
+  );
   return result.rows.length > 0;
 }

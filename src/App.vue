@@ -1,18 +1,29 @@
 <template>
   <div id="app" :class="{ 'logged-in': authStore.isAuthenticated }">
-    <nav v-if="authStore.isAuthenticated" class="navbar">
+    <nav class="navbar">
       <div class="navbar-brand">
-        <router-link to="/dashboard" class="brand-link">
+        <router-link :to="authStore.isAuthenticated ? '/dashboard' : '/'" class="brand-link">
           <h1>📞 Call Me Back</h1>
         </router-link>
       </div>
       <div class="navbar-menu">
-        <router-link to="/dashboard" class="nav-link">Dashboard</router-link>
-        <router-link to="/schedule" class="nav-link">Schedule</router-link>
-        <router-link to="/contacts" class="nav-link">Contacts</router-link>
-        <router-link to="/personas" class="nav-link">Personas</router-link>
-        <router-link to="/profile" class="nav-link">Profile</router-link>
-        <button @click="handleLogout" class="btn-logout">Logout</button>
+        <!-- Visitor navigation (when not logged in) -->
+        <template v-if="!authStore.isAuthenticated">
+          <router-link to="/" class="nav-link">Home</router-link>
+          <router-link to="/personas" class="nav-link">Browse Personas</router-link>
+          <router-link to="/login" class="nav-link">Login</router-link>
+          <router-link to="/register" class="nav-link btn-primary">Sign Up</router-link>
+        </template>
+
+        <!-- User navigation (when logged in) -->
+        <template v-else>
+          <router-link to="/dashboard" class="nav-link">Dashboard</router-link>
+          <router-link to="/schedule" class="nav-link">Schedule</router-link>
+          <router-link to="/contacts" class="nav-link">Contacts</router-link>
+          <router-link to="/personas" class="nav-link">Personas</router-link>
+          <router-link to="/profile" class="nav-link">Profile</router-link>
+          <button @click="handleLogout" class="btn-logout">Logout</button>
+        </template>
       </div>
     </nav>
 
@@ -100,6 +111,17 @@ const handleLogout = () => {
 
 .btn-logout:hover {
   background: #c82333;
+}
+
+.nav-link.btn-primary {
+  background: #667eea;
+  color: white;
+  padding: 0.5rem 1rem;
+}
+
+.nav-link.btn-primary:hover {
+  background: #5a67d8;
+  color: white;
 }
 
 .main-content {

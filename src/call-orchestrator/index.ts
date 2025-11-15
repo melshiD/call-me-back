@@ -1,24 +1,45 @@
 import { Service } from '@liquidmetal-ai/raindrop-framework';
 import { Env } from './raindrop.gen';
 import type { Call, ScheduledCall } from './interfaces';
-import { executeSQL } from '../shared/db-helpers';
 
 export default class extends Service<Env> {
   async fetch(request: Request): Promise<Response> {
     return new Response('Not implemented', { status: 501 });
   }
 
-  async initiateCall(input: { userId: string; personaId: string; phoneNumber: string }): Promise<Call> {
+  async initiateCall(input: { 
+    userId: string; 
+    personaId: string; 
+    phoneNumber: string;
+    paymentMethod?: string;
+    paymentIntentId?: string;
+    paymentStatus?: string;
+  }): Promise<Call> {
     try {
-      this.env.logger.info('Initiating call', { userId: input.userId });
+      this.env.logger.info('Initiating call', { 
+        userId: input.userId,
+        paymentMethod: input.paymentMethod || 'demo'
+      });
 
       const callId = crypto.randomUUID();
 
-      // Store call in database
-      await executeSQL(
-        this.env.CALL_ME_BACK_DB,
-        'INSERT INTO calls (id, user_id, persona_id, phone_number, status) VALUES (?, ?, ?, ?, ?)',
-        [callId, input.userId, input.personaId, input.phoneNumber, 'initiating']
+      // Store call in database with payment information
+      await this.env.DATABASE_PROXY.executeQuery(
+        `INSERT INTO calls (
+          id, user_id, persona_id, phone_number, status,
+          payment_method, payment_intent_id, payment_status, estimated_cost_cents
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          callId,
+          input.userId,
+          input.personaId,
+          input.phoneNumber,
+          'initiating',
+          input.paymentMethod || 'demo',
+          input.paymentIntentId || null,
+          input.paymentStatus || 'pending',
+          500 // Estimated 5 dollars for a call
+        ]
       );
 
       // TODO: Configure these with your Twilio credentials
@@ -27,8 +48,28 @@ export default class extends Service<Env> {
       const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN || 'YOUR_TWILIO_AUTH_TOKEN_HERE';
       const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER || 'YOUR_TWILIO_PHONE_NUMBER_HERE';
 
+      // For demo mode, allow calls even without Twilio configured
+      if (input.paymentMethod === 'demo' && twilioAccountSid === 'YOUR_TWILIO_ACCOUNT_SID_HERE') {
+        this.env.logger.warn('Twilio not configured - simulating call for demo mode', { callId });
+        
+        // Update call status to simulated
+        await this.env.DATABASE_PROXY.executeQuery(
+          'UPDATE calls SET status = $1, error_message = $2 WHERE id = $3',
+          ['simulated', 'Twilio not configured - demo mode', callId]
+        );
+
+        return {
+          id: callId,
+          userId: input.userId,
+          personaId: input.personaId,
+          phoneNumber: input.phoneNumber,
+          status: 'simulated',
+          createdAt: new Date().toISOString(),
+        };
+      }
+
       if (!twilioAccountSid || twilioAccountSid === 'YOUR_TWILIO_ACCOUNT_SID_HERE') {
-        throw new Error('Twilio credentials not configured - please update src/call-orchestrator/index.ts with your credentials');
+        throw new Error('Twilio credentials not configured - please update environment variables with your Twilio credentials');
       }
 
       // Get the base URL for webhooks
@@ -63,13 +104,16 @@ export default class extends Service<Env> {
       const twilioCall = await response.json() as any;
 
       // Update call with Twilio SID
-      await executeSQL(
-        this.env.CALL_ME_BACK_DB,
-        'UPDATE calls SET twilio_call_sid = ?, status = ? WHERE id = ?',
+      await this.env.DATABASE_PROXY.executeQuery(
+        'UPDATE calls SET twilio_call_sid = $1, status = $2 WHERE id = $3',
         [twilioCall.sid, 'in-progress', callId]
       );
 
-      this.env.logger.info('Call initiated via Twilio', { callId, twilioCallSid: twilioCall.sid });
+      this.env.logger.info('Call initiated via Twilio', { 
+        callId, 
+        twilioCallSid: twilioCall.sid,
+        paymentMethod: input.paymentMethod 
+      });
 
       return {
         id: callId,
@@ -91,9 +135,8 @@ export default class extends Service<Env> {
 
       const callId = crypto.randomUUID();
 
-      await executeSQL(
-        this.env.CALL_ME_BACK_DB,
-        'INSERT INTO scheduled_calls (id, user_id, persona_id, phone_number, scheduled_time, status) VALUES (?, ?, ?, ?, ?, ?)',
+      await this.env.DATABASE_PROXY.executeQuery(
+        'INSERT INTO scheduled_calls (id, user_id, persona_id, phone_number, scheduled_time, status) VALUES ($1, $2, $3, $4, $5, $6)',
         [callId, input.userId, input.personaId, input.phoneNumber, input.scheduledTime, 'scheduled']
       );
 

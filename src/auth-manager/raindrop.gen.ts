@@ -15,6 +15,7 @@ export interface Env {
   CONVERSATION_MEMORY: SmartMemory;
   DATABASE_PROXY: ServiceStub<import('../database-proxy/index.js').default>;
   ELEVENLABS_API_KEY: string;
+  JWT_SECRET: string;
   logger: Logger;
   mem: KvCache;
   PAYMENT_PROCESSOR: ServiceStub<import('../payment-processor/index.js').default>;

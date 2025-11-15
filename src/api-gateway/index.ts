@@ -337,6 +337,8 @@ export default class extends Service<Env> {
         phoneNumber: string;
         personaId?: string;
         userId?: string;
+        paymentIntentId?: string; // For one-time Stripe payments
+        useCredits?: boolean; // To use account credits instead
       };
 
       if (!body.phoneNumber) {
@@ -350,19 +352,61 @@ export default class extends Service<Env> {
       const userId = body.userId || 'demo_user';
       const personaId = body.personaId || 'brad_001';
 
-      this.env.logger.info('Triggering call', { phoneNumber: body.phoneNumber, userId, personaId });
+      // Determine payment method
+      let paymentMethod = 'demo'; // Default for testing
+      let paymentIntentId: string | undefined = undefined;
+      let paymentStatus = 'pending';
+
+      if (body.paymentIntentId) {
+        // Using Stripe payment
+        paymentMethod = 'stripe';
+        paymentIntentId = body.paymentIntentId;
+        // TODO: Verify payment intent with Stripe
+        // For now, assume it's valid
+        paymentStatus = 'paid';
+      } else if (body.useCredits) {
+        // Using account credits
+        paymentMethod = 'credit';
+        // TODO: Check user credits balance
+        // For now, assume they have credits
+        paymentStatus = 'credit_used';
+      } else if (userId === 'demo_user') {
+        // Demo mode - free calls for testing
+        paymentMethod = 'demo';
+        paymentStatus = 'paid';
+      } else {
+        // No payment method provided
+        return new Response(JSON.stringify({ 
+          error: 'Payment method required. Please provide paymentIntentId or set useCredits to true' 
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      this.env.logger.info('Triggering call', { 
+        phoneNumber: body.phoneNumber, 
+        userId, 
+        personaId,
+        paymentMethod,
+        paymentStatus
+      });
 
       // Call the call-orchestrator service to initiate the call
       const result = await this.env.CALL_ORCHESTRATOR.initiateCall({
         userId,
         personaId,
-        phoneNumber: body.phoneNumber
+        phoneNumber: body.phoneNumber,
+        paymentMethod,
+        paymentIntentId,
+        paymentStatus
       });
 
       return new Response(JSON.stringify({
         success: true,
         callId: result.id,
         status: result.status,
+        paymentMethod,
         message: 'Call initiated successfully. You should receive a call shortly.'
       }), {
         status: 200,

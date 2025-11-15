@@ -15,6 +15,7 @@ export interface Env {
   CEREBRAS_API_KEY: string;
   CONVERSATION_MEMORY: SmartMemory;
   ELEVENLABS_API_KEY: string;
+  JWT_SECRET: string;
   logger: Logger;
   mem: KvCache;
   PAYMENT_PROCESSOR: ServiceStub<import('../payment-processor/index.js').default>;

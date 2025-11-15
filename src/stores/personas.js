@@ -8,54 +8,34 @@ export const usePersonasStore = defineStore('personas', () => {
   // Mock personas data
   const mockPersonas = [
     {
-      id: 'friend',
-      name: 'Best Friend',
-      description: 'Your supportive best friend who always has your back',
+      id: 'test1',
+      name: 'TEST_FALLBACK_1',
+      description: 'THIS IS A TEST - If you see this, API is not working',
       voice: 'rachel',
-      system_prompt: 'You are a supportive best friend calling to help your friend get out of an awkward situation. Be warm, understanding, and create a believable emergency or reason for them to leave.',
+      system_prompt: 'Test fallback persona 1',
       is_public: true,
       created_by: 'system',
-      tags: ['friendly', 'supportive', 'casual']
+      tags: ['test', 'fallback']
     },
     {
-      id: 'manager',
-      name: 'Boss',
-      description: 'Your demanding boss with an urgent work matter',
+      id: 'test2',
+      name: 'TEST_FALLBACK_2',
+      description: 'THIS IS A TEST - API call failed',
       voice: 'adam',
-      system_prompt: 'You are a demanding but professional boss calling with an urgent work matter. Be authoritative and make it clear that your employee needs to return to the office or handle something immediately.',
+      system_prompt: 'Test fallback persona 2',
       is_public: true,
       created_by: 'system',
-      tags: ['professional', 'urgent', 'authoritative']
+      tags: ['test', 'fallback']
     },
     {
-      id: 'agent',
-      name: 'Talent Agent',
-      description: 'Your talent agent with exciting news about an opportunity',
+      id: 'test3',
+      name: 'TEST_FALLBACK_3',
+      description: 'THIS IS A TEST - Using mock data',
       voice: 'bella',
-      system_prompt: 'You are an enthusiastic talent agent calling with exciting news about a potential opportunity. Be professional but excited, and make it sound urgent that they need to discuss this now.',
+      system_prompt: 'Test fallback persona 3',
       is_public: true,
       created_by: 'system',
-      tags: ['professional', 'exciting', 'opportunity']
-    },
-    {
-      id: 'doctor',
-      name: 'Doctor',
-      description: 'Your doctor calling about important test results',
-      voice: 'emily',
-      system_prompt: 'You are a medical professional calling about test results. Be professional and serious, suggesting the person needs to come in or discuss something important privately.',
-      is_public: true,
-      created_by: 'system',
-      tags: ['professional', 'medical', 'serious']
-    },
-    {
-      id: 'family',
-      name: 'Family Member',
-      description: 'A family member with an urgent family matter',
-      voice: 'grace',
-      system_prompt: 'You are a concerned family member calling about an urgent family matter. Be warm but urgent, making it clear they need to call back or leave their current situation.',
-      is_public: true,
-      created_by: 'system',
-      tags: ['family', 'urgent', 'caring']
+      tags: ['test', 'fallback']
     }
   ]
 
@@ -136,14 +116,24 @@ export const usePersonasStore = defineStore('personas', () => {
    *   - System personas cannot be edited or deleted
    */
   const fetchPersonas = async (page = 1, limit = 20, search = '') => {
+    const apiUrl = import.meta.env.VITE_API_URL
+    console.log('🔍 DEBUG: Fetching personas from:', apiUrl)
+    console.log('🔍 DEBUG: Full URL:', `${apiUrl}/api/personas`)
+
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/personas`)
+      const response = await fetch(`${apiUrl}/api/personas`)
+      console.log('🔍 DEBUG: Response status:', response.status)
+      console.log('🔍 DEBUG: Response headers:', Object.fromEntries(response.headers.entries()))
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch personas: ${response.statusText}`)
+        const errorText = await response.text()
+        console.error('🔍 DEBUG: Response not OK. Body:', errorText)
+        throw new Error(`Failed to fetch personas: ${response.status} ${response.statusText}`)
       }
 
       const fetchedPersonas = await response.json()
+      console.log('🔍 DEBUG: Successfully fetched personas:', fetchedPersonas.length, 'personas')
+      console.log('🔍 DEBUG: First persona:', fetchedPersonas[0]?.name)
 
       // Apply client-side filtering if search is provided
       let filtered = fetchedPersonas
@@ -168,8 +158,15 @@ export const usePersonasStore = defineStore('personas', () => {
         pagination: { page, limit, total: filtered.length, pages: 1 }
       }
     } catch (error) {
-      console.error('Failed to fetch personas:', error)
+      console.error('🔴 DEBUG: Failed to fetch personas:', error)
+      console.error('🔴 DEBUG: Error details:', {
+        message: error.message,
+        stack: error.stack,
+        apiUrl: apiUrl
+      })
+
       // Fallback to mock data if API fails
+      console.log('⚠️ DEBUG: Using TEST_FALLBACK mock data')
       let filtered = mockPersonas
       if (search) {
         filtered = filtered.filter(p =>

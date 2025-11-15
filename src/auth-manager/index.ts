@@ -2,7 +2,6 @@ import { Service } from '@liquidmetal-ai/raindrop-framework';
 import { Env } from './raindrop.gen';
 import type { RegisterInput, LoginInput, AuthResponse, TokenValidationResult } from './interfaces';
 import * as utils from './utils';
-import { executeSQL } from '../shared/db-helpers';
 
 export default class extends Service<Env> {
   async fetch(request: Request): Promise<Response> {
@@ -19,9 +18,8 @@ export default class extends Service<Env> {
       }
 
       // Check if user already exists
-      const existingUser = await executeSQL(
-        this.env.CALL_ME_BACK_DB,
-        'SELECT id FROM users WHERE email = ?',
+      const existingUser = await this.env.DATABASE_PROXY.executeQuery(
+        'SELECT id FROM users WHERE email = $1',
         [input.email]
       );
 
@@ -36,9 +34,8 @@ export default class extends Service<Env> {
       const userId = crypto.randomUUID();
 
       // Insert user
-      await executeSQL(
-        this.env.CALL_ME_BACK_DB,
-        'INSERT INTO users (id, email, password_hash, name, phone) VALUES (?, ?, ?, ?, ?)',
+      await this.env.DATABASE_PROXY.executeQuery(
+        'INSERT INTO users (id, email, password_hash, name, phone) VALUES ($1, $2, $3, $4, $5)',
         [userId, input.email, passwordHash, input.name, input.phone]
       );
 
@@ -71,9 +68,8 @@ export default class extends Service<Env> {
       this.env.logger.info('User login attempt', { email: input.email });
 
       // Find user
-      const result = await executeSQL(
-        this.env.CALL_ME_BACK_DB,
-        'SELECT * FROM users WHERE email = ?',
+      const result = await this.env.DATABASE_PROXY.executeQuery(
+        'SELECT * FROM users WHERE email = $1',
         [input.email]
       );
 
@@ -125,7 +121,7 @@ export default class extends Service<Env> {
       }
 
       // Check if token is blacklisted
-      const isBlacklisted = await utils.isTokenBlacklisted(validation.tokenId!, this.env.CALL_ME_BACK_DB);
+      const isBlacklisted = await utils.isTokenBlacklisted(validation.tokenId!, this.env.DATABASE_PROXY);
 
       if (isBlacklisted) {
         return {
@@ -152,7 +148,7 @@ export default class extends Service<Env> {
         // Calculate expiration (30 days from now)
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-        await utils.blacklistToken(validation.tokenId, validation.userId, expiresAt, this.env.CALL_ME_BACK_DB);
+        await utils.blacklistToken(validation.tokenId, validation.userId, expiresAt, this.env.DATABASE_PROXY);
 
         this.env.logger.info('User logged out', { userId: validation.userId });
       }
