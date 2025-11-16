@@ -248,20 +248,24 @@ export default class extends Service<Env> {
 
   async validateToken(token: string): Promise<TokenValidationResult> {
     try {
+      // Both WorkOS access tokens and our JWT tokens are JWT format
+      // So we can use the same validation logic
       const validation = await utils.validateToken(token, this.env.JWT_SECRET);
 
       if (!validation.valid) {
         return validation;
       }
 
-      // Check if token is blacklisted
-      const isBlacklisted = await utils.isTokenBlacklisted(validation.tokenId!, this.env.DATABASE_PROXY);
+      // Check if token is blacklisted (only for our JWT tokens, not WorkOS)
+      if (validation.tokenId) {
+        const isBlacklisted = await utils.isTokenBlacklisted(validation.tokenId, this.env.DATABASE_PROXY);
 
-      if (isBlacklisted) {
-        return {
-          valid: false,
-          error: 'Token is blacklisted',
-        };
+        if (isBlacklisted) {
+          return {
+            valid: false,
+            error: 'Token is blacklisted',
+          };
+        }
       }
 
       return validation;

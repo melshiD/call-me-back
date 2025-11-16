@@ -66,26 +66,34 @@ export const useAuthStore = defineStore('auth', () => {
    *   - HTTPS required in production
    */
   const login = async (email, password) => {
-    // Mock implementation - replace with actual API call
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const mockUser = {
-          id: '1',
-          email: email,
-          name: 'John Doe',
-          phone: '+1234567890',
-          created_at: new Date().toISOString()
-        }
-        const mockToken = 'mock-jwt-token-' + Date.now()
+    const apiUrl = import.meta.env.VITE_API_URL
 
-        user.value = mockUser
-        token.value = mockToken
-        localStorage.setItem('token', mockToken)
-        localStorage.setItem('user', JSON.stringify(mockUser))
+    try {
+      const response = await fetch(`${apiUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      })
 
-        resolve({ user: mockUser, token: mockToken })
-      }, 500)
-    })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Login failed')
+      }
+
+      const data = await response.json()
+
+      user.value = data.user
+      token.value = data.token
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('user', JSON.stringify(data.user))
+
+      return data
+    } catch (error) {
+      console.error('Login failed:', error)
+      throw error
+    }
   }
 
   /**
@@ -160,26 +168,34 @@ export const useAuthStore = defineStore('auth', () => {
    *   - Implement email verification flow for production
    */
   const register = async (name, email, password, phone) => {
-    // Mock implementation - replace with actual API call
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const mockUser = {
-          id: '1',
-          email: email,
-          name: name,
-          phone: phone,
-          created_at: new Date().toISOString()
-        }
-        const mockToken = 'mock-jwt-token-' + Date.now()
+    const apiUrl = import.meta.env.VITE_API_URL
 
-        user.value = mockUser
-        token.value = mockToken
-        localStorage.setItem('token', mockToken)
-        localStorage.setItem('user', JSON.stringify(mockUser))
+    try {
+      const response = await fetch(`${apiUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name, email, password, phone })
+      })
 
-        resolve({ user: mockUser, token: mockToken })
-      }, 500)
-    })
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Registration failed')
+      }
+
+      const data = await response.json()
+
+      user.value = data.user
+      token.value = data.token
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('user', JSON.stringify(data.user))
+
+      return data
+    } catch (error) {
+      console.error('Registration failed:', error)
+      throw error
+    }
   }
 
   /**

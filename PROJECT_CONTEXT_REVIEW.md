@@ -16,13 +16,13 @@
 
 **Current State:**
 - ✅ **Twilio integration WORKING** (Fixed 2025-11-16: env vars now use `this.env`, credentials set, API calls successful. Trial account limitation only - needs verified numbers)
-- ✅ Authentication working (JWT-based, needs WorkOS upgrade)
+- ✅ **Authentication WORKING** (Frontend calling real API, users can register/login/add contacts)
+- ⚠️ **WorkOS LIKELY FALLING BACK TO JWT** - AuthKit shows no usage despite credentials being set. Need to investigate why WorkOS path isn't being used (likely error in WorkOS authentication causing fallback)
+- ✅ **Contacts functionality WORKING** (Add/remove contacts tested, "Add to Contacts" button functional)
 - ✅ Personas loading from Vultr PostgreSQL (Brad, Sarah, Alex)
 - ✅ Database fully migrated to Vultr PostgreSQL via database-proxy pattern
 - ✅ Frontend deployed to Vercel
 - ✅ Backend deployed to Raindrop (sandbox mode)
-- ❌ WorkOS authentication NOT YET implemented (hackathon requirement)
-- ❌ "Add to contacts" button not working
 - ⚠️ Timezone handling needed for scheduled calls
 
 ---
