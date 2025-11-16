@@ -15,7 +15,7 @@
 **Call Me Back** is an AI-powered phone companion that enables users to receive immediate or scheduled phone calls from customizable AI personas (Brad the bro, Sarah the empathetic friend, Alex the creative). Built for a hackathon with Vue.js frontend, Raindrop backend services, and integrates Twilio voice, Cerebras AI, ElevenLabs TTS, and (soon) WorkOS authentication.
 
 **Current State:**
-- ⚠️ Some Twilio env vars may not be set correctly
+- ✅ **Twilio integration WORKING** (Fixed 2025-11-16: env vars now use `this.env`, credentials set, API calls successful. Trial account limitation only - needs verified numbers)
 - ✅ Authentication working (JWT-based, needs WorkOS upgrade)
 - ✅ Personas loading from Vultr PostgreSQL (Brad, Sarah, Alex)
 - ✅ Database fully migrated to Vultr PostgreSQL via database-proxy pattern
@@ -290,22 +290,41 @@ vercel --prod
 
 ### Medium Priority Issues
 
-**3. Twilio Environment Variables** (this item is marked 3 but I'm placing highest importance on it currently)
-- Frontend error suggests Twilio vars aren't set
-- Check `./set-all-secrets.sh` execution
-- Verify variables in Raindrop: `raindrop build env list`
+**1. Pricing & Payment Implementation** (CRITICAL FOR LAUNCH)
+- ❌ No pricing logic implemented in payment-processor
+- ❌ No call duration selection in frontend
+- ❌ No subscription tiers implemented
+- ❌ No Stripe subscription management
+- ❌ No Twilio call timers (5-min default not enforced)
+- **Action Required:**
+  - Implement call duration selection UI
+  - Add pricing calculation to payment-processor
+  - Set up Stripe subscriptions
+  - Configure Twilio call timers
+  - Add mid-call extension prompts
+  - Build fair use monitoring
+- **See:** `API_COSTS_AND_PROFITABILITY_2025.md` for detailed pricing strategy
 
-**1. "Add to Contacts" Button Not Working**
+**2. Twilio Trial Account Limitation** ✅ INTEGRATION WORKING
+- **Status:** Twilio API integration is fully working!
+- **Issue:** Trial accounts can only call verified phone numbers
+- **Solution Options:**
+  - Verify phone numbers at: https://console.twilio.com/us1/develop/phone-numbers/manage/verified
+  - Upgrade to paid Twilio account (add payment method)
+  - Continue using demo mode for testing
+- **Fixed (2025-11-16):** Changed `process.env` to `this.env` in call-orchestrator and voice-pipeline
+
+**3. "Add to Contacts" Button Not Working**
 - Frontend button exists but functionality not implemented
 - Need to wire up to `/api/contacts` endpoint
 - Backend may need updates in persona-manager
 
-**2. Timezone Handling for Scheduled Calls**
+**4. Timezone Handling for Scheduled Calls**
 - Need to respect user timezones
 - Implement timer function for safety
 - Ensure calls trigger at expected local time
 
-**4. Password Special Characters**
+**5. Password Special Characters**
 - Passwords with `!` cause JSON parsing errors.
 - Current workaround: use alphanumeric only
 - Need better input sanitization
@@ -319,17 +338,18 @@ vercel --prod
 - User login: `POST /api/auth/login`
 - JWT token generation
 - Personas API: `GET /api/personas` (returns Brad, Sarah, Alex from Vultr)
+- **Twilio integration: `POST /api/calls/trigger`** (API calls work, trial account limits verified numbers)
 - Frontend deploys successfully
 - Backend deploys successfully
 - Database queries via database-proxy
 
 ### ❌ Not Tested / Not Working
 - WorkOS authentication (not implemented)
-- Call triggering end-to-end with real phone
+- Call triggering with real phone numbers (Twilio trial account limitation - **integration works!**)
 - Add to contacts functionality
 - Scheduled calls with timezone handling
 - Payment processing with Stripe
-- Voice pipeline with actual calls
+- Voice pipeline with actual calls (Twilio works, need to test full pipeline)
 - WebSocket voice streaming
 
 ---
@@ -478,19 +498,73 @@ vercel --prod
 
 ---
 
-## Cost Model
+## Cost Model & Pricing Strategy
 
-**Connection Fee:** $0.25 per call
-**Per-Minute Rate:** $0.40/minute
-**Payment:** Stripe PaymentIntent with manual capture
-**Target Operating Cost:** <$0.25/minute
+### Actual API Costs Per 5-Minute Call (2025 Pricing)
 
-**Cost Breakdown Per Call:**
-- Twilio: ~$0.01-0.02/minute
-- Cerebras: ~$0.05/minute (fast inference)
-- ElevenLabs: ~$0.10/minute (TTS)
-- Total platform cost: ~$0.16-0.17/minute
-- Margin: ~$0.23/minute
+**Direct API Costs:**
+- **Twilio (5 min outbound):** $0.07 ($0.014/min)
+- **Deepgram STT (5 min streaming):** $0.03 ($0.0059/min)
+- **Cerebras AI (50K tokens, Llama 3.1 8B):** $0.005 ($0.10/1M tokens)
+- **ElevenLabs TTS (2K chars, Turbo model):** $0.30 ($0.15/1K chars)
+- **Raindrop (amortized @ 1K calls/mo):** $0.02
+- **Subtotal Direct Costs:** $0.425 per 5-min call
+
+**Payment Processing:**
+- **Stripe (3.4% + $0.30):** ~$0.47 per $5 transaction
+
+**Total Cost Per 5-Minute Call:** ~$0.90
+
+### User Pricing Strategy (NOT YET IMPLEMENTED)
+
+**Phase 1: Launch Pricing (Month 1-3)**
+- **Pay-As-You-Go:** $4.99 per call (5 min default)
+- **First call FREE** (no credit card)
+- **Gross Margin:** 82% ($4.10 profit per call)
+
+**Phase 2: Proven Model (Month 4-12)**
+- **Pay-As-You-Go:** $6.99 per call
+- **Starter Pack:** $24.99 for 5 calls ($4.99/call)
+- **Monthly Unlimited:** $29.99/month (up to 10 calls)
+- **Gross Margin:** 87% on pay-per-call
+
+**Phase 3: Premium Tiers (Month 12+)**
+- **Casual Plan:** $9.99/month (3 calls + $4.99 per additional)
+- **Standard Plan:** $29.99/month (up to 10 calls)
+- **Power User Plan:** $49.99/month (up to 25 calls)
+- **Pro Plan:** $99.99/month (unlimited with fair use)
+
+**Call Duration Pricing:**
+- **3 minutes:** $3.99
+- **5 minutes:** $4.99 (default, most popular)
+- **10 minutes:** $7.99
+- **15 minutes:** $10.99
+- Extension during call: +$2.99 for 5 more minutes
+
+### Key Pricing Insights
+
+**Current State:** ❌ **NOT IMPLEMENTED**
+- No pricing logic in payment-processor yet
+- No call duration limits implemented
+- No subscription tiers implemented
+- Currently using placeholder/demo pricing
+
+**Must Implement:**
+1. Call duration selection UI in frontend
+2. Pricing calculation in payment-processor
+3. Stripe subscription management
+4. Call timer with Twilio (5-min default)
+5. Mid-call extension prompt
+6. Fair use monitoring for "unlimited" plans
+
+**Profitability:**
+- Break-even at 127 calls/month @ $5/call
+- 80%+ gross margin achievable
+- Stripe fees are largest cost (24-50% of total)
+- Cerebras is 40x cheaper than OpenAI GPT-4 (key advantage)
+- ElevenLabs is largest API cost (35% of direct costs)
+
+**See:** `API_COSTS_AND_PROFITABILITY_2025.md` for complete analysis
 
 ---
 

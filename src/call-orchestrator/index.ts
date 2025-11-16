@@ -42,16 +42,15 @@ export default class extends Service<Env> {
         ]
       );
 
-      // TODO: Configure these with your Twilio credentials
-      // Replace the placeholder values below with your actual Twilio credentials
-      const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID || 'YOUR_TWILIO_ACCOUNT_SID_HERE';
-      const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN || 'YOUR_TWILIO_AUTH_TOKEN_HERE';
-      const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER || 'YOUR_TWILIO_PHONE_NUMBER_HERE';
+      // Get Twilio credentials from environment
+      const twilioAccountSid = this.env.TWILIO_ACCOUNT_SID;
+      const twilioAuthToken = this.env.TWILIO_AUTH_TOKEN;
+      const twilioPhoneNumber = this.env.TWILIO_PHONE_NUMBER;
 
       // For demo mode, allow calls even without Twilio configured
-      if (input.paymentMethod === 'demo' && twilioAccountSid === 'YOUR_TWILIO_ACCOUNT_SID_HERE') {
+      if (input.paymentMethod === 'demo' && !twilioAccountSid) {
         this.env.logger.warn('Twilio not configured - simulating call for demo mode', { callId });
-        
+
         // Update call status to simulated
         await this.env.DATABASE_PROXY.executeQuery(
           'UPDATE calls SET status = $1, error_message = $2 WHERE id = $3',
@@ -68,12 +67,13 @@ export default class extends Service<Env> {
         };
       }
 
-      if (!twilioAccountSid || twilioAccountSid === 'YOUR_TWILIO_ACCOUNT_SID_HERE') {
-        throw new Error('Twilio credentials not configured - please update environment variables with your Twilio credentials');
+      if (!twilioAccountSid || !twilioAuthToken || !twilioPhoneNumber) {
+        throw new Error('Twilio credentials not configured in environment variables');
       }
 
-      // Get the base URL for webhooks
-      const baseUrl = process.env.BASE_URL || 'https://svc-01k9fhfycrjp84j2sg746gwy9q.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run';
+      // Get the API gateway URL for webhooks
+      // This should be the public API Gateway URL
+      const baseUrl = 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run';
       const answerUrl = `${baseUrl}/api/voice/answer`;
 
       // Call Twilio API
