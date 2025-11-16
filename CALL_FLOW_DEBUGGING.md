@@ -796,3 +796,288 @@ async connect(): Promise<void> {
 - ✅ If ElevenLabs connections timeout/fail, we'll see the specific error
 
 **Next Test:** User is making a call now. Logs will reveal the exact failure point.
+
+---
+
+## Solution #11: Fix WebSocket Event Listener Timing (CRITICAL FIX) ✅
+
+**Issue Discovered (From Test Calls at 3:18 AM and 3:20 AM):**
+The WebSocket 'start' message from Twilio was never being received. Logs showed:
+- ✅ `[API Gateway] startVoicePipeline called`
+- ✅ `[API Gateway] Waiting for start message...`
+- ❌ Never logs `[API Gateway] Start message received`
+
+**Root Cause:**
+Event listeners were being attached TOO LATE - inside the async `waitForStartMessage()` method which was called from `startVoicePipeline()`. By the time the Promise was created and the listener attached, Twilio had already sent the "start" message over the WebSocket.
+
+**Timeline of the Bug:**
+1. Twilio connects to WebSocket (HTTP 101 upgrade succeeds)
+2. Twilio immediately sends "start" message with customParameters
+3. `handleVoiceStream()` calls `accept()` on server WebSocket
+4. `handleVoiceStream()` calls `startVoicePipeline()` WITHOUT awaiting
+5. `startVoicePipeline()` is async and calls `waitForStartMessage(ws)`
+6. `waitForStartMessage()` creates Promise and attaches 'message' event listener
+7. **BUT the "start" message was already sent and lost!**
+
+**The Fix (src/api-gateway/index.ts:176-249):**
+Refactored to create the Promise and attach event listeners SYNCHRONOUSLY, immediately after calling `accept()`:
+
+```typescript
+private async handleVoiceStream(request: Request, url: URL): Promise<Response> {
+  // ... WebSocketPair setup ...
+
+  const serverWs = server as WebSocket;
+  (serverWs as any).accept();
+
+  // CRITICAL: Set up event listeners IMMEDIATELY (synchronously) after accept()
+  // This ensures we don't miss Twilio's "start" message
+  const startMessagePromise = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('[API Gateway] Timeout waiting for start message'));
+    }, 10000);
+
+    serverWs.addEventListener('message', (event: any) => {
+      const message = JSON.parse(event.data as string);
+      if (message.event === 'start') {
+        clearTimeout(timeout);
+        console.log('[API Gateway] Start message received');
+        resolve(message.start);
+      }
+    });
+
+    serverWs.addEventListener('error', (event: any) => {
+      clearTimeout(timeout);
+      reject(new Error('[API Gateway] WebSocket error before start message'));
+    });
+
+    serverWs.addEventListener('close', (event: any) => {
+      clearTimeout(timeout);
+      reject(new Error('[API Gateway] WebSocket closed before start message'));
+    });
+  });
+
+  // Pass the promise to startVoicePipeline
+  this.startVoicePipeline(serverWs, startMessagePromise);
+
+  return new Response(null, { status: 101, webSocket: client });
+}
+```
+
+**Updated startVoicePipeline signature:**
+```typescript
+private async startVoicePipeline(ws: WebSocket, startMessagePromise: Promise<any>): Promise<void> {
+  // Now just awaits the promise that was set up synchronously
+  const startMessage = await startMessagePromise;
+  // ... rest of pipeline initialization ...
+}
+```
+
+**Removed:**
+- `waitForStartMessage()` method - no longer needed since listener is set up in `handleVoiceStream`
+
+**Key Insight:**
+In Cloudflare Workers, when Twilio makes a WebSocket connection, the "start" message arrives almost instantly. Event listeners MUST be attached synchronously (not inside an async function) to catch early messages. The Promise pattern allows us to set up listeners immediately while still using async/await for the resolution.
+
+**Deployed:** 2025-11-16 3:30 AM (current deployment)
+
+**Expected Result:**
+- ✅ Event listener ready BEFORE Twilio sends "start" message
+- ✅ `[API Gateway] Start message received` will appear in logs
+- ✅ Parameters (callId, userId, personaId) successfully extracted
+- ✅ Voice pipeline initialization proceeds
+- ✅ Full call flow: Twilio → STT → AI → TTS → User hears AI voice
+
+**Test Status:** Awaiting user's test call to verify fix.
+
+---
+
+## Diagnostic Enhancement #12: Enhanced WebSocket Logging
+
+**Issue (From Test Call at 3:37:37 AM):**
+After deploying Solution #11, test calls still showed silence. Logs revealed:
+- ✅ `[API Gateway] startVoicePipeline called`
+- ✅ `[API Gateway] Waiting for start message...`
+- ❌ NEVER logs `[API Gateway] Start message received`
+- ❌ None of the `this.env.logger` statements from WebSocket event handlers appeared in logs
+
+**Problem:**
+The WebSocket event handler code uses `this.env.logger.info()` for logging, but these logs were NOT appearing in the output. Only `console.log()` statements were visible in logs. This made it impossible to determine whether:
+- WebSocket messages were arriving but not logging
+- Event listeners weren't being triggered
+- Connection was closing/erroring silently
+
+**Enhancement (src/api-gateway/index.ts:191-265):**
+Added extensive `console.log()` statements throughout WebSocket setup and event handlers:
+
+```typescript
+// After accept()
+(serverWs as any).accept();
+console.log('[API Gateway] WebSocket accept() called, readyState:', serverWs.readyState);
+
+// Before setting up listeners
+console.log('[API Gateway] Setting up event listeners...');
+
+// Inside message event handler
+serverWs.addEventListener('message', (event: any) => {
+  console.log('[API Gateway] ===== WebSocket message event fired =====');
+  console.log('[API Gateway] WebSocket message received, data type:', typeof event.data);
+  // ... parse and handle message ...
+  console.log('[API Gateway] Parsed WebSocket message, event:', message.event);
+
+  if (message.event === 'start') {
+    console.log('[API Gateway] START message received! Resolving promise...');
+    // ...
+  }
+});
+
+// Inside error event handler
+serverWs.addEventListener('error', (event: any) => {
+  console.log('[API Gateway] ===== WebSocket ERROR event fired =====');
+  // ...
+});
+
+// Inside close event handler
+serverWs.addEventListener('close', (event: any) => {
+  console.log('[API Gateway] ===== WebSocket CLOSE event fired =====', event.code, event.reason);
+  // ...
+});
+
+// After all listeners are set up
+console.log('[API Gateway] All event listeners set up. Ready to receive messages.');
+
+// Before calling startVoicePipeline
+console.log('[API Gateway] Calling startVoicePipeline...');
+
+// Inside timeout
+const timeout = setTimeout(() => {
+  console.log('[API Gateway] TIMEOUT after 10 seconds waiting for start message');
+  // ...
+}, 10000);
+```
+
+**Diagnostic Information Now Available:**
+1. **WebSocket State:** ReadyState immediately after accept()
+2. **Listener Setup:** Confirmation that event listeners are being attached
+3. **Message Events:** Clear indication when message events fire
+4. **Error Events:** Immediate notification of WebSocket errors
+5. **Close Events:** When/why WebSocket closes with code and reason
+6. **Timeout Events:** If 10 seconds pass without receiving "start" message
+
+**Deployed:** 2025-11-16 3:42 AM
+
+**Expected Diagnostic Output (Normal Flow):**
+```
+[API Gateway] WebSocket accept() called, readyState: 1
+[API Gateway] Setting up event listeners...
+[API Gateway] All event listeners set up. Ready to receive messages.
+[API Gateway] Calling startVoicePipeline...
+[API Gateway] startVoicePipeline called
+[API Gateway] Waiting for start message...
+[API Gateway] ===== WebSocket message event fired =====
+[API Gateway] WebSocket message received, data type: string
+[API Gateway] Parsed WebSocket message, event: start
+[API Gateway] START message received! Resolving promise...
+[API Gateway] Start message received
+```
+
+**Expected Diagnostic Output (If No Messages Arrive):**
+```
+[API Gateway] WebSocket accept() called, readyState: 1
+[API Gateway] Setting up event listeners...
+[API Gateway] All event listeners set up. Ready to receive messages.
+[API Gateway] Calling startVoicePipeline...
+[API Gateway] startVoicePipeline called
+[API Gateway] Waiting for start message...
+[API Gateway] TIMEOUT after 10 seconds waiting for start message
+```
+
+**Expected Diagnostic Output (If Connection Closes Early):**
+```
+[API Gateway] WebSocket accept() called, readyState: 1
+[API Gateway] Setting up event listeners...
+[API Gateway] All event listeners set up. Ready to receive messages.
+[API Gateway] Calling startVoicePipeline...
+[API Gateway] startVoicePipeline called
+[API Gateway] Waiting for start message...
+[API Gateway] ===== WebSocket CLOSE event fired ===== 1006 "Abnormal closure"
+```
+
+**Test Status:** Ready for next test call to gather detailed diagnostic information.
+
+---
+
+## Solution #13: Critical ctx.waitUntil() Fix for WebSocket Async Operations ⚡
+
+**Critical Discovery (From Test Call at 3:44:20 AM):**
+After deploying enhanced logging (Solution #12), the logs revealed the full sequence:
+1. ✅ `[API Gateway] WebSocket accept() called, readyState: 1`
+2. ✅ `[API Gateway] Setting up event listeners...`
+3. ✅ `[API Gateway] All event listeners set up. Ready to receive messages.`
+4. ✅ `[API Gateway] Calling startVoicePipeline...`
+5. ✅ `[API Gateway] startVoicePipeline called`
+6. ✅ `[API Gateway] Waiting for start message...`
+7. ❌ **THEN NOTHING** - No message events, no timeout, no error, no close
+
+**The Smoking Gun:**
+The 10-second timeout **NEVER FIRED**. This is impossible unless the Worker execution context was terminated before the timeout could fire.
+
+**Root Cause - Cloudflare Workers Execution Model:**
+In Cloudflare Workers, once you return an HTTP response (including a 101 WebSocket upgrade), the Worker's execution context ends **immediately**. Any async operations (like `setTimeout`, Promises, async function calls) that are not explicitly registered with `ctx.waitUntil()` are **CANCELED**.
+
+**From Cloudflare Workers Documentation:**
+> "Outstanding asynchronous tasks are canceled as soon as a Worker finishes sending its main response body to the client. To ensure that async operations complete, you should pass the request promise to `event.waitUntil()`."
+
+**What Was Happening:**
+1. `handleVoiceStream()` sets up event listeners (synchronous - works fine)
+2. `handleVoiceStream()` calls `this.startVoicePipeline(...)` but doesn't await it
+3. `handleVoiceStream()` returns 101 response
+4. **Worker execution context ENDS**
+5. The `setTimeout` for the 10-second timeout is CANCELED
+6. The `startVoicePipeline` async function is CANCELED
+7. **BUT** - WebSocket event listeners continue to work because they're handled by the Workers runtime
+
+**Why Event Listeners Never Fired:**
+The event listeners ARE working, but the Promise they're supposed to resolve is part of the canceled execution context. So even when Twilio sends messages, the handlers can't resolve/reject the Promise that `startVoicePipeline` is awaiting.
+
+**The Fix (src/api-gateway/index.ts:274):**
+```typescript
+// BEFORE (broken):
+this.startVoicePipeline(serverWs, startMessagePromise);
+return new Response(null, { status: 101, webSocket: client });
+
+// AFTER (fixed):
+this.ctx.waitUntil(this.startVoicePipeline(serverWs, startMessagePromise));
+return new Response(null, { status: 101, webSocket: client });
+```
+
+**What ctx.waitUntil() Does:**
+- Tells Cloudflare Workers to keep the async operation alive
+- The Promise passed to `ctx.waitUntil()` will continue executing even after the response is sent
+- Allows the `startVoicePipeline` function to await the `startMessagePromise`
+- Ensures `setTimeout` timeouts can fire
+- Keeps all async/await chains alive
+
+**Key Insight:**
+Cloudflare Workers WebSockets have two execution contexts:
+1. **HTTP Request Context** - Ends when you return the 101 response. Use `ctx.waitUntil()` for async operations here.
+2. **WebSocket Event Context** - Lives for the lifetime of the WebSocket connection. Event listeners (`addEventListener`) work here.
+
+The critical mistake was starting async operations in the HTTP context without using `ctx.waitUntil()`.
+
+**Why This Matters for Twilio Integration:**
+Twilio sends messages immediately upon WebSocket connection:
+1. First: "connected" message
+2. Second: "start" message with customParameters
+
+Without `ctx.waitUntil()`, the async function awaiting these messages gets canceled before it can receive them, even though the event listeners fire correctly.
+
+**Deployed:** 2025-11-16 3:47 AM
+
+**Expected Result:**
+- ✅ `ctx.waitUntil()` keeps `startVoicePipeline` alive
+- ✅ WebSocket message events fire
+- ✅ Promise resolves with "start" message data
+- ✅ Pipeline initialization proceeds
+- ✅ Full voice call flow works: Twilio → STT → AI → TTS → User
+
+**Test Status:** Ready for next test call to verify the ctx.waitUntil() fix.

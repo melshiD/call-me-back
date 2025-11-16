@@ -184,12 +184,97 @@ export default class extends Service<Env> {
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
 
-      // Accept the WebSocket connection (required for Cloudflare Workers)
-      (server as any).accept();
+      // Cast to WebSocket for typing
+      const serverWs = server as WebSocket;
 
-      // Start the voice pipeline in the background
+      // Accept the WebSocket connection (required for Cloudflare Workers)
+      (serverWs as any).accept();
+      console.log('[API Gateway] WebSocket accept() called, readyState:', serverWs.readyState);
+
+      // CRITICAL: Set up event listeners IMMEDIATELY (synchronously) after accept()
+      // This ensures we don't miss Twilio's "start" message
+      let startMessageResolve: (value: any) => void;
+      let startMessageReject: (error: Error) => void;
+
+      console.log('[API Gateway] Setting up event listeners...');
+
+      const startMessagePromise = new Promise((resolve, reject) => {
+        startMessageResolve = resolve;
+        startMessageReject = reject;
+
+        // Note: setTimeout is created here but may be canceled when HTTP context ends
+        // We'll also create a backup timeout inside startVoicePipeline
+        serverWs.addEventListener('message', (event: any) => {
+          console.log('[API Gateway] ===== WebSocket message event fired =====');
+          try {
+            // Log ALL messages from Twilio to debug
+            console.log('[API Gateway] WebSocket message received, data type:', typeof event.data);
+            this.env.logger.info('[API Gateway] WebSocket message received', {
+              data: event.data,
+              dataType: typeof event.data,
+              dataLength: event.data?.length
+            });
+
+            const message = JSON.parse(event.data as string);
+            console.log('[API Gateway] Parsed WebSocket message, event:', message.event);
+
+            this.env.logger.info('[API Gateway] Parsed WebSocket message', {
+              event: message.event,
+              messageKeys: Object.keys(message)
+            });
+
+            if (message.event === 'start') {
+              console.log('[API Gateway] START message received! Resolving promise...');
+              this.env.logger.info('[API Gateway] START message received!', {
+                callSid: message.start?.callSid,
+                customParameters: message.start?.customParameters
+              });
+              resolve(message.start);
+            }
+          } catch (error) {
+            console.log('[API Gateway] Error parsing WebSocket message:', error);
+            this.env.logger.error('[API Gateway] Error parsing WebSocket message', {
+              error: error instanceof Error ? error.message : String(error),
+              rawData: event.data
+            });
+          }
+        });
+
+        serverWs.addEventListener('error', (event: any) => {
+          console.log('[API Gateway] ===== WebSocket ERROR event fired =====');
+          this.env.logger.error('[API Gateway] WebSocket error event');
+          reject(new Error('[API Gateway] WebSocket error before start message'));
+        });
+
+        serverWs.addEventListener('close', (event: any) => {
+          console.log('[API Gateway] ===== WebSocket CLOSE event fired =====', event.code, event.reason);
+          this.env.logger.error('[API Gateway] WebSocket close event', {
+            code: event.code,
+            reason: event.reason
+          });
+          reject(new Error('[API Gateway] WebSocket closed before start message'));
+        });
+
+        console.log('[API Gateway] All event listeners set up. Ready to receive messages.');
+      });
+
+      // Start the voice pipeline in the background with the promise
       // Parameters will be extracted from Twilio's "start" message
-      this.startVoicePipeline(server as WebSocket);
+      console.log('[API Gateway] Calling startVoicePipeline...');
+
+      // CRITICAL: Use ctx.waitUntil() to keep the async pipeline alive after returning the 101 response
+      // Without this, the Worker will cancel async operations when the response is sent
+      try {
+        const pipelinePromise = this.startVoicePipeline(serverWs, startMessagePromise);
+        console.log('[API Gateway] startVoicePipeline promise created');
+        this.ctx.waitUntil(pipelinePromise);
+        console.log('[API Gateway] ctx.waitUntil() called with pipeline promise');
+      } catch (error) {
+        console.log('[API Gateway] ERROR calling startVoicePipeline:', error);
+        this.env.logger.error('Failed to start voice pipeline', {
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
 
       return new Response(null, {
         status: 101,
@@ -210,14 +295,24 @@ export default class extends Service<Env> {
    * NOTE: We instantiate VoicePipelineOrchestrator HERE instead of calling the service
    * because WebSocket objects cannot be serialized across service boundaries in Cloudflare Workers
    */
-  private async startVoicePipeline(ws: WebSocket): Promise<void> {
+  private async startVoicePipeline(ws: WebSocket, startMessagePromise: Promise<any>): Promise<void> {
     try {
       console.log('[API Gateway] startVoicePipeline called');
       this.env.logger.info('WebSocket connection established, waiting for start message');
 
       // Wait for the "start" message from Twilio to get parameters
+      // Event listener was attached synchronously in handleVoiceStream
       console.log('[API Gateway] Waiting for start message...');
-      const startMessage = await this.waitForStartMessage(ws);
+
+      // Add a timeout HERE (inside ctx.waitUntil context) as backup
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          console.log('[API Gateway] TIMEOUT in startVoicePipeline after 10 seconds');
+          reject(new Error('Timeout waiting for start message'));
+        }, 10000);
+      });
+
+      const startMessage = await Promise.race([startMessagePromise, timeoutPromise]);
       console.log('[API Gateway] Start message received');
 
       this.env.logger.info('Start message received', { startMessage });
@@ -311,46 +406,6 @@ export default class extends Service<Env> {
         // Ignore close errors
       }
     }
-  }
-
-  /**
-   * Wait for and parse the "start" message from Twilio Media Streams
-   */
-  private async waitForStartMessage(ws: WebSocket): Promise<any> {
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Timeout waiting for start message'));
-      }, 10000); // 10 second timeout
-
-      ws.addEventListener('message', (event) => {
-        try {
-          const message = JSON.parse(event.data as string);
-
-          if (message.event === 'start') {
-            clearTimeout(timeout);
-            this.env.logger.info('Received start message', {
-              callSid: message.start.callSid,
-              customParameters: message.start.customParameters
-            });
-            resolve(message.start);
-          }
-        } catch (error) {
-          this.env.logger.error('Error parsing WebSocket message', {
-            error: error instanceof Error ? error.message : String(error)
-          });
-        }
-      });
-
-      ws.addEventListener('error', (event) => {
-        clearTimeout(timeout);
-        reject(new Error('WebSocket error before start message'));
-      });
-
-      ws.addEventListener('close', (event) => {
-        clearTimeout(timeout);
-        reject(new Error('WebSocket closed before start message'));
-      });
-    });
   }
 
   /**
