@@ -428,7 +428,7 @@ export const usePersonasStore = defineStore('personas', () => {
    */
   const fetchContacts = async () => {
     const apiUrl = import.meta.env.VITE_API_URL
-    const token = localStorage.getItem('authToken')
+    const token = localStorage.getItem('token')
 
     if (!token) {
       console.warn('No auth token found, cannot fetch contacts')
@@ -507,7 +507,7 @@ export const usePersonasStore = defineStore('personas', () => {
    */
   const addToContacts = async (personaId) => {
     const apiUrl = import.meta.env.VITE_API_URL
-    const token = localStorage.getItem('authToken')
+    const token = localStorage.getItem('token')
 
     if (!token) {
       throw new Error('Authentication required')
@@ -554,7 +554,7 @@ export const usePersonasStore = defineStore('personas', () => {
    */
   const removeFromContacts = async (personaId) => {
     const apiUrl = import.meta.env.VITE_API_URL
-    const token = localStorage.getItem('authToken')
+    const token = localStorage.getItem('token')
 
     if (!token) {
       throw new Error('Authentication required')

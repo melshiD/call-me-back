@@ -229,6 +229,22 @@ error TS2339: Property 'YOUR_VAR_NAME' does not exist on type 'Env'
 2. Run `raindrop build generate` to regenerate types
 3. Then you can use it in code via `this.env.YOUR_VAR_NAME`
 
+### Frontend Authentication Token Naming
+
+**IMPORTANT:** The frontend uses `'token'` as the localStorage key for auth tokens, NOT `'authToken'`.
+
+```javascript
+// ✅ CORRECT (what we use)
+localStorage.setItem('token', jwtToken)        // in auth.js
+localStorage.getItem('token')                   // in personas.js
+
+// ❌ WRONG (don't use this)
+localStorage.setItem('authToken', jwtToken)
+localStorage.getItem('authToken')
+```
+
+**Fixed 2025-11-16:** Updated personas.js to use `'token'` key to match auth.js (was causing "Authentication required" errors)
+
 ---
 
 ## Deployment Procedures
