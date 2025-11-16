@@ -212,10 +212,13 @@ export default class extends Service<Env> {
    */
   private async startVoicePipeline(ws: WebSocket): Promise<void> {
     try {
+      console.log('[API Gateway] startVoicePipeline called');
       this.env.logger.info('WebSocket connection established, waiting for start message');
 
       // Wait for the "start" message from Twilio to get parameters
+      console.log('[API Gateway] Waiting for start message...');
       const startMessage = await this.waitForStartMessage(ws);
+      console.log('[API Gateway] Start message received');
 
       this.env.logger.info('Start message received', { startMessage });
 
@@ -223,6 +226,7 @@ export default class extends Service<Env> {
       const userId = startMessage.customParameters.userId;
       const personaId = startMessage.customParameters.personaId;
 
+      console.log('[API Gateway] Extracted parameters:', { callId, userId, personaId });
       this.env.logger.info('Extracted parameters from start message', { callId, userId, personaId });
 
       // TODO: Cost tracker needs to be refactored to use DATABASE_PROXY instead of SmartSQL
@@ -230,15 +234,20 @@ export default class extends Service<Env> {
       // const costTracker = new CallCostTracker(callId, userId, this.env.CALL_ME_BACK_DB);
       // await costTracker.initialize();
       const costTracker = null as any; // Temporarily disabled
+      console.log('[API Gateway] Cost tracker bypassed');
 
       // Load persona from database
+      console.log('[API Gateway] Loading persona...');
       const persona = await this.loadPersona(personaId);
       if (!persona) {
         throw new Error(`Persona not found: ${personaId}`);
       }
+      console.log('[API Gateway] Persona loaded:', persona.name);
 
       // Load or create user-persona relationship
+      console.log('[API Gateway] Loading relationship...');
       const relationship = await this.loadOrCreateRelationship(userId, personaId);
+      console.log('[API Gateway] Relationship loaded');
 
       // Extract voice configuration from relationship
       const voiceId = relationship.voice_id || persona.default_voice_id || 'JBFqnCBsd6RMkjVDRZzb';
@@ -249,6 +258,8 @@ export default class extends Service<Env> {
         use_speaker_boost: true,
         speed: 1.0
       };
+
+      console.log('[API Gateway] Voice config:', { voiceId, voiceSettings });
 
       // Create pipeline configuration
       const config: VoicePipelineConfig = {
@@ -261,7 +272,13 @@ export default class extends Service<Env> {
         personaId
       };
 
+      console.log('[API Gateway] Pipeline config created, API keys present:', {
+        elevenlabs: !!this.env.ELEVENLABS_API_KEY,
+        cerebras: !!this.env.CEREBRAS_API_KEY
+      });
+
       // Create and start pipeline with SmartMemory
+      console.log('[API Gateway] Creating VoicePipelineOrchestrator...');
       const pipeline = new VoicePipelineOrchestrator(
         config,
         costTracker,
@@ -269,10 +286,19 @@ export default class extends Service<Env> {
         persona,
         relationship
       );
+      console.log('[API Gateway] VoicePipelineOrchestrator created, calling start()...');
+
       await pipeline.start(ws);
 
+      console.log('[API Gateway] pipeline.start() returned');
       this.env.logger.info('Voice pipeline started', { callId, personaId });
     } catch (error) {
+      console.error('[API Gateway] startVoicePipeline error:', error);
+      console.error('[API Gateway] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
       this.env.logger.error('Failed to start voice pipeline', {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined

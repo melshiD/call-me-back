@@ -124,51 +124,61 @@ export class ElevenLabsTTSHandler {
    * Connect to ElevenLabs TTS WebSocket
    */
   async connect(): Promise<void> {
-    try {
-      const url = this.buildWebSocketUrl();
+    return new Promise((resolve, reject) => {
+      try {
+        const url = this.buildWebSocketUrl();
 
-      // Cloudflare Workers WebSocket doesn't support headers option
-      // API key is passed via 'authorization' query parameter in the URL
-      this.ws = new WebSocket(url);
+        // Cloudflare Workers WebSocket doesn't support headers option
+        // API key is passed via 'authorization' query parameter in the URL
+        this.ws = new WebSocket(url);
 
-      this.ws.addEventListener('open', () => {
-        console.log('[ElevenLabsTTS] WebSocket connected');
-        this.reconnectAttempts = 0;
-        this.sendInitialConfig();
-        this.handlers.onConnected?.();
-      });
+        const timeout = setTimeout(() => {
+          reject(new Error('[ElevenLabsTTS] Connection timeout'));
+        }, 10000); // 10 second timeout
 
-      this.ws.addEventListener('message', (event) => {
-        try {
-          const message = JSON.parse(event.data.toString()) as ElevenLabsTTSMessage;
-          this.handleMessage(message);
-        } catch (error) {
-          console.error('[ElevenLabsTTS] Failed to parse message:', error);
-          this.handlers.onError?.(error instanceof Error ? error : new Error(String(error)));
-        }
-      });
+        this.ws.addEventListener('open', () => {
+          clearTimeout(timeout);
+          console.log('[ElevenLabsTTS] WebSocket connected');
+          this.reconnectAttempts = 0;
+          this.sendInitialConfig();
+          this.handlers.onConnected?.();
+          resolve();
+        });
 
-      this.ws.addEventListener('close', (event) => {
-        console.log('[ElevenLabsTTS] WebSocket closed:', event.code, event.reason);
-        this.handlers.onDisconnected?.();
+        this.ws.addEventListener('message', (event) => {
+          try {
+            const message = JSON.parse(event.data.toString()) as ElevenLabsTTSMessage;
+            this.handleMessage(message);
+          } catch (error) {
+            console.error('[ElevenLabsTTS] Failed to parse message:', error);
+            this.handlers.onError?.(error instanceof Error ? error : new Error(String(error)));
+          }
+        });
 
-        // Attempt reconnection if not intentional
-        if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
-          this.reconnectAttempts++;
-          console.log(`[ElevenLabsTTS] Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
-          setTimeout(() => this.connect(), 1000 * this.reconnectAttempts);
-        }
-      });
+        this.ws.addEventListener('close', (event) => {
+          console.log('[ElevenLabsTTS] WebSocket closed:', event.code, event.reason);
+          this.handlers.onDisconnected?.();
 
-      this.ws.addEventListener('error', (error) => {
-        console.error('[ElevenLabsTTS] WebSocket error:', error);
-        this.handlers.onError?.(new Error('WebSocket error'));
-      });
+          // Attempt reconnection if not intentional
+          if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
+            this.reconnectAttempts++;
+            console.log(`[ElevenLabsTTS] Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+            setTimeout(() => this.connect(), 1000 * this.reconnectAttempts);
+          }
+        });
 
-    } catch (error) {
-      console.error('[ElevenLabsTTS] Failed to connect:', error);
-      throw error;
-    }
+        this.ws.addEventListener('error', (error) => {
+          clearTimeout(timeout);
+          console.error('[ElevenLabsTTS] WebSocket error:', error);
+          this.handlers.onError?.(new Error('WebSocket error'));
+          reject(new Error('[ElevenLabsTTS] WebSocket error'));
+        });
+
+      } catch (error) {
+        console.error('[ElevenLabsTTS] Failed to connect:', error);
+        reject(error);
+      }
+    });
   }
 
   /**

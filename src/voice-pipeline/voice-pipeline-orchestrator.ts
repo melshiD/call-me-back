@@ -130,39 +130,81 @@ export class VoicePipelineOrchestrator {
    * Start the voice pipeline
    */
   async start(twilioWs: WebSocket): Promise<void> {
-    console.log('[VoicePipeline] Starting pipeline');
-    this.callStartTime = Date.now();
+    try {
+      console.log('[VoicePipeline] Starting pipeline');
+      this.callStartTime = Date.now();
 
-    // Initialize memory manager
-    this.memoryManager = new PersonaMemoryManager({
-      userId: this.config.userId,
-      personaId: this.config.personaId,
-      callId: this.config.callId,
-      conversationMemory: this.conversationMemory
-    });
+      // Initialize memory manager
+      console.log('[VoicePipeline] Initializing memory manager...');
+      this.memoryManager = new PersonaMemoryManager({
+        userId: this.config.userId,
+        personaId: this.config.personaId,
+        callId: this.config.callId,
+        conversationMemory: this.conversationMemory
+      });
+      console.log('[VoicePipeline] Memory manager initialized');
 
-    // Load memory context from all tiers
-    console.log('[VoicePipeline] Loading memory context...');
-    this.memoryContext = await this.memoryManager.initializeCallMemory(
-      this.corePersona,
-      this.relationship
-    );
+      // Load memory context from all tiers
+      console.log('[VoicePipeline] Loading memory context...');
+      this.memoryContext = await this.memoryManager.initializeCallMemory(
+        this.corePersona,
+        this.relationship
+      );
+      console.log('[VoicePipeline] Memory context loaded');
 
-    // Build composite system prompt with memory context
-    this.systemPrompt = this.memoryManager.buildSystemPrompt(this.memoryContext);
+      // Build composite system prompt with memory context
+      console.log('[VoicePipeline] Building system prompt...');
+      this.systemPrompt = this.memoryManager.buildSystemPrompt(this.memoryContext);
+      console.log('[VoicePipeline] System prompt built');
 
-    console.log('[VoicePipeline] Memory context loaded, system prompt built');
+      // Connect Twilio WebSocket
+      console.log('[VoicePipeline] Connecting Twilio WebSocket...');
+      this.twilioHandler.handleConnection(twilioWs);
+      console.log('[VoicePipeline] Twilio WebSocket connected');
 
-    // Connect Twilio WebSocket
-    this.twilioHandler.handleConnection(twilioWs);
+      // Connect STT and TTS with detailed error logging
+      console.log('[VoicePipeline] About to connect to ElevenLabs STT...');
+      console.log('[VoicePipeline] STT API key present:', !!this.config.elevenLabsApiKey);
+      console.log('[VoicePipeline] STT API key length:', this.config.elevenLabsApiKey?.length || 0);
 
-    // Connect STT and TTS
-    await Promise.all([
-      this.sttHandler.connect(),
-      this.ttsHandler.connect()
-    ]);
+      try {
+        console.log('[VoicePipeline] Calling sttHandler.connect()...');
+        await this.sttHandler.connect();
+        console.log('[VoicePipeline] STT connected successfully');
+      } catch (error) {
+        console.error('[VoicePipeline] STT connection failed:', error);
+        console.error('[VoicePipeline] STT error details:', {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        throw new Error(`STT connection failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
 
-    console.log('[VoicePipeline] All services connected');
+      console.log('[VoicePipeline] About to connect to ElevenLabs TTS...');
+      console.log('[VoicePipeline] TTS voice ID:', this.config.voiceId);
+
+      try {
+        console.log('[VoicePipeline] Calling ttsHandler.connect()...');
+        await this.ttsHandler.connect();
+        console.log('[VoicePipeline] TTS connected successfully');
+      } catch (error) {
+        console.error('[VoicePipeline] TTS connection failed:', error);
+        console.error('[VoicePipeline] TTS error details:', {
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        throw new Error(`TTS connection failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+
+      console.log('[VoicePipeline] All services connected successfully!');
+    } catch (error) {
+      console.error('[VoicePipeline] Fatal error in start():', error);
+      console.error('[VoicePipeline] Fatal error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      throw error; // Re-throw to be caught by api-gateway
+    }
   }
 
   /**

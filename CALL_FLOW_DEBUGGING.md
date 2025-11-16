@@ -650,13 +650,149 @@ this.ws = new WebSocket(url); // Not: new WebSocket(url, { headers: {...} })
 
 ---
 
-## Current Status: Ready for Testing
+## Current Status: Debugging Silent Audio / No Response
 
-**All Issues Fixed/Bypassed:**
+**All Previous Issues Fixed:**
 1. ✅ TwiML XML parsing (using `<Parameter>` elements)
 2. ✅ WebSocket handshake (correct WebSocketPair constructor + accept())
 3. ✅ WebSocket serialization (moved pipeline instantiation to api-gateway)
 4. ✅ ElevenLabs authentication (API key via query parameter for Cloudflare Workers compatibility)
 5. ⚠️ Cost tracker bypassed temporarily (needs refactoring to use DATABASE_PROXY)
 
-**Next Test:** Make a call to verify the complete voice pipeline works end-to-end!
+**Current Issue: WebSocket Stays Connected but User Hears Silence**
+
+**Symptoms (as of 3:10 AM - 3:15 AM test calls):**
+- ✅ Call connects successfully
+- ✅ Twilio says "Connecting you now"
+- ✅ WebSocket stays connected (no Error 31921)
+- ✅ Database queries complete (persona, relationship loaded)
+- ✅ Memory initialization completes (SmartMemory operations succeed)
+- ❌ User hears complete silence
+- ❌ No voice from AI
+- ❌ Eventually disconnects (likely Twilio timeout or user hangup)
+
+**Critical Discovery:**
+Looking at the logs, the pipeline initialization **stops at memory loading** and never proceeds to the ElevenLabs connection attempts. The last logged operations are:
+- `getProcedure` calls (4 of them)
+- `vector_index.upsert` operations
+- Database query completions
+
+But **NONE** of the console.log statements from `VoicePipelineOrchestrator.start()` appear in the logs!
+
+This indicates that `pipeline.start(ws)` is either:
+1. Never being called at all
+2. Hanging before the first console.log statement
+3. Throwing an error that's not being caught/logged
+
+---
+
+## Solution #10: Enhanced Logging Throughout Pipeline Initialization 🔍
+
+**Goal:** Trace exactly where the voice pipeline is failing after memory initialization completes.
+
+**Changes Made (2025-11-16 3:15 AM):**
+
+**1. API Gateway - startVoicePipeline Method (src/api-gateway/index.ts:214-314):**
+Added extensive console.log statements at every step:
+- Line 215: `console.log('[API Gateway] startVoicePipeline called')`
+- Line 219: `console.log('[API Gateway] Waiting for start message...')`
+- Line 221: `console.log('[API Gateway] Start message received')`
+- Line 229: `console.log('[API Gateway] Extracted parameters:', ...)`
+- Line 237: `console.log('[API Gateway] Cost tracker bypassed')`
+- Line 240: `console.log('[API Gateway] Loading persona...')`
+- Line 245: `console.log('[API Gateway] Persona loaded:', persona.name)`
+- Line 248: `console.log('[API Gateway] Loading relationship...')`
+- Line 250: `console.log('[API Gateway] Relationship loaded')`
+- Line 262: `console.log('[API Gateway] Voice config:', ...)`
+- Line 275: `console.log('[API Gateway] Pipeline config created, API keys present:', ...)`
+- Line 281: `console.log('[API Gateway] Creating VoicePipelineOrchestrator...')`
+- Line 289: `console.log('[API Gateway] VoicePipelineOrchestrator created, calling start()...')`
+- Line 293: `console.log('[API Gateway] pipeline.start() returned')`
+- Line 296-300: Enhanced error logging
+
+**2. VoicePipelineOrchestrator - start Method (src/voice-pipeline/voice-pipeline-orchestrator.ts:132-208):**
+Wrapped entire method in try-catch with detailed logging:
+- Line 134: `console.log('[VoicePipeline] Starting pipeline')`
+- Line 138: `console.log('[VoicePipeline] Initializing memory manager...')`
+- Line 145: `console.log('[VoicePipeline] Memory manager initialized')`
+- Line 148: `console.log('[VoicePipeline] Loading memory context...')`
+- Line 153: `console.log('[VoicePipeline] Memory context loaded')`
+- Line 156: `console.log('[VoicePipeline] Building system prompt...')`
+- Line 158: `console.log('[VoicePipeline] System prompt built')`
+- Line 161: `console.log('[VoicePipeline] Connecting Twilio WebSocket...')`
+- Line 163: `console.log('[VoicePipeline] Twilio WebSocket connected')`
+- Line 166-168: API key presence/length validation logging
+- Line 171: `console.log('[VoicePipeline] Calling sttHandler.connect()...')`
+- Line 173: `console.log('[VoicePipeline] STT connected successfully')`
+- Line 175-180: Detailed STT error logging
+- Line 183-184: TTS voice ID logging
+- Line 187: `console.log('[VoicePipeline] Calling ttsHandler.connect()...')`
+- Line 189: `console.log('[VoicePipeline] TTS connected successfully')`
+- Line 191-196: Detailed TTS error logging
+- Line 199: `console.log('[VoicePipeline] All services connected successfully!')`
+- Line 200-207: Fatal error catch block with detailed logging
+
+**3. ElevenLabs STT/TTS - Async WebSocket Connection Fix (CRITICAL):**
+Modified `connect()` methods to properly await WebSocket 'open' event instead of returning immediately:
+
+**Before (elevenlabs-stt.ts & elevenlabs-tts.ts):**
+```typescript
+async connect(): Promise<void> {
+  const url = this.buildWebSocketUrl();
+  this.ws = new WebSocket(url);
+
+  this.ws.addEventListener('open', () => {
+    console.log('[ElevenLabsSTT] WebSocket connected');
+    this.reconnectAttempts = 0;
+    this.handlers.onConnected?.();
+  });
+  // Returns immediately - doesn't wait for connection!
+}
+```
+
+**After:**
+```typescript
+async connect(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    try {
+      const url = this.buildWebSocketUrl();
+      this.ws = new WebSocket(url);
+
+      const timeout = setTimeout(() => {
+        reject(new Error('[ElevenLabsSTT] Connection timeout'));
+      }, 10000); // 10 second timeout
+
+      this.ws.addEventListener('open', () => {
+        clearTimeout(timeout);
+        console.log('[ElevenLabsSTT] WebSocket connected');
+        this.reconnectAttempts = 0;
+        this.handlers.onConnected?.();
+        resolve(); // Only resolve when actually connected
+      });
+
+      this.ws.addEventListener('error', (error) => {
+        clearTimeout(timeout);
+        console.error('[ElevenLabsSTT] WebSocket error:', error);
+        this.handlers.onError?.(new Error('WebSocket error'));
+        reject(new Error('[ElevenLabsSTT] WebSocket error'));
+      });
+
+    } catch (error) {
+      console.error('[ElevenLabsSTT] Failed to connect:', error);
+      reject(error);
+    }
+  });
+}
+```
+
+**Root Cause:** In Cloudflare Workers, `new WebSocket(url)` is **synchronous** and returns immediately. The previous code set up event listeners but didn't wait for the 'open' event, so `await this.sttHandler.connect()` would complete instantly without actually waiting for the connection to establish.
+
+**Deployed:** 2025-11-16 3:15 AM
+
+**Expected Result:**
+- ✅ See detailed logs showing exactly which step executes
+- ✅ Identify where pipeline initialization hangs/fails
+- ✅ ElevenLabs connections will properly await before proceeding
+- ✅ If ElevenLabs connections timeout/fail, we'll see the specific error
+
+**Next Test:** User is making a call now. Logs will reveal the exact failure point.
