@@ -13,6 +13,11 @@ export default class extends Service<Env> {
         return await this.handlePersonaRoutes(request, path);
       }
 
+      // Contacts routes
+      if (path.startsWith('/api/contacts')) {
+        return await this.handleContactRoutes(request, path);
+      }
+
       // Auth routes
       if (path.startsWith('/api/auth')) {
         return await this.handleAuthRoutes(request, path);
@@ -230,6 +235,72 @@ export default class extends Service<Env> {
     }
 
     return new Response('Not Found', { status: 404 });
+  }
+
+  /**
+   * Handle contact routes (user's favorited personas)
+   */
+  private async handleContactRoutes(request: Request, path: string): Promise<Response> {
+    try {
+      // Get user ID from auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+
+      // GET /api/contacts - Get user's contacts
+      if (request.method === 'GET' && path === '/api/contacts') {
+        this.env.logger.info('Fetching contacts for user', { userId });
+        const contacts = await this.env.PERSONA_MANAGER.getContacts(userId!);
+        return new Response(JSON.stringify(contacts), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // POST /api/contacts - Add a contact
+      if (request.method === 'POST' && path === '/api/contacts') {
+        const body = await request.json() as { personaId: string };
+        if (!body.personaId) {
+          return new Response(JSON.stringify({ error: 'personaId is required' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        this.env.logger.info('Adding contact', { userId, personaId: body.personaId });
+        const contact = await this.env.PERSONA_MANAGER.addContact({
+          userId: userId!,
+          personaId: body.personaId
+        });
+        return new Response(JSON.stringify(contact), {
+          status: 201,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // DELETE /api/contacts/:personaId - Remove a contact
+      const deleteMatch = path.match(/^\/api\/contacts\/(.+)$/);
+      if (request.method === 'DELETE' && deleteMatch && deleteMatch[1]) {
+        const personaId = deleteMatch[1];
+        this.env.logger.info('Removing contact', { userId, personaId });
+        await this.env.PERSONA_MANAGER.removeContact({ userId: userId!, personaId });
+        return new Response(JSON.stringify({ message: 'Contact removed' }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      return new Response('Not Found', { status: 404 });
+    } catch (error) {
+      this.env.logger.error('Contact route error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return new Response(JSON.stringify({
+        error: error instanceof Error ? error.message : 'Internal server error'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
   }
 
   private async handleScenarioTemplates(request: Request, path: string): Promise<Response> {

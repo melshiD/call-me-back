@@ -104,4 +104,45 @@ export default class extends Service<Env> {
       throw error;
     }
   }
+
+  async getContacts(userId: string): Promise<any[]> {
+    try {
+      this.env.logger.info('Fetching contacts via database-proxy', { userId });
+
+      // Call the database-proxy service
+      const rows = await this.env.DATABASE_PROXY.getContacts(userId);
+
+      this.env.logger.info('Fetched contacts via database-proxy', { count: rows.length });
+
+      // Transform the data to match frontend expectations
+      return rows.map((row: any) => ({
+        id: row.persona_id,
+        name: row.name,
+        description: row.description,
+        voice: row.voice,
+        systemPrompt: row.system_prompt,
+        isPublic: Boolean(row.is_public),
+        createdBy: row.is_public ? 'system' : 'user',
+        tags: row.category ? [row.category] : [],
+        addedAt: row.added_at
+      }));
+    } catch (error) {
+      this.env.logger.error('Failed to fetch contacts', { error: error instanceof Error ? error.message : String(error) });
+      throw error;
+    }
+  }
+
+  async removeContact(input: { userId: string; personaId: string }): Promise<void> {
+    try {
+      this.env.logger.info('Removing contact via database-proxy', { userId: input.userId, personaId: input.personaId });
+
+      // Call the database-proxy service
+      await this.env.DATABASE_PROXY.removeContact(input.userId, input.personaId);
+
+      this.env.logger.info('Contact removed via database-proxy');
+    } catch (error) {
+      this.env.logger.error('Failed to remove contact', { error: error instanceof Error ? error.message : String(error) });
+      throw error;
+    }
+  }
 }

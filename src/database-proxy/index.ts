@@ -119,14 +119,66 @@ export default class extends Service<Env> {
         personaId: data.personaId
       });
 
+      // Insert into user_persona_relationships with is_favorite = true
       await this.executeQuery(
-        'INSERT INTO contacts (id, user_id, persona_id) VALUES ($1, $2, $3)',
-        [data.id, data.userId, data.personaId]
+        'INSERT INTO user_persona_relationships (id, user_id, persona_id, is_favorite) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id, persona_id) DO UPDATE SET is_favorite = true',
+        [data.id, data.userId, data.personaId, true]
       );
 
       this.env.logger.info('Contact added via database proxy', { id: data.id });
     } catch (error) {
       this.env.logger.error('Failed to add contact via database proxy', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get all contacts for a user
+   */
+  async getContacts(userId: string): Promise<any[]> {
+    try {
+      this.env.logger.info('Database proxy: Fetching contacts for user', { userId });
+
+      const result = await this.executeQuery(
+        `SELECT r.id, r.user_id, r.persona_id, r.created_at as added_at,
+                p.id as persona_id, p.name, p.description, p.default_voice_id as voice,
+                p.core_system_prompt as system_prompt, p.is_system_persona as is_public,
+                p.category
+         FROM user_persona_relationships r
+         JOIN personas p ON r.persona_id = p.id
+         WHERE r.user_id = $1 AND r.is_favorite = true
+         ORDER BY r.created_at DESC`,
+        [userId]
+      );
+
+      this.env.logger.info('Contacts fetched via database proxy', { count: result.rows.length });
+      return result.rows;
+    } catch (error) {
+      this.env.logger.error('Failed to fetch contacts via database proxy', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Remove a contact from the database
+   */
+  async removeContact(userId: string, personaId: string): Promise<void> {
+    try {
+      this.env.logger.info('Database proxy: Removing contact', { userId, personaId });
+
+      // Set is_favorite to false instead of deleting (preserve call history)
+      await this.executeQuery(
+        'UPDATE user_persona_relationships SET is_favorite = false WHERE user_id = $1 AND persona_id = $2',
+        [userId, personaId]
+      );
+
+      this.env.logger.info('Contact removed via database proxy');
+    } catch (error) {
+      this.env.logger.error('Failed to remove contact via database proxy', {
         error: error instanceof Error ? error.message : String(error)
       });
       throw error;
