@@ -1081,3 +1081,137 @@ Without `ctx.waitUntil()`, the async function awaiting these messages gets cance
 - ✅ Full voice call flow works: Twilio → STT → AI → TTS → User
 
 **Test Status:** Ready for next test call to verify the ctx.waitUntil() fix.
+
+---
+
+## WHERE WE LEFT OFF - Session End Summary (2025-11-16 4:05 AM)
+
+### The Core Issue We're Stuck On
+
+**WebSocket event listeners (`addEventListener('message', ...)`) set up in Cloudflare Workers are NOT FIRING when Twilio sends messages.**
+
+This is the fundamental blocker preventing the entire voice call flow from working. We've spent the entire debugging session trying different approaches to get WebSocket events to fire, but none have succeeded.
+
+### What We've Tried (All Failed)
+
+**Attempt #1: Event Listeners in HTTP Request Context**
+- Set up `addEventListener` before returning the 101 WebSocket upgrade response
+- **Result:** ❌ Events never fired
+- **Reason:** Suspected that HTTP context ends when response is returned, canceling listeners
+
+**Attempt #2: Event Listeners with ctx.waitUntil() and Promise/await**
+- Moved event listener setup inside `startVoicePipeline` wrapped in `ctx.waitUntil()`
+- Used Promise with `resolve/reject` that would be called by event listeners
+- Used `await Promise.race([startMessagePromise, timeoutPromise])` to wait for message or timeout
+- **Result:** ❌ Neither the message events nor the timeout fired
+- **Reason:** `setTimeout` doesn't work in ctx.waitUntil() context for WebSocket connections
+
+**Attempt #3: Direct Event-Driven Handling (Current State)**
+- Removed all `await` and Promise patterns
+- Set up event listeners in `ctx.waitUntil()` context that directly call handler methods
+- No setTimeout, no blocking - just pure event-driven architecture
+- **Result:** ❌ Events still never fire
+- **Code Location:** src/api-gateway/index.ts:233-279 (startVoicePipeline method)
+
+### What We Know For Certain
+
+✅ **Working:**
+- WebSocket upgrade succeeds (HTTP 101 response returned)
+- `accept()` is called on the server WebSocket
+- `readyState` shows `1` (OPEN) immediately after accept()
+- Event listeners are being attached (confirmed by log messages)
+- `ctx.waitUntil()` keeps the async function alive (confirmed by subsequent logs)
+- Code executes up to "Event listeners set up, waiting for messages from Twilio..."
+
+❌ **Not Working:**
+- `addEventListener('message', ...)` - NEVER fires
+- `addEventListener('error', ...)` - NEVER fires
+- `addEventListener('close', ...)` - NEVER fires
+- `setTimeout(...)` - NEVER fires (even inside ctx.waitUntil() context)
+- No exceptions or errors are thrown
+- The call just hangs until Twilio times out and disconnects
+
+### Evidence from Logs
+
+**Latest Test Call (4:04 AM):**
+```
+[API Gateway] WebSocket accept() called, readyState: 1
+[API Gateway] WebSocket accepted, will set up listeners in startVoicePipeline
+[API Gateway] Calling startVoicePipeline...
+[API Gateway] startVoicePipeline called
+[API Gateway] Setting up WebSocket event listeners...
+[API Gateway] Event listeners set up, waiting for messages from Twilio...
+[API Gateway] startVoicePipeline promise created
+[API Gateway] ctx.waitUntil() called with pipeline promise
+
+... THEN NOTHING - no message events, no timeouts, no errors ...
+```
+
+**What We Expected to See:**
+```
+[API Gateway] ===== WebSocket message event fired =====
+[API Gateway] Parsed WebSocket message, event: connected
+[API Gateway] ===== WebSocket message event fired =====
+[API Gateway] Parsed WebSocket message, event: start
+[API Gateway] START message received!
+[API Gateway] handleStartMessage called
+```
+
+### Current Hypothesis
+
+There's a **fundamental incompatibility** between:
+1. **Cloudflare Workers WebSocket event loop** - How Workers handle WebSocket events
+2. **Raindrop Framework Service wrapper** - How Raindrop wraps Workers Services
+3. **Execution context model** - What happens to event loops after returning a 101 response
+
+**Theory:** The WebSocket event loop may be tied to a different execution context that isn't kept alive by `ctx.waitUntil()`. In standard Cloudflare Workers, WebSocket events are handled in a persistent connection context separate from the HTTP request/response cycle. The Raindrop framework may have additional layers that interfere with this.
+
+### Next Steps to Investigate
+
+1. **Check Raindrop WebSocket Documentation**
+   - Search Raindrop docs for WebSocket examples
+   - Look for any special handling required for WebSocket connections
+   - Check if there's a different pattern needed for Service-based WebSockets
+
+2. **Minimal WebSocket Test**
+   - Create a simple echo server to test if ANY WebSocket events fire
+   - Strip away all the pipeline complexity
+   - Just log when events fire and echo messages back
+
+3. **Contact Raindrop Support**
+   - Ask specifically about WebSocket event handling in Services
+   - Ask if there are known limitations with `addEventListener` in Services
+   - Ask about examples of working WebSocket implementations
+
+4. **Consider Alternative Architectures**
+   - **Durable Objects:** Cloudflare's recommended solution for WebSocket handling
+   - **Direct Cloudflare Workers:** Bypass Raindrop framework for WebSocket handling
+   - **HTTP Polling:** Fallback if WebSocket events truly don't work
+
+### Code State at Session End
+
+**Latest Deployment:** 2025-11-16 4:03 AM
+
+**Key Files Modified:**
+- `src/api-gateway/index.ts` - Refactored to event-driven WebSocket handling
+- `CALL_FLOW_DEBUGGING.md` - Documented all solutions and attempts
+
+**Current Implementation:**
+- Event listeners set up in `startVoicePipeline` (inside ctx.waitUntil)
+- Direct event-driven architecture (no Promise.await blocking)
+- Message handler calls `handleStartMessage()` when "start" event arrives
+- All pipeline initialization code ready and waiting for that first message
+
+**The Blocker:**
+The WebSocket 'message' event never fires, so `handleStartMessage()` is never called, so the pipeline never starts, so the user just hears silence until the call times out.
+
+---
+
+## Next Session Priorities
+
+1. **FIRST:** Test if WebSocket events work at all - create minimal echo server
+2. **SECOND:** Check Raindrop docs/examples for WebSocket patterns
+3. **THIRD:** If events don't work in Services, explore Durable Objects or alternative architectures
+4. **FOURTH:** Contact Raindrop support if still blocked
+
+**The Goal:** Get even ONE WebSocket 'message' event to fire. Once we have that, everything else should work.
