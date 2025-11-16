@@ -236,3 +236,301 @@ This is PROGRESS! The XML is now valid, and Twilio is attempting to connect to o
 - Check logs for WebSocket connection attempt
 - Review Cloudflare Workers WebSocket API requirements
 - May need to test WebSocket endpoint independently
+
+---
+
+## Current Investigation: Query Parameter Parsing
+
+**Hypothesis:** The 400 error might be due to missing query parameters when Twilio makes the WebSocket request.
+
+**Logs from 2:04:04 AM show:**
+```
+handleVoiceRoutes called
+  path: "/api/voice/stream"
+  method: "GET"
+  headers: {"upgrade":"websocket", ...}
+
+WebSocket stream request
+  upgradeHeader: "websocket"  ✅ Detected correctly
+
+http.status: ❌ 400
+```
+
+**Code at src/api-gateway/index.ts:186-189:**
+```typescript
+if (!callId || !userId || !personaId) {
+  this.env.logger.error('Missing required parameters', { callId, userId, personaId });
+  return new Response('Missing required parameters', { status: 400 });
+}
+```
+
+**Enhanced Logging Added (2025-11-16 2:15 AM):**
+```typescript
+this.env.logger.info('handleVoiceStream parameters', {
+  callId,
+  userId,
+  personaId,
+  fullUrl: request.url,
+  searchParams: Object.fromEntries(url.searchParams.entries())
+});
+```
+
+**Deployed:** 2025-11-16 2:15 AM
+
+**Test Results (2:08:59 AM):**
+```
+handleVoiceStream parameters
+  callId: null
+  userId: null
+  personaId: null
+  fullUrl: "https://svc-01ka41sfy58tbr0dxm8kwz8jyy.../api/voice/stream"
+  searchParams: {}
+```
+
+**ROOT CAUSE IDENTIFIED:** ✅
+
+The query parameters are completely missing when Twilio makes the WebSocket request!
+
+**Why:** When we XML-escape ampersands to `&amp;` in the TwiML, Twilio does NOT unescape them back to `&` when constructing the WebSocket URL. The `<Stream>` element's URL attribute should contain raw ampersands (`&`), not XML entities (`&amp;`).
+
+---
+
+## Solution #2: Remove XML Escaping for Stream URL ✅
+
+**Fix Applied (2025-11-16 2:20 AM):**
+
+Removed the XML escaping for the Stream URL. The `<Stream>` element in TwiML handles raw ampersands correctly.
+
+**Change Made (src/api-gateway/index.ts:122-136):**
+```typescript
+// Build WebSocket URL for Media Streams
+const baseUrl = new URL(request.url).origin;
+const streamUrl = `${baseUrl.replace('http', 'ws')}/api/voice/stream?callId=${callSid}&userId=${userId}&personaId=${personaId}`;
+
+this.env.logger.info('Generated stream URL', { streamUrl, baseUrl });
+
+// Generate TwiML response with Media Streams
+// NOTE: Do NOT XML-escape the Stream URL - Twilio handles it correctly with raw ampersands
+const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say>Connecting you now.</Say>
+    <Connect>
+        <Stream url="${streamUrl}" />
+    </Connect>
+</Response>`;
+```
+
+**Before:**
+```xml
+<Stream url="wss://...?callId=CA...&amp;userId=demo&amp;personaId=brad" />
+```
+
+**After:**
+```xml
+<Stream url="wss://...?callId=CA...&userId=demo&personaId=brad" />
+```
+
+**Deployed:** 2025-11-16 2:20 AM
+
+**Test Result:** Document Parse Failure again - can't use raw ampersands either!
+
+---
+
+## Solution #3: Use Twilio `<Parameter>` Elements (CORRECT APPROACH) ✅
+
+**Discovery:** Consulted Twilio documentation - Stream URLs do NOT support query parameters at all!
+
+According to [Twilio's documentation](https://www.twilio.com/docs/voice/twiml/stream):
+> "The `url` does not support query string parameters. To pass custom key value pairs to the WebSocket, make use of Custom Parameters instead."
+
+**Correct Approach:**
+1. Use `<Parameter>` elements in TwiML to pass data
+2. Parameters are sent in the WebSocket "start" message under `start.customParameters`
+3. Extract parameters from the start message, not from URL
+
+**Changes Made:**
+
+**1. API Gateway TwiML (src/api-gateway/index.ts:122-141):**
+```typescript
+// Build WebSocket URL for Media Streams (without query parameters)
+const streamUrl = `${baseUrl.replace('http', 'ws')}/api/voice/stream`;
+
+// Generate TwiML with <Parameter> elements
+const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say>Connecting you now.</Say>
+    <Connect>
+        <Stream url="${streamUrl}">
+            <Parameter name="callId" value="${callSid}" />
+            <Parameter name="userId" value="${userId}" />
+            <Parameter name="personaId" value="${personaId}" />
+        </Stream>
+    </Connect>
+</Response>`;
+```
+
+**2. Voice Pipeline - Extract from Start Message (src/voice-pipeline/index.ts:27-37):**
+```typescript
+async handleConnection(ws: WebSocket): Promise<{ status: string }> {
+  this.env.logger.info('WebSocket connection established, waiting for start message');
+
+  // Wait for the "start" message from Twilio to get parameters
+  const startMessage = await this.waitForStartMessage(ws);
+
+  const callId = startMessage.customParameters.callId;
+  const userId = startMessage.customParameters.userId;
+  const personaId = startMessage.customParameters.personaId;
+
+  this.env.logger.info('Extracted parameters from start message', { callId, userId, personaId });
+  // ... continue with pipeline setup
+}
+```
+
+**3. Added Helper Method (src/voice-pipeline/index.ts:202-240):**
+```typescript
+private async waitForStartMessage(ws: WebSocket): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('Timeout waiting for start message'));
+    }, 10000);
+
+    ws.addEventListener('message', (event) => {
+      const message = JSON.parse(event.data as string);
+      if (message.event === 'start') {
+        clearTimeout(timeout);
+        resolve(message.start);
+      }
+    });
+  });
+}
+```
+
+**Deployed:** 2025-11-16 2:30 AM
+
+**Expected Result:**
+- ✅ TwiML XML parsing will succeed (no ampersands in URL)
+- ✅ WebSocket will connect successfully
+- ✅ Parameters will be extracted from "start" message customParameters
+- ✅ Voice pipeline will initialize with correct callId, userId, personaId
+
+**Test Result:** Still getting Error 31920 - WebSocket handshake error
+
+---
+
+## Solution #4: Add `server.accept()` Call ✅
+
+**Discovery:** Cloudflare Workers requires calling `accept()` on the server WebSocket to begin terminating the connection.
+
+According to [Cloudflare Workers WebSocket documentation](https://developers.cloudflare.com/workers/runtime-apis/websockets/):
+> "`accept()` accepts the WebSocket connection and begins terminating requests for the WebSocket on Cloudflare's global network."
+
+**Change Made (src/api-gateway/index.ts:185):**
+```typescript
+// Upgrade to WebSocket (Cloudflare Workers API)
+const pair = new (WebSocket as any).WebSocketPair();
+const [client, server] = [pair[0], pair[1]];
+
+// Accept the WebSocket connection (required for Cloudflare Workers)
+(server as any).accept();
+
+// Start the voice pipeline in the background
+this.startVoicePipeline(server as WebSocket);
+```
+
+**Deployed:** 2025-11-16 2:35 AM
+
+**Test Result:** Still Error 31920 - WebSocket handshake error
+
+---
+
+## Solution #5: Fix WebSocketPair Constructor ✅
+
+**Error Found in Logs:**
+```
+Voice stream error: "WebSocket.WebSocketPair is not a constructor"
+```
+
+**Root Cause:** Incorrect constructor call - `new WebSocket.WebSocketPair()` should be `new WebSocketPair()`
+
+**Change Made (src/api-gateway/index.ts:181-182):**
+```typescript
+// Upgrade to WebSocket (Cloudflare Workers API)
+// @ts-ignore - WebSocketPair is a Cloudflare Workers global
+const pair = new WebSocketPair();
+const [client, server] = Object.values(pair);
+```
+
+**Before:**
+```typescript
+const pair = new (WebSocket as any).WebSocketPair();
+```
+
+**After:**
+```typescript
+const pair = new WebSocketPair();
+```
+
+**Deployed:** 2025-11-16 2:45 AM
+
+**Test Result:** ✅ MAJOR PROGRESS! Error changed from 31920 (handshake error) to 31921 (close error)
+
+**What This Means:**
+- ✅ WebSocket handshake NOW WORKS!
+- ✅ Twilio successfully connects to our WebSocket
+- ❌ Our server closes the connection unexpectedly
+
+**Twilio Error 31921:** "Stream - WebSocket - Close Error" - The remote server closed the WebSocket connection. This is different from a handshake failure - the connection was established successfully but then closed by our server.
+
+---
+
+## Solution #6: Enhanced Error Logging for WebSocket Closure ✅
+
+**Goal:** Understand why the WebSocket connection closes after successful handshake
+
+**Changes Made (src/voice-pipeline/index.ts):**
+
+1. **Wrapped handleConnection in try-catch (line 28):**
+   ```typescript
+   async handleConnection(ws: WebSocket): Promise<{ status: string }> {
+     try {
+       this.env.logger.info('WebSocket connection established, waiting for start message');
+
+       const startMessage = await this.waitForStartMessage(ws);
+       this.env.logger.info('Start message received', { startMessage });
+       // ... rest of function
+     } catch (error) {
+       this.env.logger.error('Failed to handle WebSocket connection', {
+         error: error instanceof Error ? error.message : String(error),
+         stack: error instanceof Error ? error.stack : undefined
+       });
+       ws.close(1011, 'Internal error');
+       throw error;
+     }
+   }
+   ```
+
+2. **Added detailed logging for start message extraction (line 34):**
+   - Logs the entire start message received from Twilio
+   - Logs extracted parameters (callId, userId, personaId)
+
+**Deployed:** 2025-11-16 2:53 AM
+
+**Next Test:** Will reveal exact error causing WebSocket to close
+
+---
+
+## Current Status: Debugging WebSocket Close (Error 31921)
+
+**Progress Summary:**
+1. ✅ Fixed TwiML XML parsing (escaped ampersands, then switched to `<Parameter>` elements)
+2. ✅ Fixed WebSocket handshake (correct WebSocketPair constructor)
+3. ✅ WebSocket connection now establishes successfully
+4. ❌ Connection closes immediately after establishment
+
+**Most Likely Cause:**
+The `waitForStartMessage` function is either:
+- Timing out before receiving Twilio's start message
+- Throwing an error when parsing the start message
+- Failing to extract customParameters correctly
+
+**Waiting for:** Next test call to see detailed error logs

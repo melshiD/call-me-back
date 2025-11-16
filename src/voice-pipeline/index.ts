@@ -22,9 +22,23 @@ export default class extends Service<Env> {
 
   /**
    * Handle WebSocket connection from Twilio Media Streams
+   * Parameters are extracted from the "start" message customParameters
    */
-  async handleConnection(ws: WebSocket, callId: string, userId: string, personaId: string): Promise<{ status: string }> {
+  async handleConnection(ws: WebSocket): Promise<{ status: string }> {
     try {
+      this.env.logger.info('WebSocket connection established, waiting for start message');
+
+      // Wait for the "start" message from Twilio to get parameters
+      const startMessage = await this.waitForStartMessage(ws);
+
+      this.env.logger.info('Start message received', { startMessage });
+
+      const callId = startMessage.customParameters.callId;
+      const userId = startMessage.customParameters.userId;
+      const personaId = startMessage.customParameters.personaId;
+
+      this.env.logger.info('Extracted parameters from start message', { callId, userId, personaId });
+
       this.env.logger.info('Handling voice pipeline connection', { callId, userId, personaId });
 
       // Initialize cost tracker for this call
@@ -80,10 +94,16 @@ export default class extends Service<Env> {
         status: 'connected',
       };
     } catch (error) {
-      this.env.logger.error('Failed to handle connection', {
-        callId,
-        error: error instanceof Error ? error.message : String(error)
+      this.env.logger.error('Failed to handle WebSocket connection', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
       });
+      // Close WebSocket on error
+      try {
+        ws.close(1011, 'Internal error');
+      } catch (closeError) {
+        // Ignore close errors
+      }
       throw error;
     }
   }
@@ -185,6 +205,46 @@ export default class extends Service<Env> {
     }
 
     return null;
+  }
+
+  /**
+   * Wait for and parse the "start" message from Twilio Media Streams
+   */
+  private async waitForStartMessage(ws: WebSocket): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout waiting for start message'));
+      }, 10000); // 10 second timeout
+
+      ws.addEventListener('message', (event) => {
+        try {
+          const message = JSON.parse(event.data as string);
+
+          if (message.event === 'start') {
+            clearTimeout(timeout);
+            this.env.logger.info('Received start message', {
+              callSid: message.start.callSid,
+              customParameters: message.start.customParameters
+            });
+            resolve(message.start);
+          }
+        } catch (error) {
+          this.env.logger.error('Error parsing WebSocket message', {
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      });
+
+      ws.addEventListener('error', (event) => {
+        clearTimeout(timeout);
+        reject(new Error('WebSocket error before start message'));
+      });
+
+      ws.addEventListener('close', (event) => {
+        clearTimeout(timeout);
+        reject(new Error('WebSocket closed before start message'));
+      });
+    });
   }
 }
 

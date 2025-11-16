@@ -67,6 +67,12 @@ export default class extends Service<Env> {
    * Handle Twilio voice routes
    */
   private async handleVoiceRoutes(request: Request, path: string, url: URL): Promise<Response> {
+    this.env.logger.info('handleVoiceRoutes called', {
+      path,
+      method: request.method,
+      headers: Object.fromEntries(request.headers.entries())
+    });
+
     // POST /api/voice/answer - Return TwiML for incoming calls
     if (request.method === 'POST' && path === '/api/voice/answer') {
       return await this.handleVoiceAnswer(request);
@@ -75,13 +81,21 @@ export default class extends Service<Env> {
     // WebSocket /api/voice/stream - Handle Twilio Media Streams
     if (path === '/api/voice/stream') {
       const upgradeHeader = request.headers.get('Upgrade');
+      this.env.logger.info('WebSocket stream request', {
+        upgradeHeader,
+        method: request.method,
+        path
+      });
+
       if (upgradeHeader !== 'websocket') {
+        this.env.logger.warn('Missing WebSocket upgrade header', { upgradeHeader });
         return new Response('Expected WebSocket', { status: 426 });
       }
 
       return await this.handleVoiceStream(request, url);
     }
 
+    this.env.logger.warn('Voice route not found', { path, method: request.method });
     return new Response('Not Found', { status: 404 });
   }
 
@@ -105,21 +119,24 @@ export default class extends Service<Env> {
       const userId = 'demo_user'; // TODO: Lookup user by phone number
       const personaId = 'brad_001'; // TODO: Get from user preferences or call context
 
-      // Build WebSocket URL for Media Streams
+      // Build WebSocket URL for Media Streams (without query parameters)
+      // Twilio Stream URLs do NOT support query parameters - use <Parameter> elements instead
       const baseUrl = new URL(request.url).origin;
-      const streamUrl = `${baseUrl.replace('http', 'ws')}/api/voice/stream?callId=${callSid}&userId=${userId}&personaId=${personaId}`;
+      const streamUrl = `${baseUrl.replace('http', 'ws')}/api/voice/stream`;
 
-      // XML-escape the URL (ampersands must be &amp; in XML)
-      const escapedStreamUrl = streamUrl.replace(/&/g, '&amp;');
-
-      this.env.logger.info('Generated stream URL', { streamUrl, escapedStreamUrl, baseUrl });
+      this.env.logger.info('Generated stream URL', { streamUrl, baseUrl, callSid, userId, personaId });
 
       // Generate TwiML response with Media Streams
+      // Use <Parameter> elements to pass custom data (sent in WebSocket "start" message)
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say>Connecting you now.</Say>
     <Connect>
-        <Stream url="${escapedStreamUrl}" />
+        <Stream url="${streamUrl}">
+            <Parameter name="callId" value="${callSid}" />
+            <Parameter name="userId" value="${userId}" />
+            <Parameter name="personaId" value="${personaId}" />
+        </Stream>
     </Connect>
 </Response>`;
 
@@ -156,23 +173,21 @@ export default class extends Service<Env> {
    */
   private async handleVoiceStream(request: Request, url: URL): Promise<Response> {
     try {
-      // Extract parameters from query string
-      const callId = url.searchParams.get('callId');
-      const userId = url.searchParams.get('userId');
-      const personaId = url.searchParams.get('personaId');
-
-      if (!callId || !userId || !personaId) {
-        return new Response('Missing required parameters', { status: 400 });
-      }
-
-      this.env.logger.info('WebSocket connection request', { callId, userId, personaId });
+      this.env.logger.info('WebSocket upgrade request received', {
+        url: request.url
+      });
 
       // Upgrade to WebSocket (Cloudflare Workers API)
-      const pair = new (WebSocket as any).WebSocketPair();
-      const [client, server] = [pair[0], pair[1]];
+      // @ts-ignore - WebSocketPair is a Cloudflare Workers global
+      const pair = new WebSocketPair();
+      const [client, server] = Object.values(pair);
+
+      // Accept the WebSocket connection (required for Cloudflare Workers)
+      (server as any).accept();
 
       // Start the voice pipeline in the background
-      this.startVoicePipeline(server as WebSocket, callId, userId, personaId);
+      // Parameters will be extracted from Twilio's "start" message
+      this.startVoicePipeline(server as WebSocket);
 
       return new Response(null, {
         status: 101,
@@ -189,26 +204,17 @@ export default class extends Service<Env> {
 
   /**
    * Start the voice pipeline (runs in background)
+   * Parameters (callId, userId, personaId) will be extracted from Twilio's "start" message
    */
-  private async startVoicePipeline(
-    ws: WebSocket,
-    callId: string,
-    userId: string,
-    personaId: string
-  ): Promise<void> {
+  private async startVoicePipeline(ws: WebSocket): Promise<void> {
     try {
       // Call the voice-pipeline service
-      const result = await this.env.VOICE_PIPELINE.handleConnection(
-        ws,
-        callId,
-        userId,
-        personaId
-      );
+      // It will extract callId, userId, personaId from the "start" message customParameters
+      const result = await this.env.VOICE_PIPELINE.handleConnection(ws);
 
-      this.env.logger.info('Voice pipeline started', { callId, status: result.status });
+      this.env.logger.info('Voice pipeline started', { status: result.status });
     } catch (error) {
       this.env.logger.error('Failed to start voice pipeline', {
-        callId,
         error: error instanceof Error ? error.message : String(error)
       });
 
