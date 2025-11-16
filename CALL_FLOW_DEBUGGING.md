@@ -519,18 +519,144 @@ const pair = new WebSocketPair();
 
 ---
 
-## Current Status: Debugging WebSocket Close (Error 31921)
+## Solution #7: Fix WebSocket Serialization Across Service Boundary ✅
 
-**Progress Summary:**
-1. ✅ Fixed TwiML XML parsing (escaped ampersands, then switched to `<Parameter>` elements)
-2. ✅ Fixed WebSocket handshake (correct WebSocketPair constructor)
-3. ✅ WebSocket connection now establishes successfully
-4. ❌ Connection closes immediately after establishment
+**Error Found in Logs (2:29:14 AM):**
+```
+❌ handleConnection (0ms)
+   service: VOICE_PIPELINE
+✅ log
+   level: ERROR
+   message: Failed to start voice pipeline
+   fields: {"error":"Could not serialize object of type \"WebSocket\". This type does not support serialization."}
+```
 
-**Most Likely Cause:**
-The `waitForStartMessage` function is either:
-- Timing out before receiving Twilio's start message
-- Throwing an error when parsing the start message
-- Failing to extract customParameters correctly
+**Root Cause:** CRITICAL - Raindrop Framework (Cloudflare Workers) **cannot serialize WebSocket objects** across service RPC boundaries!
 
-**Waiting for:** Next test call to see detailed error logs
+When we called `this.env.VOICE_PIPELINE.handleConnection(ws)`, Raindrop tried to serialize the WebSocket object to send it to the voice-pipeline service via RPC. WebSocket objects cannot be serialized, causing the call to fail immediately and the WebSocket to close.
+
+**Solution:** Instantiate the `VoicePipelineOrchestrator` **directly in the api-gateway service** instead of passing the WebSocket across the service boundary.
+
+**Changes Made (src/api-gateway/index.ts):**
+
+1. **Added imports (lines 4-6):**
+   ```typescript
+   import { VoicePipelineOrchestrator, VoicePipelineConfig } from '../voice-pipeline/voice-pipeline-orchestrator';
+   import { CallCostTracker } from '../shared/cost-tracker';
+   import { executeSQL } from '../shared/db-helpers';
+   ```
+
+2. **Replaced startVoicePipeline method (lines 214-393):**
+   - Instead of calling `this.env.VOICE_PIPELINE.handleConnection(ws)`, we now:
+   - Wait for Twilio's "start" message directly in api-gateway
+   - Extract parameters from customParameters
+   - Load persona and relationship from database
+   - Create `VoicePipelineOrchestrator` instance locally
+   - Call `pipeline.start(ws)` with the WebSocket in the same execution context
+
+3. **Added helper methods:**
+   - `waitForStartMessage(ws)` - Waits for Twilio's start message with parameters
+   - `loadPersona(personaId)` - Loads persona from database
+   - `loadOrCreateRelationship(userId, personaId)` - Loads or creates user-persona relationship
+
+**Key Insight:**
+In Cloudflare Workers/Raindrop Framework, WebSocket objects are "exotic" objects that cannot cross service boundaries. They must be handled in the same service/execution context where they're created.
+
+**Deployed:** 2025-11-16 2:42 AM (Eastern Time)
+
+**Expected Result:**
+- ✅ WebSocket stays in same execution context
+- ✅ No serialization error
+- ✅ Voice pipeline initializes successfully
+- ✅ Full AI conversation flow should work
+
+---
+
+## Solution #8: Bypass Cost Tracker (Temporary) ⚠️
+
+**Error Found in Logs (2:41:02 AM):**
+```
+❌ Error: D1_ERROR: no such table: call_cost_breakdowns: SQLITE_ERROR
+```
+
+**Root Cause:** The `CallCostTracker` was trying to use the SmartSQL database (`CALL_ME_BACK_DB`), but we use Vultr PostgreSQL for all database operations. The table `call_cost_breakdowns` doesn't exist in SmartSQL.
+
+**Temporary Solution (src/api-gateway/index.ts:229-233):**
+```typescript
+// TODO: Cost tracker needs to be refactored to use DATABASE_PROXY instead of SmartSQL
+// For now, skip cost tracking to get the voice pipeline working
+// const costTracker = new CallCostTracker(callId, userId, this.env.CALL_ME_BACK_DB);
+// await costTracker.initialize();
+const costTracker = null as any; // Temporarily disabled
+```
+
+**Deployed:** 2025-11-16 2:48 AM (Eastern Time)
+
+**⚠️ TODO - CRITICAL:**
+The `CallCostTracker` class needs to be refactored to:
+1. Accept `DATABASE_PROXY` service instead of SmartSQL binding
+2. Use `this.env.DATABASE_PROXY.executeQuery()` instead of `executeSQL()` helper
+3. Use PostgreSQL syntax ($1, $2 placeholders) instead of SQLite (?)
+4. Ensure the `call_cost_breakdowns` table exists in Vultr PostgreSQL
+
+**Impact:** Cost tracking is disabled during calls. Users won't see detailed cost breakdowns, but calls will work.
+
+---
+
+## Solution #9: Fix ElevenLabs WebSocket Authentication ✅
+
+**Error Discovered (from logs after 2:54:00 AM):**
+The call successfully initialized through memory loading and procedure loading, but then went **completely silent** before disconnecting with Error 31921.
+
+**Root Cause:** ElevenLabs STT and TTS WebSocket connections were failing because:
+1. Code tried to pass API key via `headers` option: `new WebSocket(url, { headers: { 'xi-api-key': apiKey } })`
+2. **Cloudflare Workers WebSocket API doesn't support the `headers` option** - it only accepts the URL parameter
+3. This caused STT/TTS connections to fail silently, preventing any audio processing
+
+**Security Concern:**
+Passing API keys as query parameters is normally a security risk (logged, cached, visible in URLs). However, in this case:
+- ✅ **Server-to-server only** - WebSocket connection is from Cloudflare Workers, not browser
+- ✅ **TLS encrypted** - `wss://` encrypts the entire URL including query parameters
+- ✅ **No client exposure** - API key never reaches the browser
+- ✅ **ElevenLabs documented approach** - Their API supports `authorization` query parameter for this exact use case
+
+**Changes Made:**
+
+**1. ElevenLabs STT Handler (src/voice-pipeline/elevenlabs-stt.ts):**
+```typescript
+// buildWebSocketUrl() method - Added authorization parameter
+params.append('authorization', this.config.apiKey);
+
+// connect() method - Removed headers option
+this.ws = new WebSocket(url); // Not: new WebSocket(url, { headers: {...} })
+```
+
+**2. ElevenLabs TTS Handler (src/voice-pipeline/elevenlabs-tts.ts):**
+```typescript
+// buildWebSocketUrl() method - Added authorization parameter
+params.append('authorization', this.config.apiKey);
+
+// connect() method - Removed headers option
+this.ws = new WebSocket(url); // Not: new WebSocket(url, { headers: {...} })
+```
+
+**Deployed:** 2025-11-16 (current deployment)
+
+**Expected Result:**
+- ✅ STT WebSocket connects to ElevenLabs
+- ✅ TTS WebSocket connects to ElevenLabs
+- ✅ Audio flows: Twilio → STT → AI → TTS → Twilio
+- ✅ User hears AI voice instead of silence
+
+---
+
+## Current Status: Ready for Testing
+
+**All Issues Fixed/Bypassed:**
+1. ✅ TwiML XML parsing (using `<Parameter>` elements)
+2. ✅ WebSocket handshake (correct WebSocketPair constructor + accept())
+3. ✅ WebSocket serialization (moved pipeline instantiation to api-gateway)
+4. ✅ ElevenLabs authentication (API key via query parameter for Cloudflare Workers compatibility)
+5. ⚠️ Cost tracker bypassed temporarily (needs refactoring to use DATABASE_PROXY)
+
+**Next Test:** Make a call to verify the complete voice pipeline works end-to-end!

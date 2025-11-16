@@ -127,11 +127,9 @@ export class ElevenLabsTTSHandler {
     try {
       const url = this.buildWebSocketUrl();
 
-      this.ws = new WebSocket(url, {
-        headers: {
-          'xi-api-key': this.config.apiKey
-        }
-      });
+      // Cloudflare Workers WebSocket doesn't support headers option
+      // API key is passed via 'authorization' query parameter in the URL
+      this.ws = new WebSocket(url);
 
       this.ws.addEventListener('open', () => {
         console.log('[ElevenLabsTTS] WebSocket connected');
@@ -175,10 +173,19 @@ export class ElevenLabsTTSHandler {
 
   /**
    * Build WebSocket URL with query parameters
+   *
+   * NOTE: API key is passed as query parameter because Cloudflare Workers
+   * WebSocket API doesn't support custom headers. This is secure because:
+   * 1. Server-to-server connection only (not exposed to browser)
+   * 2. Encrypted via TLS (wss://)
+   * 3. Documented by ElevenLabs for WebSocket auth
    */
   private buildWebSocketUrl(): string {
     const baseUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${this.config.voiceId}/stream-input`;
     const params = new URLSearchParams();
+
+    // Authentication (Cloudflare Workers doesn't support WebSocket headers)
+    params.append('authorization', this.config.apiKey);
 
     if (this.config.modelId) {
       params.append('model_id', this.config.modelId);

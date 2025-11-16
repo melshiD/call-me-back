@@ -1,6 +1,8 @@
 import { Service } from '@liquidmetal-ai/raindrop-framework';
 import { Env } from './raindrop.gen';
 import { ScenarioTemplateManager } from '../shared/scenario-templates';
+import { VoicePipelineOrchestrator, VoicePipelineConfig } from '../voice-pipeline/voice-pipeline-orchestrator';
+import { CallCostTracker } from '../shared/cost-tracker';
 
 export default class extends Service<Env> {
   async fetch(request: Request): Promise<Response> {
@@ -205,22 +207,186 @@ export default class extends Service<Env> {
   /**
    * Start the voice pipeline (runs in background)
    * Parameters (callId, userId, personaId) will be extracted from Twilio's "start" message
+   * NOTE: We instantiate VoicePipelineOrchestrator HERE instead of calling the service
+   * because WebSocket objects cannot be serialized across service boundaries in Cloudflare Workers
    */
   private async startVoicePipeline(ws: WebSocket): Promise<void> {
     try {
-      // Call the voice-pipeline service
-      // It will extract callId, userId, personaId from the "start" message customParameters
-      const result = await this.env.VOICE_PIPELINE.handleConnection(ws);
+      this.env.logger.info('WebSocket connection established, waiting for start message');
 
-      this.env.logger.info('Voice pipeline started', { status: result.status });
+      // Wait for the "start" message from Twilio to get parameters
+      const startMessage = await this.waitForStartMessage(ws);
+
+      this.env.logger.info('Start message received', { startMessage });
+
+      const callId = startMessage.customParameters.callId;
+      const userId = startMessage.customParameters.userId;
+      const personaId = startMessage.customParameters.personaId;
+
+      this.env.logger.info('Extracted parameters from start message', { callId, userId, personaId });
+
+      // TODO: Cost tracker needs to be refactored to use DATABASE_PROXY instead of SmartSQL
+      // For now, skip cost tracking to get the voice pipeline working
+      // const costTracker = new CallCostTracker(callId, userId, this.env.CALL_ME_BACK_DB);
+      // await costTracker.initialize();
+      const costTracker = null as any; // Temporarily disabled
+
+      // Load persona from database
+      const persona = await this.loadPersona(personaId);
+      if (!persona) {
+        throw new Error(`Persona not found: ${personaId}`);
+      }
+
+      // Load or create user-persona relationship
+      const relationship = await this.loadOrCreateRelationship(userId, personaId);
+
+      // Extract voice configuration from relationship
+      const voiceId = relationship.voice_id || persona.default_voice_id || 'JBFqnCBsd6RMkjVDRZzb';
+      const voiceSettings = relationship.voice_settings || {
+        stability: 0.5,
+        similarity_boost: 0.75,
+        style: 0.0,
+        use_speaker_boost: true,
+        speed: 1.0
+      };
+
+      // Create pipeline configuration
+      const config: VoicePipelineConfig = {
+        elevenLabsApiKey: this.env.ELEVENLABS_API_KEY || '',
+        cerebrasApiKey: this.env.CEREBRAS_API_KEY || '',
+        voiceId,
+        voiceSettings,
+        callId,
+        userId,
+        personaId
+      };
+
+      // Create and start pipeline with SmartMemory
+      const pipeline = new VoicePipelineOrchestrator(
+        config,
+        costTracker,
+        this.env.CONVERSATION_MEMORY,  // SmartMemory binding
+        persona,
+        relationship
+      );
+      await pipeline.start(ws);
+
+      this.env.logger.info('Voice pipeline started', { callId, personaId });
     } catch (error) {
       this.env.logger.error('Failed to start voice pipeline', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
       });
 
       // Close WebSocket on error
-      ws.close(1011, 'Internal error');
+      try {
+        ws.close(1011, 'Internal error');
+      } catch (closeError) {
+        // Ignore close errors
+      }
     }
+  }
+
+  /**
+   * Wait for and parse the "start" message from Twilio Media Streams
+   */
+  private async waitForStartMessage(ws: WebSocket): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout waiting for start message'));
+      }, 10000); // 10 second timeout
+
+      ws.addEventListener('message', (event) => {
+        try {
+          const message = JSON.parse(event.data as string);
+
+          if (message.event === 'start') {
+            clearTimeout(timeout);
+            this.env.logger.info('Received start message', {
+              callSid: message.start.callSid,
+              customParameters: message.start.customParameters
+            });
+            resolve(message.start);
+          }
+        } catch (error) {
+          this.env.logger.error('Error parsing WebSocket message', {
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      });
+
+      ws.addEventListener('error', (event) => {
+        clearTimeout(timeout);
+        reject(new Error('WebSocket error before start message'));
+      });
+
+      ws.addEventListener('close', (event) => {
+        clearTimeout(timeout);
+        reject(new Error('WebSocket closed before start message'));
+      });
+    });
+  }
+
+  /**
+   * Load persona from database (using DATABASE_PROXY to Vultr PostgreSQL)
+   */
+  private async loadPersona(personaId: string): Promise<any> {
+    const result = await this.env.DATABASE_PROXY.executeQuery(
+      'SELECT * FROM personas WHERE id = $1',
+      [personaId]
+    );
+
+    if (!result || !result.rows || result.rows.length === 0) {
+      return null;
+    }
+
+    return result.rows[0];
+  }
+
+  /**
+   * Load or create user-persona relationship (using DATABASE_PROXY to Vultr PostgreSQL)
+   */
+  private async loadOrCreateRelationship(userId: string, personaId: string): Promise<any> {
+    // Try to load existing relationship
+    const result = await this.env.DATABASE_PROXY.executeQuery(
+      'SELECT * FROM user_persona_relationships WHERE user_id = $1 AND persona_id = $2',
+      [userId, personaId]
+    );
+
+    if (result && result.rows && result.rows.length > 0) {
+      return result.rows[0];
+    }
+
+    // Create new relationship with defaults
+    const relationshipId = crypto.randomUUID();
+    await this.env.DATABASE_PROXY.executeQuery(
+      `INSERT INTO user_persona_relationships
+       (id, user_id, persona_id, relationship_type, custom_system_prompt, voice_id, voice_settings, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        relationshipId,
+        userId,
+        personaId,
+        'friend',  // Default relationship type
+        '',        // No custom prompt initially
+        null,      // Will use persona default
+        JSON.stringify({
+          stability: 0.5,
+          similarity_boost: 0.75,
+          speed: 1.0,
+          style: 0.0
+        }),
+        new Date().toISOString()
+      ]
+    );
+
+    // Load the newly created relationship
+    const newResult = await this.env.DATABASE_PROXY.executeQuery(
+      'SELECT * FROM user_persona_relationships WHERE user_id = $1 AND persona_id = $2',
+      [userId, personaId]
+    );
+
+    return newResult.rows[0];
   }
 
   /**
