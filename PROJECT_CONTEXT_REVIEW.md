@@ -251,6 +251,24 @@ localStorage.getItem('authToken')
 
 ### CRITICAL Deployment Rules
 
+**IMPORTANT: Raindrop Dashboard is Essentially Useless**
+- The Raindrop web dashboard is extremely sparse (can't even set env vars through it)
+- **ALL useful information must be obtained through the CLI**
+- Logs, status, debugging - everything is CLI-based
+- Don't waste time looking for features in the dashboard
+
+**Getting Logs (CLI Only):**
+```bash
+# Get last 100 log entries
+raindrop logs tail -n 100 --application call-me-back
+
+# Follow logs in real-time (like tail -f)
+raindrop logs tail -f --application call-me-back
+
+# Get last 50 logs and then follow
+raindrop logs tail -n 50 -f --application call-me-back
+```
+
 **Creating New Branches:**
 ```bash
 # CORRECT

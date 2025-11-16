@@ -90,6 +90,8 @@ export default class extends Service<Env> {
    */
   private async handleVoiceAnswer(request: Request): Promise<Response> {
     try {
+      this.env.logger.info('handleVoiceAnswer called', { url: request.url });
+
       // Parse Twilio request body (form-encoded)
       const formData = await request.formData();
       const callSid = formData.get('CallSid') as string;
@@ -107,14 +109,21 @@ export default class extends Service<Env> {
       const baseUrl = new URL(request.url).origin;
       const streamUrl = `${baseUrl.replace('http', 'ws')}/api/voice/stream?callId=${callSid}&userId=${userId}&personaId=${personaId}`;
 
+      // XML-escape the URL (ampersands must be &amp; in XML)
+      const escapedStreamUrl = streamUrl.replace(/&/g, '&amp;');
+
+      this.env.logger.info('Generated stream URL', { streamUrl, escapedStreamUrl, baseUrl });
+
       // Generate TwiML response with Media Streams
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say>Connecting you now.</Say>
     <Connect>
-        <Stream url="${streamUrl}" />
+        <Stream url="${escapedStreamUrl}" />
     </Connect>
 </Response>`;
+
+      this.env.logger.info('Returning TwiML', { twiml });
 
       return new Response(twiml, {
         headers: {
@@ -123,7 +132,8 @@ export default class extends Service<Env> {
       });
     } catch (error) {
       this.env.logger.error('Voice answer error', {
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
       });
 
       // Return error TwiML
