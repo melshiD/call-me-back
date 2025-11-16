@@ -28,6 +28,11 @@ raindrop build env set env:ELEVENLABS_API_KEY "$ELEVENLABS_API_KEY" && echo "✓
 raindrop build env set env:CEREBRAS_API_KEY "$CEREBRAS_API_KEY" && echo "✓ CEREBRAS_API_KEY"
 
 echo ""
+echo "Setting WorkOS authentication secrets..."
+raindrop build env set env:WORKOS_API_KEY "$WORKOS_API_KEY" && echo "✓ WORKOS_API_KEY"
+raindrop build env set env:WORKOS_CLIENT_ID "$WORKOS_CLIENT_ID" && echo "✓ WORKOS_CLIENT_ID"
+
+echo ""
 echo "=== All Secrets Set Successfully! ==="
 echo ""
 echo "Now deploy with: raindrop build deploy"

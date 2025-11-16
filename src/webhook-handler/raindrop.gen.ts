@@ -30,4 +30,6 @@ export interface Env {
   VOICE_PIPELINE: ServiceStub<import('../voice-pipeline/index.js').default>;
   VULTR_DB_API_KEY: string;
   VULTR_DB_API_URL: string;
+  WORKOS_API_KEY: string;
+  WORKOS_CLIENT_ID: string;
 }

@@ -203,6 +203,32 @@ raindrop build env set env:SECRET_NAME "value"
 ./set-all-secrets.sh
 ```
 
+### CRITICAL: Adding New Environment Variables
+
+**When adding a new environment variable, you MUST do THREE things:**
+
+1. **Add to `.env` file** - The actual value
+2. **Add to `raindrop.manifest`** - Declare it as an env variable
+   ```hcl
+   env "YOUR_VAR_NAME" {
+     secret = true  # or false if not sensitive
+   }
+   ```
+3. **Add to `set-all-secrets.sh`** - So it gets set during deployment
+   ```bash
+   raindrop build env set env:YOUR_VAR_NAME "$YOUR_VAR_NAME"
+   ```
+
+**If you skip step 2 (manifest), you'll get TypeScript errors:**
+```
+error TS2339: Property 'YOUR_VAR_NAME' does not exist on type 'Env'
+```
+
+**Order matters:**
+1. Add to manifest first
+2. Run `raindrop build generate` to regenerate types
+3. Then you can use it in code via `this.env.YOUR_VAR_NAME`
+
 ---
 
 ## Deployment Procedures

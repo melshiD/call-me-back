@@ -32,6 +32,14 @@ application "call-me-back" {
     secret = true
   }
 
+  env "WORKOS_API_KEY" {
+    secret = true
+  }
+
+  env "WORKOS_CLIENT_ID" {
+    secret = true
+  }
+
   service "api-gateway" {
     visibility = "public"
   }

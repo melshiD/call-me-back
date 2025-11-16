@@ -2,10 +2,18 @@ import { Service } from '@liquidmetal-ai/raindrop-framework';
 import { Env } from './raindrop.gen';
 import type { RegisterInput, LoginInput, AuthResponse, TokenValidationResult } from './interfaces';
 import * as utils from './utils';
+import { WorkOS } from '@workos-inc/node';
 
 export default class extends Service<Env> {
   async fetch(request: Request): Promise<Response> {
     return new Response('Not implemented', { status: 501 });
+  }
+
+  private getWorkOS(): WorkOS | null {
+    if (!this.env.WORKOS_API_KEY) {
+      return null;
+    }
+    return new WorkOS(this.env.WORKOS_API_KEY);
   }
 
   async register(input: RegisterInput): Promise<AuthResponse> {
@@ -16,6 +24,62 @@ export default class extends Service<Env> {
       if (input.password.length < 8) {
         throw new Error('Password must be at least 8 characters long');
       }
+
+      const workos = this.getWorkOS();
+
+      if (workos && this.env.WORKOS_CLIENT_ID) {
+        // Use WorkOS for registration
+        this.env.logger.info('Using WorkOS for registration', { email: input.email });
+
+        try {
+          // Create user in WorkOS
+          const workosUser = await workos.userManagement.createUser({
+            email: input.email,
+            password: input.password,
+            firstName: input.name?.split(' ')[0] || '',
+            lastName: input.name?.split(' ').slice(1).join(' ') || '',
+            emailVerified: false
+          });
+
+          // Store user in our database with WorkOS ID
+          const userId = workosUser.id;
+          await this.env.DATABASE_PROXY.executeQuery(
+            'INSERT INTO users (id, email, password_hash, name, phone) VALUES ($1, $2, $3, $4, $5)',
+            [userId, input.email, 'workos', input.name, input.phone]
+          );
+
+          // Authenticate to get access token
+          const authResponse = await workos.userManagement.authenticateWithPassword({
+            email: input.email,
+            password: input.password,
+            clientId: this.env.WORKOS_CLIENT_ID
+          });
+
+          this.env.logger.info('User registered with WorkOS', { userId, email: input.email });
+
+          return {
+            token: authResponse.accessToken,
+            user: {
+              id: userId,
+              email: input.email,
+              name: input.name,
+              phone: input.phone,
+              emailVerified: false,
+              phoneVerified: false,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+          };
+        } catch (workosError) {
+          this.env.logger.error('WorkOS registration failed, falling back to JWT', {
+            error: workosError instanceof Error ? workosError.message : String(workosError)
+          });
+          // Fall through to JWT fallback
+        }
+      }
+
+      // Fallback to JWT authentication if WorkOS not configured or failed
+      this.env.logger.info('Using JWT fallback for registration', { email: input.email });
 
       // Check if user already exists
       const existingUser = await this.env.DATABASE_PROXY.executeQuery(
@@ -42,7 +106,7 @@ export default class extends Service<Env> {
       // Generate JWT
       const token = await utils.generateToken(userId, input.email, this.env.JWT_SECRET);
 
-      this.env.logger.info('User registered successfully', { userId, email: input.email });
+      this.env.logger.info('User registered successfully with JWT', { userId, email: input.email });
 
       return {
         token,
@@ -67,6 +131,76 @@ export default class extends Service<Env> {
     try {
       this.env.logger.info('User login attempt', { email: input.email });
 
+      const workos = this.getWorkOS();
+
+      if (workos && this.env.WORKOS_CLIENT_ID) {
+        // Use WorkOS for login
+        this.env.logger.info('Using WorkOS for login', { email: input.email });
+
+        try {
+          // Authenticate with WorkOS
+          const authResponse = await workos.userManagement.authenticateWithPassword({
+            email: input.email,
+            password: input.password,
+            clientId: this.env.WORKOS_CLIENT_ID
+          });
+
+          // Get user from our database
+          const result = await this.env.DATABASE_PROXY.executeQuery(
+            'SELECT * FROM users WHERE id = $1',
+            [authResponse.user.id]
+          );
+
+          let user: any;
+          if (result.rows.length === 0) {
+            // User doesn't exist in our DB, create them
+            const userId = authResponse.user.id;
+            await this.env.DATABASE_PROXY.executeQuery(
+              'INSERT INTO users (id, email, password_hash, name) VALUES ($1, $2, $3, $4)',
+              [userId, authResponse.user.email, 'workos', authResponse.user.firstName || '']
+            );
+            user = {
+              id: userId,
+              email: authResponse.user.email,
+              name: authResponse.user.firstName || '',
+              phone: null,
+              email_verified: authResponse.user.emailVerified,
+              phone_verified: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+          } else {
+            user = result.rows[0];
+          }
+
+          this.env.logger.info('User logged in with WorkOS', { userId: user.id });
+
+          return {
+            token: authResponse.accessToken,
+            user: {
+              id: user.id,
+              email: user.email,
+              name: user.name,
+              phone: user.phone,
+              emailVerified: Boolean(user.email_verified),
+              phoneVerified: Boolean(user.phone_verified),
+              stripeCustomerId: user.stripe_customer_id,
+              defaultPaymentMethod: user.default_payment_method,
+              createdAt: user.created_at,
+              updatedAt: user.updated_at,
+            },
+          };
+        } catch (workosError) {
+          this.env.logger.error('WorkOS login failed, falling back to JWT', {
+            error: workosError instanceof Error ? workosError.message : String(workosError)
+          });
+          // Fall through to JWT fallback
+        }
+      }
+
+      // Fallback to JWT authentication
+      this.env.logger.info('Using JWT fallback for login', { email: input.email });
+
       // Find user
       const result = await this.env.DATABASE_PROXY.executeQuery(
         'SELECT * FROM users WHERE email = $1',
@@ -89,7 +223,7 @@ export default class extends Service<Env> {
       // Generate JWT
       const token = await utils.generateToken(user.id, user.email, this.env.JWT_SECRET);
 
-      this.env.logger.info('User logged in successfully', { userId: user.id });
+      this.env.logger.info('User logged in successfully with JWT', { userId: user.id });
 
       return {
         token,

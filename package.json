@@ -12,6 +12,7 @@
   "dependencies": {
     "@liquidmetal-ai/raindrop-framework": "^0.10.0",
     "@types/bcryptjs": "^3.0.0",
+    "@workos-inc/node": "^7.73.0",
     "bcryptjs": "^3.0.3",
     "jose": "^6.1.0",
     "pinia": "^2.1.7",

@@ -30,4 +30,6 @@ export interface Env {
   VULTR_DB_API_KEY: string;
   VULTR_DB_API_URL: string;
   WEBHOOK_HANDLER: ServiceStub<import('../webhook-handler/index.js').default>;
+  WORKOS_API_KEY: string;
+  WORKOS_CLIENT_ID: string;
 }
