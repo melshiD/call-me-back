@@ -115,7 +115,12 @@ export class VoicePipelineOrchestrator {
         vadThreshold: 0.4,  // Default sensitivity
         ...config.sttConfig
       },
-      this.createSTTHandlers()
+      this.createSTTHandlers(),
+      // Debug context for database markers
+      {
+        callId: config.callId,
+        databaseProxy: config.databaseProxy
+      }
     );
 
     // Initialize TTS handler

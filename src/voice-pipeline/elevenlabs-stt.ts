@@ -87,6 +87,14 @@ export interface STTHandlers {
 }
 
 /**
+ * Optional debug context for database markers
+ */
+export interface STTDebugContext {
+  callId: string;
+  databaseProxy?: any;
+}
+
+/**
  * ElevenLabs Scribe v2 Realtime STT Handler
  */
 export class ElevenLabsSTTHandler {
@@ -95,10 +103,13 @@ export class ElevenLabsSTTHandler {
   private handlers: STTHandlers;
   private reconnectAttempts: number = 0;
   private maxReconnectAttempts: number = 3;
+  private debugContext?: STTDebugContext;
+  private messageCount: number = 0;
 
-  constructor(config: ElevenLabsSTTConfig, handlers: STTHandlers) {
+  constructor(config: ElevenLabsSTTConfig, handlers: STTHandlers, debugContext?: STTDebugContext) {
     this.config = config;
     this.handlers = handlers;
+    this.debugContext = debugContext;
   }
 
   /**
@@ -117,17 +128,44 @@ export class ElevenLabsSTTHandler {
           reject(new Error('[ElevenLabsSTT] Connection timeout'));
         }, 10000); // 10 second timeout
 
-        this.ws.addEventListener('open', () => {
+        this.ws.addEventListener('open', async () => {
           clearTimeout(timeout);
           console.log('[ElevenLabsSTT] WebSocket connected');
+
+          // DEBUG MARKER: STT WebSocket opened
+          if (this.debugContext?.databaseProxy && this.debugContext?.callId) {
+            try {
+              await this.debugContext.databaseProxy.executeQuery(
+                `INSERT INTO debug_markers (call_id, marker_name) VALUES ($1, $2)`,
+                [this.debugContext.callId, 'STT_WEBSOCKET_OPENED']
+              );
+            } catch (e) {
+              // Ignore errors - don't fail connection due to debug marker issues
+            }
+          }
+
           this.reconnectAttempts = 0;
           this.handlers.onConnected?.();
           resolve();
         });
 
-        this.ws.addEventListener('message', (event) => {
+        this.ws.addEventListener('message', async (event) => {
           try {
             const message = JSON.parse(event.data.toString()) as ElevenLabsSTTMessage;
+
+            // DEBUG MARKER: First STT message received
+            if (this.debugContext?.databaseProxy && this.debugContext?.callId && this.messageCount === 0) {
+              try {
+                await this.debugContext.databaseProxy.executeQuery(
+                  `INSERT INTO debug_markers (call_id, marker_name) VALUES ($1, $2)`,
+                  [this.debugContext.callId, 'STT_FIRST_MESSAGE_RECEIVED']
+                );
+              } catch (e) {
+                // Ignore errors
+              }
+            }
+            this.messageCount++;
+
             this.handleMessage(message);
           } catch (error) {
             console.error('[ElevenLabsSTT] Failed to parse message:', error);
@@ -135,8 +173,21 @@ export class ElevenLabsSTTHandler {
           }
         });
 
-        this.ws.addEventListener('close', (event) => {
+        this.ws.addEventListener('close', async (event) => {
           console.log('[ElevenLabsSTT] WebSocket closed:', event.code, event.reason);
+
+          // DEBUG MARKER: STT WebSocket closed
+          if (this.debugContext?.databaseProxy && this.debugContext?.callId) {
+            try {
+              await this.debugContext.databaseProxy.executeQuery(
+                `INSERT INTO debug_markers (call_id, marker_name, metadata) VALUES ($1, $2, $3)`,
+                [this.debugContext.callId, 'STT_WEBSOCKET_CLOSED', JSON.stringify({ code: event.code, reason: event.reason })]
+              );
+            } catch (e) {
+              // Ignore errors
+            }
+          }
+
           this.handlers.onDisconnected?.();
 
           // Attempt reconnection if not intentional
@@ -147,9 +198,22 @@ export class ElevenLabsSTTHandler {
           }
         });
 
-        this.ws.addEventListener('error', (error) => {
+        this.ws.addEventListener('error', async (error) => {
           clearTimeout(timeout);
           console.error('[ElevenLabsSTT] WebSocket error:', error);
+
+          // DEBUG MARKER: STT WebSocket error
+          if (this.debugContext?.databaseProxy && this.debugContext?.callId) {
+            try {
+              await this.debugContext.databaseProxy.executeQuery(
+                `INSERT INTO debug_markers (call_id, marker_name, metadata) VALUES ($1, $2, $3)`,
+                [this.debugContext.callId, 'STT_WEBSOCKET_ERROR', JSON.stringify({ error: String(error) })]
+              );
+            } catch (e) {
+              // Ignore errors
+            }
+          }
+
           this.handlers.onError?.(new Error('WebSocket error'));
           reject(new Error('[ElevenLabsSTT] WebSocket error'));
         });
@@ -169,13 +233,18 @@ export class ElevenLabsSTTHandler {
    * 1. Server-to-server connection only (not exposed to browser)
    * 2. Encrypted via TLS (wss://)
    * 3. Documented by ElevenLabs for WebSocket auth
+   *
+   * TODO: For production, use ElevenLabs single-use token endpoint instead of
+   * direct API key for enhanced security (time-limited tokens).
    */
   private buildWebSocketUrl(): string {
     const baseUrl = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime';
     const params = new URLSearchParams();
 
     // Authentication (Cloudflare Workers doesn't support WebSocket headers)
-    params.append('authorization', this.config.apiKey);
+    // ElevenLabs accepts either 'xi-api-key' header or 'token' query parameter
+    // Try xi-api-key as query parameter (non-standard but might work)
+    params.append('xi-api-key', this.config.apiKey);
 
     params.append('model_id', this.config.modelId);
     params.append('audio_format', this.config.audioFormat);
@@ -207,7 +276,19 @@ export class ElevenLabsSTTHandler {
   /**
    * Handle incoming messages from ElevenLabs
    */
-  private handleMessage(message: ElevenLabsSTTMessage): void {
+  private async handleMessage(message: ElevenLabsSTTMessage): Promise<void> {
+    // DEBUG: Log ALL messages from ElevenLabs to database for diagnosis
+    if (this.debugContext?.databaseProxy && this.debugContext?.callId) {
+      try {
+        await this.debugContext.databaseProxy.executeQuery(
+          `INSERT INTO debug_markers (call_id, marker_name, metadata) VALUES ($1, $2, $3)`,
+          [this.debugContext.callId, 'STT_MESSAGE_CONTENT', JSON.stringify(message)]
+        );
+      } catch (e) {
+        // Ignore errors
+      }
+    }
+
     switch (message.message_type) {
       case 'partial_transcript':
         this.handlers.onPartialTranscript?.(message.text);

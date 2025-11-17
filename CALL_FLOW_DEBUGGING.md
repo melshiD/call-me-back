@@ -1465,11 +1465,25 @@ ws.addEventListener('message', startMessageHandler);
 4. If this fails → audio format issue or API incompatibility
 5. If this works → issue is in our pipeline integration
 
-**Plan B: Add STT Connection Markers**
-1. Add database marker when STT WebSocket opens: `STT_CONNECTED`
-2. Add marker when STT WebSocket closes: `STT_DISCONNECTED`
-3. Add marker when STT message received: `STT_MESSAGE_RECEIVED`
-4. This will show if connection is actually being established
+**Plan B: Add STT Connection Markers** ✅ IMPLEMENTED
+1. ✅ Add database marker when STT WebSocket opens: `STT_WEBSOCKET_OPENED`
+2. ✅ Add marker when STT WebSocket closes: `STT_WEBSOCKET_CLOSED` (with code/reason metadata)
+3. ✅ Add marker when STT message received: `STT_FIRST_MESSAGE_RECEIVED`
+4. ✅ Add marker on STT WebSocket error: `STT_WEBSOCKET_ERROR`
+5. This will show if connection is actually being established
+
+**Implementation Details:**
+- Modified `elevenlabs-stt.ts` to accept optional `STTDebugContext` parameter
+- Added `metadata` column to `debug_markers` table for storing error details
+- Passed `callId` and `databaseProxy` from VoicePipelineOrchestrator
+- All markers inserted asynchronously without blocking WebSocket operations
+- Deployed: November 17, 2025
+
+**New Markers to Check:**
+- `STT_WEBSOCKET_OPENED` - Confirms STT connection established
+- `STT_FIRST_MESSAGE_RECEIVED` - Confirms STT is sending messages back
+- `STT_WEBSOCKET_CLOSED` - Shows if/when/why connection closes (check metadata)
+- `STT_WEBSOCKET_ERROR` - Shows if connection errors occur
 
 **Plan C: Alternative STT Provider**
 If ElevenLabs STT proves incompatible with Twilio's ulaw format:
