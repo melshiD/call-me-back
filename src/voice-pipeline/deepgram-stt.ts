@@ -145,6 +145,8 @@ export class DeepgramSTTHandler {
 
   /**
    * Connect to Deepgram Streaming STT WebSocket
+   *
+   * IMPORTANT: Cloudflare Workers requires fetch-upgrade pattern for outbound WebSockets
    */
   async connect(): Promise<void> {
     return new Promise(async (resolve, reject) => {
@@ -172,20 +174,69 @@ export class DeepgramSTTHandler {
           }
         }
 
-        // Cloudflare Workers WebSocket: Use fetch-upgrade instead of constructor
-        // Ref: https://community.cloudflare.com/t/writing-a-websocket-client-to-connect-to-remote-websocket-server-doesnt-work/494853
+        // CRITICAL: Cloudflare Workers requires fetch with Upgrade header for outbound WebSockets
+        // The standard new WebSocket(url) constructor doesn't work properly for outbound connections
+        // Reference: https://developers.cloudflare.com/workers/examples/websockets
+        console.log('[DeepgramSTT] Using fetch-upgrade pattern for Cloudflare Workers...');
+
+        // DEBUG MARKER: About to attempt fetch-upgrade
+        if (this.debugContext?.databaseProxy && this.debugContext?.callId) {
+          try {
+            await this.debugContext.databaseProxy.executeQuery(
+              `INSERT INTO debug_markers (call_id, marker_name) VALUES ($1, $2)`,
+              [this.debugContext.callId, 'DEEPGRAM_STT_FETCH_UPGRADE_ATTEMPT']
+            );
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+
         const response = await fetch(url, {
           headers: {
             'Upgrade': 'websocket',
-            'Authorization': `Token ${this.config.apiKey}`,
-          }
+          },
         });
 
-        // Extract WebSocket from response
+        // DEBUG MARKER: fetch completed, check for webSocket property
+        const hasWebSocket = !!(response as any).webSocket;
+        if (this.debugContext?.databaseProxy && this.debugContext?.callId) {
+          try {
+            await this.debugContext.databaseProxy.executeQuery(
+              `INSERT INTO debug_markers (call_id, marker_name, metadata) VALUES ($1, $2, $3)`,
+              [this.debugContext.callId, 'DEEPGRAM_STT_FETCH_RESPONSE', JSON.stringify({
+                status: response.status,
+                statusText: response.statusText,
+                hasWebSocket: hasWebSocket
+              })]
+            );
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+
         const ws = (response as any).webSocket as WebSocket;
         if (!ws) {
-          throw new Error('[DeepgramSTT] Failed to upgrade to WebSocket connection');
+          // DEBUG MARKER: webSocket property is missing
+          if (this.debugContext?.databaseProxy && this.debugContext?.callId) {
+            try {
+              await this.debugContext.databaseProxy.executeQuery(
+                `INSERT INTO debug_markers (call_id, marker_name, metadata) VALUES ($1, $2, $3)`,
+                [this.debugContext.callId, 'DEEPGRAM_STT_NO_WEBSOCKET_PROPERTY', JSON.stringify({
+                  responseType: typeof response,
+                  responseKeys: Object.keys(response)
+                })]
+              );
+            } catch (e) {
+              // Ignore errors
+            }
+          }
+          throw new Error('[DeepgramSTT] Server didn\'t accept WebSocket (webSocket property missing from response)');
         }
+
+        // CRITICAL: Must call accept() on the client-side WebSocket
+        (ws as any).accept();
+        console.log('[DeepgramSTT] WebSocket accepted, setting up event listeners...');
+
         this.ws = ws;
 
         const timeout = setTimeout(() => {
@@ -292,15 +343,16 @@ export class DeepgramSTTHandler {
   /**
    * Build WebSocket URL with query parameters
    *
-   * Deepgram supports authentication via Authorization header OR token query parameter
-   * We use query parameter for Cloudflare Workers compatibility
+   * CRITICAL: Cloudflare Workers require wss:// (secure WebSocket), not ws://
+   * Our proxy uses ws:// so we can't use it. Connecting directly to Deepgram instead.
    */
   private buildWebSocketUrl(): string {
+    // MUST use wss:// for Cloudflare Workers (ws:// causes fetch to hang)
     const baseUrl = 'wss://api.deepgram.com/v1/listen';
     const params = new URLSearchParams();
 
-    // Authentication - Using Sec-WebSocket-Protocol header instead of query parameter
-    // (API key passed via protocols parameter in WebSocket constructor)
+    // Add API key as token parameter
+    params.append('token', this.config.apiKey);
 
     // Model configuration
     if (this.config.model) {

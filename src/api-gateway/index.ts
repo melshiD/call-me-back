@@ -200,25 +200,47 @@ export default class extends Service<Env> {
       (serverWs as any).accept();
       console.log('[API Gateway] WebSocket accept() called, readyState:', serverWs.readyState);
 
-      console.log('[API Gateway] WebSocket accepted, will set up listeners in startVoicePipeline');
+      console.log('[API Gateway] Setting up event listeners SYNCHRONOUSLY...');
 
-      // Start the voice pipeline in the background
-      // Event listeners will be set up inside startVoicePipeline (in ctx.waitUntil context)
-      console.log('[API Gateway] Calling startVoicePipeline...');
+      // CRITICAL: Event listeners must be added INLINE/SYNCHRONOUSLY in Cloudflare Workers
+      // Cannot be in a separate method call as that creates a context switch
+      const startMessageHandler = async (event: any) => {
+        console.log('[API Gateway] ===== WebSocket message event fired =====');
+        try {
+          const message = JSON.parse(event.data as string);
+          console.log('[API Gateway] Parsed WebSocket message, event:', message.event);
 
-      // CRITICAL: Use ctx.waitUntil() to keep the async pipeline alive after returning the 101 response
-      // Without this, the Worker will cancel async operations when the response is sent
-      try {
-        const pipelinePromise = this.startVoicePipeline(serverWs, Promise.resolve(null));
-        console.log('[API Gateway] startVoicePipeline promise created');
-        this.ctx.waitUntil(pipelinePromise);
-        console.log('[API Gateway] ctx.waitUntil() called with pipeline promise');
-      } catch (error) {
-        console.log('[API Gateway] ERROR calling startVoicePipeline:', error);
-        this.env.logger.error('Failed to start voice pipeline', {
-          error: error instanceof Error ? error.message : String(error)
+          if (message.event === 'start') {
+            console.log('[API Gateway] START message received!');
+            // Remove this listener since we only need it once
+            serverWs.removeEventListener('message', startMessageHandler);
+            await this.handleStartMessage(serverWs, message.start);
+            console.log('[API Gateway] Pipeline initialized, TwilioMediaStreamHandler now handling messages');
+          }
+        } catch (error) {
+          console.log('[API Gateway] Error parsing WebSocket message:', error);
+          this.env.logger.error('WebSocket message error', {
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      };
+
+      serverWs.addEventListener('message', startMessageHandler);
+
+      serverWs.addEventListener('error', (event: any) => {
+        console.log('[API Gateway] ===== WebSocket ERROR event fired =====');
+        this.env.logger.error('WebSocket error event');
+      });
+
+      serverWs.addEventListener('close', (event: any) => {
+        console.log('[API Gateway] ===== WebSocket CLOSE event fired =====', event.code, event.reason);
+        this.env.logger.info('WebSocket closed', {
+          code: event.code,
+          reason: event.reason
         });
-      }
+      });
+
+      console.log('[API Gateway] Event listeners set up, waiting for messages from Twilio...');
 
       return new Response(null, {
         status: 101,
@@ -234,14 +256,15 @@ export default class extends Service<Env> {
   }
 
   /**
-   * Start the voice pipeline (runs in background)
+   * Set up WebSocket event listeners
+   * CRITICAL: Must be called BEFORE accept() in Cloudflare Workers
    * Parameters (callId, userId, personaId) will be extracted from Twilio's "start" message
    * NOTE: We instantiate VoicePipelineOrchestrator HERE instead of calling the service
    * because WebSocket objects cannot be serialized across service boundaries in Cloudflare Workers
    */
-  private async startVoicePipeline(ws: WebSocket, _unusedPromise: Promise<any>): Promise<void> {
-    console.log('[API Gateway] startVoicePipeline called');
-    this.env.logger.info('WebSocket connection established, setting up message handlers');
+  private setupWebSocketEventListeners(ws: WebSocket): void {
+    console.log('[API Gateway] setupWebSocketEventListeners called');
+    this.env.logger.info('Setting up WebSocket event listeners');
 
     // Set up event listeners to handle messages as they arrive
     // Don't use await - just process events directly
