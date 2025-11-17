@@ -1485,15 +1485,63 @@ ws.addEventListener('message', startMessageHandler);
 - `STT_WEBSOCKET_CLOSED` - Shows if/when/why connection closes (check metadata)
 - `STT_WEBSOCKET_ERROR` - Shows if connection errors occur
 
-**Plan C: Alternative STT Provider**
-If ElevenLabs STT proves incompatible with Twilio's ulaw format:
-1. Use Deepgram (known to work with Twilio)
-2. Or convert audio format before sending to ElevenLabs
-3. Mulaw → PCM conversion in the pipeline
+**Plan C: Alternative STT Provider** ✅ **SOLUTION FOUND**
 
-**Most Likely Issue:**
-ElevenLabs Scribe v2 Realtime STT may not support `ulaw_8000` format despite it being in the type definitions. May need PCM format instead, which would require decoding Twilio's mulaw audio first.
+### Root Cause Discovered
+
+**Problem:** ElevenLabs STT WebSocket requires `xi-api-key` HTTP header during WebSocket handshake.
+
+**Evidence from Debug Markers:**
+```json
+{
+  "message_type": "auth_error",
+  "error": "You must be authenticated to use this endpoint."
+}
+```
+
+**Attempts Made:**
+1. ❌ Query parameter `authorization` - Auth error
+2. ❌ Query parameter `token` - Auth error
+3. ❌ Query parameter `xi-api-key` - Auth error
+4. ❌ WebSocket subprotocol `xi-api-key.{API_KEY}` - Auth error
+
+**Fundamental Issue:**
+- ElevenLabs STT requires `xi-api-key` as HTTP header in WebSocket handshake
+- Cloudflare Workers WebSocket API does NOT support custom headers
+- No workaround exists (confirmed via docs and testing)
+
+**Documentation Reference:**
+- ElevenLabs docs: "Authentication is done either by providing a valid API key in the `xi-api-key` header or by providing a valid token in the `token` query parameter."
+- `token` parameter is for single-use tokens only (requires separate API call to generate)
+- Direct API key in `token` parameter does not work
+- Cloudflare Workers limitation is documented: custom headers not supported in WebSocket constructor
+
+### Solution: Switch to Deepgram STT
+
+**Decision:** Use Deepgram for STT, keep ElevenLabs for TTS
+
+**New Architecture:**
+```
+User speaks → Twilio (mulaw) → Deepgram STT → Cerebras AI → ElevenLabs TTS → User hears
+```
+
+**Why Deepgram:**
+- ✅ Supports authentication via query parameters (works with Cloudflare Workers)
+- ✅ Native Twilio integration (handles mulaw_8000 format)
+- ✅ Excellent STT quality and low latency
+- ✅ Well-documented WebSocket API
+- ✅ Widely used in production voice applications
+
+**TODO for Production:**
+- Consider implementing ElevenLabs single-use token generation endpoint
+- This would require an additional API call before each STT connection
+- For hackathon: Deepgram is the pragmatic solution
+
+**Security Note:**
+- Current implementation uses API key directly in query parameters
+- For production: implement single-use token generation for both providers
+- Reduces risk of API key exposure in logs/URLs
 
 ---
 
-**End of debugging session 3 - November 17, 2025**
+**End of debugging session 3 - November 17, 2025 - RESOLVED: Switching to Deepgram STT**
