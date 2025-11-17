@@ -269,6 +269,13 @@ raindrop logs tail -f --application call-me-back
 raindrop logs tail -n 50 -f --application call-me-back
 ```
 
+**EFFICIENT DEBUGGING: Query Debug Markers Instead of Reading Logs**
+- **Problem:** Reading logs consumes massive context (200+ lines per check)
+- **Solution:** Debug markers inserted into `debug_markers` table during execution
+- **Usage:** Run `./query-debug-markers.sh` to see last 20 execution markers
+- **Benefits:** Tiny context usage, precise execution flow tracking, queryable history
+- **Markers:** BEFORE_PIPELINE_START, AFTER_PIPELINE_START, etc.
+
 **Creating New Branches:**
 ```bash
 # CORRECT

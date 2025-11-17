@@ -32,6 +32,9 @@ export interface VoicePipelineConfig {
   userId: string;
   personaId: string;
 
+  // Logger for visibility in Raindrop logs
+  logger?: any;
+
   // Optional overrides
   conversationConfig?: any;
   sttConfig?: any;
@@ -52,6 +55,7 @@ export interface PipelineStats {
  */
 export class VoicePipelineOrchestrator {
   private config: VoicePipelineConfig;
+  private logger: any;
 
   // Service handlers
   private twilioHandler: TwilioMediaStreamHandler;
@@ -83,6 +87,7 @@ export class VoicePipelineOrchestrator {
     relationship: any
   ) {
     this.config = config;
+    this.logger = config.logger || { info: () => {}, error: () => {} }; // Fallback to no-op logger
     this.costTracker = costTracker;
     this.conversationMemory = conversationMemory;
     this.corePersona = corePersona;
@@ -131,76 +136,75 @@ export class VoicePipelineOrchestrator {
    */
   async start(twilioWs: WebSocket): Promise<void> {
     try {
-      console.log('[VoicePipeline] Starting pipeline');
+      this.logger.info('[VoicePipeline] Starting pipeline');
       this.callStartTime = Date.now();
 
       // Initialize memory manager
-      console.log('[VoicePipeline] Initializing memory manager...');
+      this.logger.info('[VoicePipeline] Initializing memory manager...');
       this.memoryManager = new PersonaMemoryManager({
         userId: this.config.userId,
         personaId: this.config.personaId,
         callId: this.config.callId,
         conversationMemory: this.conversationMemory
       });
-      console.log('[VoicePipeline] Memory manager initialized');
+      this.logger.info('[VoicePipeline] Memory manager initialized');
 
       // Load memory context from all tiers
-      console.log('[VoicePipeline] Loading memory context...');
+      this.logger.info('[VoicePipeline] Loading memory context...');
       this.memoryContext = await this.memoryManager.initializeCallMemory(
         this.corePersona,
         this.relationship
       );
-      console.log('[VoicePipeline] Memory context loaded');
+      this.logger.info('[VoicePipeline] Memory context loaded');
 
       // Build composite system prompt with memory context
-      console.log('[VoicePipeline] Building system prompt...');
+      this.logger.info('[VoicePipeline] Building system prompt...');
       this.systemPrompt = this.memoryManager.buildSystemPrompt(this.memoryContext);
-      console.log('[VoicePipeline] System prompt built');
+      this.logger.info('[VoicePipeline] System prompt built');
 
       // Connect Twilio WebSocket
-      console.log('[VoicePipeline] Connecting Twilio WebSocket...');
+      this.logger.info('[VoicePipeline] Connecting Twilio WebSocket...');
       this.twilioHandler.handleConnection(twilioWs);
-      console.log('[VoicePipeline] Twilio WebSocket connected');
+      this.logger.info('[VoicePipeline] Twilio WebSocket connected');
 
       // Connect STT and TTS with detailed error logging
-      console.log('[VoicePipeline] About to connect to ElevenLabs STT...');
-      console.log('[VoicePipeline] STT API key present:', !!this.config.elevenLabsApiKey);
-      console.log('[VoicePipeline] STT API key length:', this.config.elevenLabsApiKey?.length || 0);
+      this.logger.info('[VoicePipeline] About to connect to ElevenLabs STT...', {
+        apiKeyPresent: !!this.config.elevenLabsApiKey,
+        apiKeyLength: this.config.elevenLabsApiKey?.length || 0
+      });
 
       try {
-        console.log('[VoicePipeline] Calling sttHandler.connect()...');
+        this.logger.info('[VoicePipeline] Calling sttHandler.connect()...');
         await this.sttHandler.connect();
-        console.log('[VoicePipeline] STT connected successfully');
+        this.logger.info('[VoicePipeline] STT connected successfully');
       } catch (error) {
-        console.error('[VoicePipeline] STT connection failed:', error);
-        console.error('[VoicePipeline] STT error details:', {
-          message: error instanceof Error ? error.message : String(error),
+        this.logger.error('[VoicePipeline] STT connection failed', {
+          error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined
         });
         throw new Error(`STT connection failed: ${error instanceof Error ? error.message : String(error)}`);
       }
 
-      console.log('[VoicePipeline] About to connect to ElevenLabs TTS...');
-      console.log('[VoicePipeline] TTS voice ID:', this.config.voiceId);
+      this.logger.info('[VoicePipeline] About to connect to ElevenLabs TTS...', {
+        voiceId: this.config.voiceId
+      });
 
       try {
-        console.log('[VoicePipeline] Calling ttsHandler.connect()...');
+        this.logger.info('[VoicePipeline] Calling ttsHandler.connect()...');
         await this.ttsHandler.connect();
-        console.log('[VoicePipeline] TTS connected successfully');
+        this.logger.info('[VoicePipeline] TTS connected successfully');
       } catch (error) {
-        console.error('[VoicePipeline] TTS connection failed:', error);
-        console.error('[VoicePipeline] TTS error details:', {
-          message: error instanceof Error ? error.message : String(error),
+        this.logger.error('[VoicePipeline] TTS connection failed', {
+          error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined
         });
         throw new Error(`TTS connection failed: ${error instanceof Error ? error.message : String(error)}`);
       }
 
-      console.log('[VoicePipeline] All services connected successfully!');
+      this.logger.info('[VoicePipeline] All services connected successfully!');
     } catch (error) {
-      console.error('[VoicePipeline] Fatal error in start():', error);
-      console.error('[VoicePipeline] Fatal error details:', {
-        message: error instanceof Error ? error.message : String(error),
+      this.logger.error('[VoicePipeline] Fatal error in start()', {
+        error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined
       });
       throw error; // Re-throw to be caught by api-gateway

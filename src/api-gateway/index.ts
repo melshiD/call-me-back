@@ -51,6 +51,15 @@ export default class extends Service<Env> {
         });
       }
 
+      // WebSocket echo test endpoint
+      if (path === '/api/debug/ws-echo') {
+        const upgradeHeader = request.headers.get('Upgrade');
+        if (upgradeHeader !== 'websocket') {
+          return new Response('Expected WebSocket', { status: 426 });
+        }
+        return await this.handleEchoWebSocket(request);
+      }
+
       // Temporary seed endpoint - REMOVE AFTER USE
       if (request.method === 'POST' && path === '/api/seed-personas') {
         return await this.handleSeedPersonas(request);
@@ -333,7 +342,8 @@ export default class extends Service<Env> {
         voiceSettings,
         callId,
         userId,
-        personaId
+        personaId,
+        logger: this.env.logger  // Pass logger for visibility in Raindrop logs
       };
 
       console.log('[API Gateway] Pipeline config created, API keys present:', {
@@ -342,7 +352,7 @@ export default class extends Service<Env> {
       });
 
       // Create and start pipeline with SmartMemory
-      console.log('[API Gateway] Creating VoicePipelineOrchestrator...');
+      this.env.logger.info('[API Gateway] Creating VoicePipelineOrchestrator...');
       const pipeline = new VoicePipelineOrchestrator(
         config,
         costTracker,
@@ -350,11 +360,42 @@ export default class extends Service<Env> {
         persona,
         relationship
       );
-      console.log('[API Gateway] VoicePipelineOrchestrator created, calling start()...');
+      this.env.logger.info('[API Gateway] VoicePipelineOrchestrator created, calling start()...');
+
+      // OBSERVABLE MARKER: Insert debug marker before pipeline.start()
+      try {
+        await this.env.DATABASE_PROXY.executeQuery(
+          `INSERT INTO debug_markers (call_id, marker_name, created_at)
+           VALUES ($1, $2, NOW())`,
+          [callId, 'BEFORE_PIPELINE_START']
+        );
+      } catch (e) {
+        // Table might not exist, create it
+        await this.env.DATABASE_PROXY.executeQuery(
+          `CREATE TABLE IF NOT EXISTS debug_markers (
+            id SERIAL PRIMARY KEY,
+            call_id TEXT NOT NULL,
+            marker_name TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+          )`,
+          []
+        );
+        await this.env.DATABASE_PROXY.executeQuery(
+          `INSERT INTO debug_markers (call_id, marker_name) VALUES ($1, $2)`,
+          [callId, 'BEFORE_PIPELINE_START']
+        );
+      }
 
       await pipeline.start(ws);
 
-      console.log('[API Gateway] pipeline.start() returned');
+      // OBSERVABLE MARKER: Insert debug marker after pipeline.start() returns
+      await this.env.DATABASE_PROXY.executeQuery(
+        `INSERT INTO debug_markers (call_id, marker_name) VALUES ($1, $2)`,
+        [callId, 'AFTER_PIPELINE_START']
+      );
+
+      this.env.logger.info('[API Gateway] pipeline.start() RETURNED SUCCESSFULLY');
+
       this.env.logger.info('Voice pipeline started', { callId, personaId });
     } catch (error) {
       console.error('[API Gateway] startVoicePipeline error:', error);
@@ -375,6 +416,55 @@ export default class extends Service<Env> {
         // Ignore close errors
       }
     }
+  }
+
+  /**
+   * MINIMAL WebSocket echo test - to verify events fire at all
+   */
+  private async handleEchoWebSocket(request: Request): Promise<Response> {
+    console.log('[Echo] Creating WebSocketPair...');
+
+    // @ts-ignore - WebSocketPair is a Cloudflare Workers global
+    const pair = new WebSocketPair();
+    const [client, server] = Object.values(pair);
+    const serverWs = server as WebSocket;
+
+    console.log('[Echo] Calling accept()...');
+    (serverWs as any).accept();
+    console.log('[Echo] WebSocket accepted, readyState:', serverWs.readyState);
+
+    console.log('[Echo] Setting up event listeners SYNCHRONOUSLY...');
+
+    // Set up listeners SYNCHRONOUSLY, immediately after accept()
+    serverWs.addEventListener('message', (event: any) => {
+      console.log('[Echo] ===== MESSAGE EVENT FIRED =====');
+      console.log('[Echo] Received:', event.data);
+
+      try {
+        // Echo back
+        serverWs.send(`Echo: ${event.data}`);
+        console.log('[Echo] Sent echo response');
+      } catch (error) {
+        console.error('[Echo] Error sending:', error);
+      }
+    });
+
+    serverWs.addEventListener('error', (event: any) => {
+      console.log('[Echo] ===== ERROR EVENT FIRED =====');
+      console.error('[Echo] WebSocket error');
+    });
+
+    serverWs.addEventListener('close', (event: any) => {
+      console.log('[Echo] ===== CLOSE EVENT FIRED =====', event.code, event.reason);
+    });
+
+    console.log('[Echo] Event listeners set up, returning 101 response');
+
+    return new Response(null, {
+      status: 101,
+      // @ts-ignore - Cloudflare Workers WebSocket API
+      webSocket: client
+    });
   }
 
   /**

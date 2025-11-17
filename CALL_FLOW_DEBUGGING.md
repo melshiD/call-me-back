@@ -1215,3 +1215,145 @@ The WebSocket 'message' event never fires, so `handleStartMessage()` is never ca
 4. **FOURTH:** Contact Raindrop support if still blocked
 
 **The Goal:** Get even ONE WebSocket 'message' event to fire. Once we have that, everything else should work.
+
+---
+
+## SESSION 2: November 16, 2025 - THE BREAKTHROUGH
+
+### Critical Discovery: Event Listeners DO Fire! (But Logs Don't Show It)
+
+**Created minimal WebSocket echo test endpoint** at `/api/debug/ws-echo`
+
+```typescript
+// Minimal echo handler - same pattern as voice stream
+private async handleEchoWebSocket(request: Request): Promise<Response> {
+  const pair = new WebSocketPair();
+  const [client, server] = Object.values(pair);
+  const serverWs = server as WebSocket;
+
+  (serverWs as any).accept();
+
+  // Set up listeners SYNCHRONOUSLY
+  serverWs.addEventListener('message', (event: any) => {
+    console.log('[Echo] ===== MESSAGE EVENT FIRED =====');
+    serverWs.send(`Echo: ${event.data}`);
+  });
+
+  serverWs.addEventListener('error', (event: any) => {
+    console.log('[Echo] ===== ERROR EVENT FIRED =====');
+  });
+
+  serverWs.addEventListener('close', (event: any) => {
+    console.log('[Echo] ===== CLOSE EVENT FIRED =====');
+  });
+
+  return new Response(null, { status: 101, webSocket: client });
+}
+```
+
+**Test Results:**
+✅ WebSocket connected successfully
+✅ Messages were echoed back correctly
+✅ All 3 test messages received and responded to
+
+```
+WebSocket Echo Test
+=================================
+✅ WebSocket connected!
+Sending test message: "Hello from test client"
+📨 Received: Echo: Hello from test client
+Sending test message 2: "Second test message"
+📨 Received: Echo: Second test message
+Sending JSON test: {"event":"test","data":"JSON test"}
+📨 Received: Echo: {"event":"test","data":"JSON test"}
+```
+
+**CRITICAL FINDING: Console.log inside event handlers doesn't appear in Raindrop logs!**
+
+Looking at Raindrop logs:
+- ✅ Setup logs appear: "[Echo] Creating WebSocketPair...", "[Echo] Event listeners set up"
+- ❌ Handler logs DON'T appear: "[Echo] ===== MESSAGE EVENT FIRED =====" is NEVER in logs
+- ✅ But messages WERE received (proven by echo responses)
+
+**This means:**
+1. WebSocket addEventListener DOES work in Cloudflare Workers/Raindrop
+2. Event handlers ARE firing when messages arrive
+3. console.log statements inside event callbacks are NOT logged by Raindrop
+
+**Re-analyzed Twilio voice stream logs:**
+
+From logs at 5:17:11-16 PM:
+1. ✅ WebSocket upgrade happened
+2. ✅ Event listeners were set up ("[API Gateway] Event listeners set up")
+3. ✅ Database queries ran - persona and relationship loaded (5:17:12 PM)
+4. ✅ Memory operations ran - ai.run, putMemory, getSemanticMemory (5:17:12-16 PM)
+
+**CONCLUSION: The START message WAS received and handleStartMessage() WAS called!**
+
+Evidence:
+- We see database queries for `SELECT * FROM personas WHERE id = $1`
+- We see database queries for `SELECT * FROM user_persona_relationships`
+- We see memory initialization (ai.run, putMemory, getSemanticMemory)
+- These operations ONLY happen inside `handleStartMessage()` after extracting parameters from the "start" message
+
+**The Previous Session's Wrong Assumption:**
+We thought events weren't firing because we didn't see the "[API Gateway] ===== WebSocket message event fired =====" logs. But now we know those logs simply don't appear in Raindrop - the events ARE firing!
+
+### New Mystery: What Happens After Memory Init?
+
+After memory initialization completes successfully, the code should call `pipeline.start(ws)` which should:
+1. Try to connect to ElevenLabs STT (WebSocket)
+2. Try to connect to ElevenLabs TTS (WebSocket)
+3. Start processing audio
+
+**But we don't see ANY logs from:**
+- "[VoicePipeline] Starting pipeline"
+- "[VoicePipeline] About to connect to ElevenLabs STT..."
+- "[ElevenLabsSTT] WebSocket connected"
+- "[ElevenLabsTTS] WebSocket connected"
+
+### Deep Analysis: Where Does Execution Stop?
+
+**Timeline from logs:**
+1. ✅ `handleStartMessage()` is called (proven by database queries)
+2. ✅ Persona loaded: `SELECT * FROM personas WHERE id = $1`
+3. ✅ Relationship loaded: `SELECT * FROM user_persona_relationships`
+4. ✅ VoicePipelineOrchestrator created (line 355-361 in api-gateway)
+5. ✅ `pipeline.start(ws)` is called (line 364 in api-gateway)
+6. ✅ Memory manager initialized (proven by ai.run, putMemory logs at 5:17:12-16 PM)
+7. ❓ ElevenLabs connections attempted but no success/failure logs
+
+**Key Insight:**
+The memory operations (ai.run, putMemory, vector_index.upsert, bucket.get) happen inside `pipeline.start()` at lines 149-152. We see these in logs, which proves:
+- `pipeline.start()` IS executing
+- It reaches at least line 152 (memory context loaded)
+- But we DON'T see logs from line 134 `'[VoicePipeline] Starting pipeline'`
+
+**This confirms:** Console.log inside event handler context doesn't appear in Raindrop logs, BUT service operations (database, memory, AI) DO appear.
+
+**The Question:** Does execution reach lines 166-197 (ElevenLabs connection attempts)?
+
+**Possibilities:**
+1. **Hanging:** `await this.sttHandler.connect()` (line 172) or `await this.ttsHandler.connect()` (line 188) hangs indefinitely
+2. **Timeout:** Connection times out (10 second timeout exists) but error is swallowed in ctx.waitUntil() context
+3. **Silent Failure:** ElevenLabs rejects connection but error handling doesn't create logs visible to Raindrop
+4. **Success but No Logs:** Connections succeed but all console.log statements are invisible
+
+**Evidence against "hanging indefinitely":**
+- ElevenLabs connect() has 10-second timeout (elevenlabs-stt.ts line 117, elevenlabs-tts.ts line 135)
+- Should reject Promise after timeout
+- api-gateway has error handling that calls this.env.logger.error() which DOES appear in logs
+
+**Evidence against "error logged":**
+- No ERROR level logs in Raindrop logs for any of the test calls
+- No error traces in the time window around memory initialization
+
+**Most Likely:**
+Code execution continues past ElevenLabs connections but we can't see console.log statements. Need to add logger.info() calls that will be visible, or test ElevenLabs connection directly.
+
+### Next Steps
+
+1. **Add robust logging using this.env.logger instead of console.log** - Logger statements ARE visible in Raindrop logs
+2. **Test ElevenLabs API key validity** - Verify credentials work outside the event handler context
+3. **Test direct ElevenLabs WebSocket connection** - Verify we can connect to their API from Cloudflare Workers
+4. **Add error handling with visible logs** - Ensure all errors create logger entries, not just console.error
