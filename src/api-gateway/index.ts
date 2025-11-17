@@ -247,7 +247,10 @@ export default class extends Service<Env> {
     // Don't use await - just process events directly
     console.log('[API Gateway] Setting up WebSocket event listeners...');
 
-    ws.addEventListener('message', async (event: any) => {
+    // Only listen for the 'start' message to initialize the pipeline
+    // After initialization, the VoicePipelineOrchestrator's TwilioMediaStreamHandler
+    // will take over and handle all messages (media, stop, etc.)
+    const startMessageHandler = async (event: any) => {
       console.log('[API Gateway] ===== WebSocket message event fired =====');
       try {
         const message = JSON.parse(event.data as string);
@@ -255,21 +258,21 @@ export default class extends Service<Env> {
 
         if (message.event === 'start') {
           console.log('[API Gateway] START message received!');
+          // Remove this listener since we only need it once
+          ws.removeEventListener('message', startMessageHandler);
           await this.handleStartMessage(ws, message.start);
-        } else if (message.event === 'media') {
-          // Forward audio to pipeline
-          // TODO: implement when pipeline is working
-        } else if (message.event === 'stop') {
-          console.log('[API Gateway] STOP message received');
-          ws.close();
+          console.log('[API Gateway] Pipeline initialized, TwilioMediaStreamHandler now handling messages');
         }
+        // Note: we don't handle 'media' or 'stop' here - the pipeline's TwilioHandler does that
       } catch (error) {
         console.log('[API Gateway] Error parsing WebSocket message:', error);
         this.env.logger.error('WebSocket message error', {
           error: error instanceof Error ? error.message : String(error)
         });
       }
-    });
+    };
+
+    ws.addEventListener('message', startMessageHandler);
 
     ws.addEventListener('error', (event: any) => {
       console.log('[API Gateway] ===== WebSocket ERROR event fired =====');
@@ -343,7 +346,8 @@ export default class extends Service<Env> {
         callId,
         userId,
         personaId,
-        logger: this.env.logger  // Pass logger for visibility in Raindrop logs
+        logger: this.env.logger,  // Pass logger for visibility in Raindrop logs
+        databaseProxy: this.env.DATABASE_PROXY  // Pass database proxy for debug markers
       };
 
       console.log('[API Gateway] Pipeline config created, API keys present:', {

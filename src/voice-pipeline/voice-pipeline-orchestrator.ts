@@ -35,6 +35,9 @@ export interface VoicePipelineConfig {
   // Logger for visibility in Raindrop logs
   logger?: any;
 
+  // Database proxy for debug markers
+  databaseProxy?: any;
+
   // Optional overrides
   conversationConfig?: any;
   sttConfig?: any;
@@ -78,6 +81,8 @@ export class VoicePipelineOrchestrator {
   private interruptCount: number = 0;
   private currentTranscript: string = '';
   private conversationHistory: Array<{ role: 'user' | 'assistant', content: string }> = [];
+  private mediaMessageCount: number = 0;
+  private ttsChunkCount: number = 0;
 
   constructor(
     config: VoicePipelineConfig,
@@ -105,7 +110,9 @@ export class VoicePipelineOrchestrator {
         apiKey: config.elevenLabsApiKey,
         modelId: 'scribe_v2_realtime',
         audioFormat: 'ulaw_8000',
-        commitStrategy: 'manual',
+        commitStrategy: 'vad',  // Use Voice Activity Detection to auto-commit transcripts
+        vadSilenceThresholdSecs: 0.8,  // Commit after 0.8s of silence (faster than default)
+        vadThreshold: 0.4,  // Default sensitivity
         ...config.sttConfig
       },
       this.createSTTHandlers()
@@ -224,7 +231,20 @@ export class VoicePipelineOrchestrator {
         console.log('[VoicePipeline] Call started:', message.start.callSid);
       },
 
-      onMedia: (audioBuffer, timestamp, track) => {
+      onMedia: async (audioBuffer, timestamp, track) => {
+        // DEBUG MARKER: Media message received
+        if (this.config.databaseProxy && this.mediaMessageCount === 0) {
+          try {
+            await this.config.databaseProxy.executeQuery(
+              `INSERT INTO debug_markers (call_id, marker_name) VALUES ($1, $2)`,
+              [this.config.callId, 'FIRST_MEDIA_MESSAGE_RECEIVED']
+            );
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+        this.mediaMessageCount++;
+
         // Forward incoming user audio to STT
         if (track === 'inbound' && this.sttHandler.isConnected()) {
           this.sttHandler.sendAudio(audioBuffer, 8000, false);
@@ -273,6 +293,18 @@ export class VoicePipelineOrchestrator {
       onCommittedTranscript: async (text) => {
         console.log('[VoicePipeline] Final transcript:', text);
 
+        // DEBUG MARKER: Transcript received from STT
+        if (this.config.databaseProxy) {
+          try {
+            await this.config.databaseProxy.executeQuery(
+              `INSERT INTO debug_markers (call_id, marker_name) VALUES ($1, $2)`,
+              [this.config.callId, 'TRANSCRIPT_RECEIVED']
+            );
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+
         // Add to conversation history
         this.conversationHistory.push({
           role: 'user',
@@ -313,7 +345,20 @@ export class VoicePipelineOrchestrator {
    */
   private createTTSHandlers(): TTSHandlers {
     return {
-      onAudioChunk: (audioBuffer) => {
+      onAudioChunk: async (audioBuffer) => {
+        // DEBUG MARKER: First TTS audio chunk
+        if (this.config.databaseProxy && this.ttsChunkCount === 0) {
+          try {
+            await this.config.databaseProxy.executeQuery(
+              `INSERT INTO debug_markers (call_id, marker_name) VALUES ($1, $2)`,
+              [this.config.callId, 'FIRST_TTS_AUDIO_CHUNK']
+            );
+          } catch (e) {
+            // Ignore errors
+          }
+        }
+        this.ttsChunkCount++;
+
         // Forward TTS audio to Twilio
         if (this.twilioHandler.isConnected()) {
           this.twilioHandler.sendAudio(audioBuffer);

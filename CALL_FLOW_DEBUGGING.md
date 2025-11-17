@@ -1351,9 +1351,135 @@ The memory operations (ai.run, putMemory, vector_index.upsert, bucket.get) happe
 **Most Likely:**
 Code execution continues past ElevenLabs connections but we can't see console.log statements. Need to add logger.info() calls that will be visible, or test ElevenLabs connection directly.
 
+### THE ROOT CAUSE FOUND! 🎯
+
+**After creating database marker system to avoid log parsing:**
+
+Created `debug_markers` table and `./query-debug-markers.sh` script to track execution flow with minimal context usage.
+
+Used database markers to track execution flow:
+```sql
+BEFORE_PIPELINE_START → AFTER_PIPELINE_START
+```
+
+**Results:**
+- ✅ `pipeline.start()` IS being called
+- ✅ `pipeline.start()` IS returning successfully
+- ✅ Memory operations complete (5 seconds total: 01:37:26 to 01:37:32)
+- ✅ No ElevenLabs connection errors thrown
+
+**But then discovered in api-gateway/index.ts line 259-261:**
+```typescript
+} else if (message.event === 'media') {
+  // Forward audio to pipeline
+  // TODO: implement when pipeline is working
+```
+
+**ROOT CAUSE: Media messages are NOT being forwarded to the voice pipeline!**
+
+The pipeline initializes successfully, connects to ElevenLabs, and waits for audio...
+but the Twilio "media" messages containing the call audio **are never sent to it**.
+
+**Additional Issue Found:**
+The api-gateway was setting up its own WebSocket message listeners AND the VoicePipelineOrchestrator was setting up listeners via `twilioHandler.handleConnection(ws)`. This caused duplicate listeners where:
+- api-gateway's listener handled "start" but had a TODO for "media"
+- TwilioMediaStreamHandler's listener was set up but api-gateway's listener ran first
+
+**Solution (src/api-gateway/index.ts lines 250-275):**
+Refactored api-gateway to ONLY listen for the "start" message, then remove its listener and let the VoicePipelineOrchestrator's TwilioMediaStreamHandler take over for all subsequent messages (media, stop, etc.).
+
+```typescript
+// Only listen for the 'start' message to initialize the pipeline
+// After initialization, the VoicePipelineOrchestrator's TwilioMediaStreamHandler
+// will take over and handle all messages (media, stop, etc.)
+const startMessageHandler = async (event: any) => {
+  if (message.event === 'start') {
+    // Remove this listener since we only need it once
+    ws.removeEventListener('message', startMessageHandler);
+    await this.handleStartMessage(ws, message.start);
+    // TwilioMediaStreamHandler now handling messages
+  }
+};
+ws.addEventListener('message', startMessageHandler);
+```
+
+**Deployed:** 2025-11-16 (Session 2)
+
+**Expected Result:**
+- ✅ Pipeline initializes on "start" message
+- ✅ TwilioMediaStreamHandler receives "media" messages with audio data
+- ✅ Audio forwarded to ElevenLabs STT
+- ✅ AI responses generated
+- ✅ Audio sent back via ElevenLabs TTS
+- ✅ Full conversation flow works!
+
+---
+
+## SESSION 3: November 17, 2025 - STT NOT RETURNING TRANSCRIPTS
+
+### Progress So Far
+
+**Database marker debugging approach implemented successfully:**
+- Created `debug_markers` table for minimal-context debugging
+- Created `./query-debug-markers.sh` to query markers efficiently
+- Avoids massive log parsing that consumes context
+
+**What We've Confirmed Works:**
+1. ✅ WebSocket upgrade successful
+2. ✅ START message received and processed
+3. ✅ Pipeline initializes (BEFORE_PIPELINE_START → AFTER_PIPELINE_START)
+4. ✅ Media messages received (FIRST_MEDIA_MESSAGE_RECEIVED marker appears)
+5. ✅ Audio forwarded to STT (code path confirmed)
+6. ✅ ElevenLabs API key is valid
+7. ✅ User speaking into phone during calls
+
+**What's NOT Working:**
+- ❌ **NO `TRANSCRIPT_RECEIVED` markers** - ElevenLabs STT not returning transcripts
+- ❌ No TTS audio generated (because no transcript to respond to)
+- ❌ Silence on the call
+
+### Root Cause Investigation
+
+**Initial hypothesis:** Manual commit strategy meant transcripts were never committed.
+- **Fix attempted:** Switched from `commitStrategy: 'manual'` to `commitStrategy: 'vad'` with 0.8s silence threshold
+- **Result:** Still no transcripts received
+
+**Current hypothesis:** ElevenLabs STT connection is either:
+1. Not actually connecting (fails silently without throwing error)
+2. Connecting but audio format incompatible (`ulaw_8000` from Twilio may not work with ElevenLabs)
+3. Connecting but closing immediately due to auth/format error (logs not visible)
+
+**Evidence:**
+- No error logs from STT connection attempts
+- No WebSocket close events logged
+- ElevenLabs API key validated (works for API calls)
+- `ulaw_8000` is listed as supported format in code
+- pipeline.start() completes successfully (should fail if connection throws)
+
 ### Next Steps
 
-1. **Add robust logging using this.env.logger instead of console.log** - Logger statements ARE visible in Raindrop logs
-2. **Test ElevenLabs API key validity** - Verify credentials work outside the event handler context
-3. **Test direct ElevenLabs WebSocket connection** - Verify we can connect to their API from Cloudflare Workers
-4. **Add error handling with visible logs** - Ensure all errors create logger entries, not just console.error
+**Plan A: Direct ElevenLabs STT Test**
+1. Create minimal test script to verify ElevenLabs Scribe v2 Realtime works
+2. Send sample ulaw audio to STT WebSocket
+3. Verify we receive transcripts back
+4. If this fails → audio format issue or API incompatibility
+5. If this works → issue is in our pipeline integration
+
+**Plan B: Add STT Connection Markers**
+1. Add database marker when STT WebSocket opens: `STT_CONNECTED`
+2. Add marker when STT WebSocket closes: `STT_DISCONNECTED`
+3. Add marker when STT message received: `STT_MESSAGE_RECEIVED`
+4. This will show if connection is actually being established
+
+**Plan C: Alternative STT Provider**
+If ElevenLabs STT proves incompatible with Twilio's ulaw format:
+1. Use Deepgram (known to work with Twilio)
+2. Or convert audio format before sending to ElevenLabs
+3. Mulaw → PCM conversion in the pipeline
+
+**Most Likely Issue:**
+ElevenLabs Scribe v2 Realtime STT may not support `ulaw_8000` format despite it being in the type definitions. May need PCM format instead, which would require decoding Twilio's mulaw audio first.
+
+---
+
+**End of debugging session 3 - November 17, 2025**
