@@ -121,8 +121,10 @@ export class ElevenLabsSTTHandler {
         const url = this.buildWebSocketUrl();
 
         // Cloudflare Workers WebSocket doesn't support headers option
-        // API key is passed via 'authorization' query parameter in the URL
-        this.ws = new WebSocket(url);
+        // Try using subprotocols to pass the API key
+        // Format: 'xi-api-key.YOUR_API_KEY'
+        const subprotocol = `xi-api-key.${this.config.apiKey}`;
+        this.ws = new WebSocket(url, [subprotocol]);
 
         const timeout = setTimeout(() => {
           reject(new Error('[ElevenLabsSTT] Connection timeout'));
@@ -241,10 +243,8 @@ export class ElevenLabsSTTHandler {
     const baseUrl = 'wss://api.elevenlabs.io/v1/speech-to-text/realtime';
     const params = new URLSearchParams();
 
-    // Authentication (Cloudflare Workers doesn't support WebSocket headers)
-    // ElevenLabs accepts either 'xi-api-key' header or 'token' query parameter
-    // Try xi-api-key as query parameter (non-standard but might work)
-    params.append('xi-api-key', this.config.apiKey);
+    // Authentication is handled via WebSocket subprotocols (see connect() method)
+    // Not via query parameters or headers
 
     params.append('model_id', this.config.modelId);
     params.append('audio_format', this.config.audioFormat);
