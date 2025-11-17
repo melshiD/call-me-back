@@ -1,7 +1,7 @@
 # Call Flow Debugging
 
-**Last Updated:** 2025-11-16
-**Status:** WebSocket connection failing - Twilio can't connect to our stream endpoint
+**Last Updated:** 2025-11-17
+**Status:** Deepgram STT WebSocket connection failing - Error 1006 / Cloudflare Workers compatibility issues
 
 ---
 
@@ -1618,3 +1618,277 @@ Cerebras: ✅ Complete question - respond now!
 ---
 
 **End of debugging session 4 - November 17, 2025 - Deepgram STT integrated successfully**
+
+---
+
+## SESSION 5: November 17, 2025 (Continued) - DEEPGRAM WEBSOCKET CONNECTION FAILING
+
+### Problem: Deepgram STT WebSocket Won't Connect (Error 1006)
+
+**Status:** UNRESOLVED - Cloudflare Workers outbound WebSocket compatibility issues
+
+### Timeline of Debugging Attempts
+
+#### Attempt 1: Invalid/Missing API Key (SOLVED)
+**Time:** 15:42 - 15:58
+
+**Problem:**
+- WebSocket error 1006: "Failed to establish websocket connection"
+- No `DEEPGRAM_STT_WEBSOCKET_OPENED` marker appearing
+- Authentication failed when testing API key
+
+**Root Cause:**
+- Deepgram API key in `.env` was invalid (only 21 characters)
+- Key had read-only permissions instead of member/streaming permissions
+
+**Fix:**
+- Created new API key with owner permissions and streaming access (40 characters)
+- Updated `.env` file
+- Ran `./set-all-secrets.sh` to deploy new key
+
+**Result:** ❌ Still failing with error 1006
+
+---
+
+#### Attempt 2: Query Parameter vs Header Authentication
+**Time:** 16:03 - 16:12
+
+**Problem:**
+- Valid API key (40 chars) confirmed working via curl test
+- WebSocket still failing with error 1006
+- API key being passed as query parameter: `?token=API_KEY`
+
+**Hypothesis:**
+- Cloudflare Workers WebSocket connections might not support custom headers
+- Deepgram requires `Sec-WebSocket-Protocol` header for client-side connections
+
+**Fix Attempted:**
+- Changed from query parameter to `Sec-WebSocket-Protocol` header
+- Used `new WebSocket(url, ['token', apiKey])` syntax
+- Removed token from URL query string
+
+**Code:**
+```typescript
+const protocols = ['token', this.config.apiKey];
+this.ws = new WebSocket(url, protocols);
+```
+
+**Result:** ❌ Still failing with error 1006
+
+---
+
+#### Attempt 3: Fetch-Upgrade WebSocket Approach
+**Time:** 16:52 - 17:04
+
+**Problem:**
+- Standard `new WebSocket(url)` constructor doesn't work properly in Cloudflare Workers for outbound connections
+- Community reports indicate need for "fetch-then-upgrade" workaround
+
+**Research Finding:**
+From Cloudflare Community discussions:
+> "Direct `new WebSocket()` doesn't work as expected. Workaround is to use the fetch then upgrade trick: `let {webSocket:targetSocket} = await fetch(targetWebSocketServerURL, {headers: {Upgrade: 'websocket'}})`"
+
+**Fix Attempted:**
+```typescript
+const response = await fetch(url, {
+  headers: {
+    'Upgrade': 'websocket',
+    'Authorization': `Token ${this.config.apiKey}`,
+  }
+});
+
+const ws = (response as any).webSocket as WebSocket;
+if (!ws) {
+  throw new Error('[DeepgramSTT] Failed to upgrade to WebSocket connection');
+}
+this.ws = ws;
+```
+
+**Debug Markers:**
+- ✅ BEFORE_PIPELINE_START
+- ✅ DEEPGRAM_API_KEY_CHECK (40 chars, valid)
+- ✅ FIRST_MEDIA_MESSAGE_RECEIVED
+- ❌ No DEEPGRAM_STT_WEBSOCKET_OPENED
+- ❌ No ERROR or CLOSE markers (suggests code crashed before event listeners attached)
+
+**Result:** ❌ Silent failure - likely `response.webSocket` is undefined
+
+---
+
+### What We've Confirmed ✅
+
+1. **API Key is Valid**
+   - 40 characters long
+   - Owner permissions
+   - Successfully authenticates via curl to Deepgram REST API
+   - Correctly passed through environment variables
+
+2. **Twilio → Voice Pipeline Flow Works**
+   - WebSocket connection from Twilio to our API Gateway: ✅ WORKING
+   - Media messages arriving: ✅ WORKING
+   - Pipeline initialization: ✅ WORKING
+
+3. **Configuration is Correct**
+   - URL: `wss://api.deepgram.com/v1/listen`
+   - Model: nova-3
+   - Encoding: mulaw (matches Twilio)
+   - Sample rate: 8000Hz
+   - All parameters formatted correctly
+
+### What's Failing ❌
+
+**Outbound WebSocket Connection from Cloudflare Workers → Deepgram API**
+
+Three different approaches all failed:
+1. ❌ Query parameter auth: Error 1006
+2. ❌ Sec-WebSocket-Protocol header: Error 1006
+3. ❌ Fetch-upgrade approach: Silent failure (webSocket undefined)
+
+### Root Cause Analysis
+
+**Cloudflare Workers Outbound WebSocket Limitations:**
+
+From research and community reports:
+
+1. **Subrequest Limit Issue:**
+   - WebSocket connections count toward 50 subrequest limit
+   - "WebSocket passthrough (Client → Cloudflare → Origin) not recommended because of 50 sub-request limit"
+
+2. **Concurrent Connection Limit:**
+   - Workers limited to 6 concurrent outbound connections
+   - WebSocket connections count toward this limit
+
+3. **Implementation Differences:**
+   - `new WebSocket(url)` in Workers doesn't behave like browser implementation
+   - Fetch-upgrade workaround exists but may not work for all external APIs
+   - Header-based authentication in WebSocket handshakes has limited support
+
+4. **Documentation Gap:**
+   - Official Cloudflare Workers WebSocket docs focus on **inbound** connections (receiving)
+   - Outbound WebSocket client connections not well-documented
+   - Community reports mixed results with external WebSocket APIs
+
+### Alternative Solutions to Consider
+
+#### Option 1: Use Cloudflare Workers AI Built-in Deepgram ⭐ RECOMMENDED
+**Status:** Not yet attempted
+
+Cloudflare Workers AI has Deepgram Nova-3 built-in:
+- Model ID: `@cf/deepgram/nova-3`
+- Native WebSocket support designed for Workers
+- No external API connection needed
+- Pricing: $0.0092 per audio minute (WebSocket streaming)
+
+**Pros:**
+- Designed to work within Workers environment
+- No outbound WebSocket connection issues
+- Official Cloudflare + Deepgram integration
+
+**Cons:**
+- Different API than standard Deepgram
+- Need to refactor DeepgramSTTHandler
+- May have different feature set
+
+**Implementation:**
+```typescript
+// Instead of connecting to wss://api.deepgram.com
+// Use Workers AI binding:
+const ai = this.env.AI;
+const response = await ai.run('@cf/deepgram/nova-3', {
+  audio: audioBuffer,
+  // streaming options
+});
+```
+
+#### Option 2: Use Durable Objects for WebSocket Proxy
+**Status:** Not attempted
+
+**Concept:**
+- Create a Durable Object that maintains the Deepgram WebSocket connection
+- Voice pipeline communicates with Durable Object via service binding
+- Durable Object proxies messages to/from Deepgram
+
+**Pros:**
+- Durable Objects may have better WebSocket support
+- Single persistent connection instead of per-call connections
+
+**Cons:**
+- Complex architecture
+- Still might hit same WebSocket limitations
+- Adds latency and complexity
+
+#### Option 3: External WebSocket Proxy Service
+**Status:** Not attempted
+
+**Concept:**
+- Deploy separate Node.js/Deno service (not on Workers)
+- Service maintains Deepgram WebSocket connections
+- Workers communicate via HTTP/REST to proxy service
+- Proxy forwards to Deepgram WebSocket
+
+**Pros:**
+- Full WebSocket support (Node.js/Deno have mature implementations)
+- Bypass Cloudflare Workers WebSocket limitations
+
+**Cons:**
+- Additional infrastructure to deploy/manage
+- Added latency (Workers → Proxy → Deepgram)
+- Increased complexity and cost
+
+#### Option 4: Deepgram HTTP API (Non-Streaming)
+**Status:** Not attempted
+
+**Concept:**
+- Use Deepgram's REST API instead of WebSocket streaming
+- Buffer audio chunks, send via HTTP POST
+- Receive transcription responses via polling or callback
+
+**Pros:**
+- HTTP requests well-supported in Workers
+- No WebSocket complexity
+
+**Cons:**
+- Higher latency (not real-time streaming)
+- May not work for live conversation
+- Batch processing instead of continuous stream
+
+### Next Steps
+
+**RECOMMENDED PATH:** Try Option 1 (Workers AI Built-in Deepgram)
+
+**Why:**
+- Officially supported Cloudflare + Deepgram integration
+- Designed for Workers environment
+- Avoids all external WebSocket connection issues
+- Same Nova-3 model we're trying to use
+
+**Alternative if Option 1 fails:** Option 3 (External WebSocket Proxy)
+- Most reliable for production
+- Full control over WebSocket implementation
+- Can use proven Node.js libraries
+
+**DO NOT pursue further:**
+- ❌ More attempts at direct WebSocket connections from Workers
+- ❌ Trying different auth methods (already exhausted options)
+- ❌ Different Deepgram endpoints (problem is Workers, not Deepgram)
+
+### Debug Commands Reference
+
+```bash
+# Check debug markers
+./query-debug-markers.sh
+
+# Or direct query:
+source .env && curl -s -X POST https://db.ai-tools-marketplace.io/query \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${VULTR_DB_API_KEY}" \
+  -d '{"sql": "SELECT id, call_id, marker_name, metadata, created_at FROM debug_markers ORDER BY created_at DESC LIMIT 20", "params": []}'
+
+# Test Deepgram API key:
+source .env && curl -s -X GET "https://api.deepgram.com/v1/projects" \
+  -H "Authorization: Token ${DEEPGRAM_API_KEY}"
+```
+
+---
+
+**End of debugging session 5 - November 17, 2025 - Deepgram WebSocket connection issue identified, alternative solutions documented**

@@ -172,17 +172,27 @@ export class DeepgramSTTHandler {
           }
         }
 
-        // Cloudflare Workers WebSocket supports standard constructor
-        // IMPORTANT: Use Sec-WebSocket-Protocol for authentication (not query parameter)
-        // Ref: https://developers.deepgram.com/docs/using-the-sec-websocket-protocol
-        const protocols = ['token', this.config.apiKey];
-        this.ws = new WebSocket(url, protocols);
+        // Cloudflare Workers WebSocket: Use fetch-upgrade instead of constructor
+        // Ref: https://community.cloudflare.com/t/writing-a-websocket-client-to-connect-to-remote-websocket-server-doesnt-work/494853
+        const response = await fetch(url, {
+          headers: {
+            'Upgrade': 'websocket',
+            'Authorization': `Token ${this.config.apiKey}`,
+          }
+        });
+
+        // Extract WebSocket from response
+        const ws = (response as any).webSocket as WebSocket;
+        if (!ws) {
+          throw new Error('[DeepgramSTT] Failed to upgrade to WebSocket connection');
+        }
+        this.ws = ws;
 
         const timeout = setTimeout(() => {
           reject(new Error('[DeepgramSTT] Connection timeout'));
         }, 10000); // 10 second timeout
 
-        this.ws.addEventListener('open', async () => {
+        ws.addEventListener('open', async () => {
           clearTimeout(timeout);
           console.log('[DeepgramSTT] WebSocket connected');
 
@@ -203,7 +213,7 @@ export class DeepgramSTTHandler {
           resolve();
         });
 
-        this.ws.addEventListener('message', async (event) => {
+        ws.addEventListener('message', async (event) => {
           try {
             const message = JSON.parse(event.data.toString()) as DeepgramMessage;
 
@@ -227,7 +237,7 @@ export class DeepgramSTTHandler {
           }
         });
 
-        this.ws.addEventListener('close', async (event) => {
+        ws.addEventListener('close', async (event) => {
           console.log('[DeepgramSTT] WebSocket closed:', event.code, event.reason);
 
           // DEBUG MARKER: STT WebSocket closed
@@ -252,7 +262,7 @@ export class DeepgramSTTHandler {
           }
         });
 
-        this.ws.addEventListener('error', async (error) => {
+        ws.addEventListener('error', async (error) => {
           clearTimeout(timeout);
           console.error('[DeepgramSTT] WebSocket error:', error);
 
