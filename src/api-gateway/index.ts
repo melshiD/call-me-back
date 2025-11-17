@@ -132,10 +132,12 @@ export default class extends Service<Env> {
 
       // Build WebSocket URL for Media Streams (without query parameters)
       // Twilio Stream URLs do NOT support query parameters - use <Parameter> elements instead
-      const baseUrl = new URL(request.url).origin;
-      const streamUrl = `${baseUrl.replace('http', 'ws')}/api/voice/stream`;
+      // CRITICAL: Voice pipeline now runs on Vultr (voice.ai-tools-marketplace.io) not on Workers
+      // Workers cannot make outbound WebSocket connections, so we moved voice pipeline to Node.js on Vultr
+      // DNS: voice.ai-tools-marketplace.io must point to 144.202.15.249 (A record)
+      const streamUrl = `wss://voice.ai-tools-marketplace.io/stream`;
 
-      this.env.logger.info('Generated stream URL', { streamUrl, baseUrl, callSid, userId, personaId });
+      this.env.logger.info('Generated stream URL (Vultr voice pipeline)', { streamUrl, callSid, userId, personaId });
 
       // Generate TwiML response with Media Streams
       // Use <Parameter> elements to pass custom data (sent in WebSocket "start" message)

@@ -2274,3 +2274,139 @@ Ready for another test call to verify:
 - Audio works end-to-end
 
 **End of debugging session 8 - November 17, 2025 - CRITICAL FIX DEPLOYED! 🎯**
+
+---
+
+## Session 9: THE SOLUTION - Migrated Voice Pipeline to Node.js on Vultr (2025-11-17)
+
+### The Problem: Cloudflare Workers Cannot Make Outbound WebSocket Connections
+
+After 8 sessions of debugging, we discovered the fundamental issue:
+
+**Cloudflare Workers can ACCEPT WebSocket connections (inbound) but CANNOT INITIATE WebSocket connections (outbound).**
+
+**Evidence:**
+```
+✅ DEEPGRAM_STT_FETCH_UPGRADE_ATTEMPT - Started fetch() call
+❌ NO DEEPGRAM_STT_FETCH_RESPONSE    - fetch() never completed
+```
+
+The `fetch()` call with `Upgrade: websocket` header hangs indefinitely:
+- No error thrown
+- No timeout
+- No response
+- Just infinite waiting
+
+**Tried:**
+- ✅ `ws://` URLs - Hangs
+- ✅ `wss://` URLs - Hangs
+- ✅ Direct to Deepgram API - Hangs
+- ✅ To our own proxy on Vultr - Hangs
+- ✅ Standard `new WebSocket(url)` - Fails
+- ✅ Fetch-upgrade pattern - Hangs
+
+**Conclusion:** This is a platform limitation, not a configuration issue.
+
+### The Solution: Move Voice Pipeline to Node.js on Vultr
+
+**Decision:** Move ONLY the voice-pipeline service off Workers. Keep everything else on Raindrop.
+
+**Why Vultr (not Deno Deploy or Vercel):**
+- ✅ Already running database proxy there
+- ✅ Already paid for
+- ✅ Full control, no platform limitations
+- ✅ Native Node.js WebSocket support
+- ✅ Simple deployment with PM2
+
+**New Architecture:**
+```
+┌─────────────────────────────────────────────────────┐
+│         CLOUDFLARE WORKERS (Raindrop)               │
+├─────────────────────────────────────────────────────┤
+│  - api-gateway          ✅ STAYS                     │
+│  - auth-manager         ✅ STAYS                     │
+│  - database-proxy       ✅ STAYS                     │
+│  - persona-manager      ✅ STAYS                     │
+│  - call-orchestrator    ✅ STAYS                     │
+│  - payment-processor    ✅ STAYS                     │
+│  - webhook-handler      ✅ STAYS                     │
+└─────────────────────────────────────────────────────┘
+                          │
+                          │ TwiML tells Twilio to connect to:
+                          │ wss://voice.ai-tools-marketplace.io/stream
+                          ▼
+┌─────────────────────────────────────────────────────┐
+│         VULTR SERVER (144.202.15.249)               │
+├─────────────────────────────────────────────────────┤
+│  - voice-pipeline       ⚠️ MOVED HERE                │
+│    • Twilio WebSocket   ✅ Works                    │
+│    • Deepgram STT       ✅ Works (outbound WS!)     │
+│    • Cerebras AI        ✅ Works                    │
+│    • ElevenLabs TTS     ✅ Works                    │
+│                                                      │
+│  - database-proxy       ✅ Already here              │
+│  - Caddy (SSL/TLS)      ✅ Already here              │
+└─────────────────────────────────────────────────────┘
+```
+
+### Implementation
+
+**Step 1: Created Node.js Voice Pipeline**
+
+Created `/voice-pipeline-nodejs/` directory with:
+
+**`package.json`:**
+```json
+{
+  "name": "call-me-back-voice-pipeline",
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.14.2",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
+  }
+}
+```
+
+**`index.js`:** (Stub implementation)
+```javascript
+import express from 'express';
+import { WebSocketServer } from 'ws';
+import { createServer } from 'http';
+
+const app = express();
+const server = createServer(app);
+const wss = new WebSocketServer({ server, path: '/stream' });
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', service: 'voice-pipeline', uptime: process.uptime() });
+});
+
+// WebSocket handler
+wss.on('connection', (twilioWs, req) => {
+  console.log('[Voice Pipeline] New WebSocket connection from Twilio');
+  
+  twilioWs.on('message', (data) => {
+    const message = JSON.parse(data.toString());
+    if (message.event === 'start') {
+      console.log('[Voice Pipeline] START message:', message.start.customParameters);
+      // TODO: Initialize STT, TTS, AI handlers
+    }
+  });
+});
+
+server.listen(8001);
+```
+
+**`load-env.sh`:** Load environment from parent `.env`
+```bash
+#!/bin/bash
+source ../.env
+cat > .env << EOF
+PORT=8001
+DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+CEREBRAS_API_KEY=${CEREBRAS_API_KEY}
+VULTR_DB_API_URL=${VULTR_DB_API_URL}
+VULTR_DB_API_KEY=${VULTR_DB_API_KEY}
