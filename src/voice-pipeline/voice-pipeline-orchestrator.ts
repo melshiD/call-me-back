@@ -3,7 +3,7 @@
  *
  * Integrates all voice services:
  * - Twilio Media Streams (audio I/O)
- * - ElevenLabs STT (speech recognition)
+ * - Deepgram STT (speech recognition)
  * - ConversationManager (turn-taking logic)
  * - Cerebras LLM (AI responses)
  * - ElevenLabs TTS (speech synthesis)
@@ -11,7 +11,7 @@
  */
 
 import { TwilioMediaStreamHandler, MediaStreamHandlers } from './twilio-media-stream';
-import { ElevenLabsSTTHandler, STTHandlers } from './elevenlabs-stt';
+import { DeepgramSTTHandler, DeepgramSTTHandlers, DeepgramDebugContext } from './deepgram-stt';
 import { ElevenLabsTTSHandler, TTSHandlers, VOICE_IDS } from './elevenlabs-tts';
 import { ConversationManager, ConversationState, TranscriptSegment } from './conversation-manager';
 import { LLMServiceFactory } from '../shared/ai-services';
@@ -20,6 +20,7 @@ import { PersonaMemoryManager, ConversationContext, MemoryUpdate } from '../shar
 
 export interface VoicePipelineConfig {
   // API Keys
+  deepgramApiKey: string;
   elevenLabsApiKey: string;
   cerebrasApiKey: string;
 
@@ -62,7 +63,7 @@ export class VoicePipelineOrchestrator {
 
   // Service handlers
   private twilioHandler: TwilioMediaStreamHandler;
-  private sttHandler: ElevenLabsSTTHandler;
+  private sttHandler: DeepgramSTTHandler;
   private ttsHandler: ElevenLabsTTSHandler;
   private conversationManager: ConversationManager;
   private costTracker: CallCostTracker;
@@ -104,15 +105,19 @@ export class VoicePipelineOrchestrator {
     // Initialize Twilio handler
     this.twilioHandler = new TwilioMediaStreamHandler(this.createTwilioHandlers());
 
-    // Initialize STT handler
-    this.sttHandler = new ElevenLabsSTTHandler(
+    // Initialize STT handler (Deepgram)
+    this.sttHandler = new DeepgramSTTHandler(
       {
-        apiKey: config.elevenLabsApiKey,
-        modelId: 'scribe_v2_realtime',
-        audioFormat: 'ulaw_8000',
-        commitStrategy: 'vad',  // Use Voice Activity Detection to auto-commit transcripts
-        vadSilenceThresholdSecs: 0.8,  // Commit after 0.8s of silence (faster than default)
-        vadThreshold: 0.4,  // Default sensitivity
+        apiKey: config.deepgramApiKey,
+        model: 'nova-3',  // Latest Deepgram model (most accurate)
+        language: 'en-US',
+        encoding: 'mulaw',  // Matches Twilio's audio format
+        sampleRate: 8000,
+        channels: 1,
+        punctuate: true,
+        interimResults: false,  // Only final transcripts
+        endpointing: 300,  // 300ms silence to finalize
+        utteranceEndMs: 1000,  // 1s silence ends utterance
         ...config.sttConfig
       },
       this.createSTTHandlers(),
@@ -250,9 +255,9 @@ export class VoicePipelineOrchestrator {
         }
         this.mediaMessageCount++;
 
-        // Forward incoming user audio to STT
+        // Forward incoming user audio to STT (Deepgram)
         if (track === 'inbound' && this.sttHandler.isConnected()) {
-          this.sttHandler.sendAudio(audioBuffer, 8000, false);
+          this.sttHandler.sendAudio(audioBuffer);
         }
       },
 
@@ -277,66 +282,67 @@ export class VoicePipelineOrchestrator {
   }
 
   /**
-   * Create STT event handlers
+   * Create STT event handlers (Deepgram)
    */
-  private createSTTHandlers(): STTHandlers {
+  private createSTTHandlers(): DeepgramSTTHandlers {
     return {
-      onPartialTranscript: (text) => {
-        // Update current transcript with partial result
-        this.currentTranscript = text;
+      onTranscript: async (text, isFinal) => {
+        if (!isFinal) {
+          // Update current transcript with partial result
+          this.currentTranscript = text;
 
-        // Add partial transcript to conversation manager
-        const segment: TranscriptSegment = {
-          text,
-          timestamp: Date.now(),
-          isFinal: false
-        };
+          // Add partial transcript to conversation manager
+          const segment: TranscriptSegment = {
+            text,
+            timestamp: Date.now(),
+            isFinal: false
+          };
 
-        this.conversationManager.addTranscriptSegment(segment);
-      },
+          this.conversationManager.addTranscriptSegment(segment);
+        } else {
+          // Final transcript
+          console.log('[VoicePipeline] Final transcript:', text);
 
-      onCommittedTranscript: async (text) => {
-        console.log('[VoicePipeline] Final transcript:', text);
-
-        // DEBUG MARKER: Transcript received from STT
-        if (this.config.databaseProxy) {
-          try {
-            await this.config.databaseProxy.executeQuery(
-              `INSERT INTO debug_markers (call_id, marker_name) VALUES ($1, $2)`,
-              [this.config.callId, 'TRANSCRIPT_RECEIVED']
-            );
-          } catch (e) {
-            // Ignore errors
+          // DEBUG MARKER: Transcript received from STT
+          if (this.config.databaseProxy) {
+            try {
+              await this.config.databaseProxy.executeQuery(
+                `INSERT INTO debug_markers (call_id, marker_name) VALUES ($1, $2)`,
+                [this.config.callId, 'TRANSCRIPT_RECEIVED']
+              );
+            } catch (e) {
+              // Ignore errors
+            }
           }
+
+          // Add to conversation history
+          this.conversationHistory.push({
+            role: 'user',
+            content: text
+          });
+
+          // Add to working memory
+          if (this.memoryManager) {
+            await this.memoryManager.addToWorkingMemory('user', text);
+          }
+
+          // Mark as final transcript
+          const segment: TranscriptSegment = {
+            text,
+            timestamp: Date.now(),
+            isFinal: true
+          };
+
+          this.conversationManager.addTranscriptSegment(segment);
+
+          // Track STT cost (Deepgram nova-3)
+          const charCount = text.length;
+          const durationSecs = charCount / 15; // Rough estimate: ~15 chars/second
+          await this.costTracker.trackSTT(durationSecs, 'deepgram-nova-3');
+
+          // Trigger response generation based on conversation state
+          this.checkAndGenerateResponse();
         }
-
-        // Add to conversation history
-        this.conversationHistory.push({
-          role: 'user',
-          content: text
-        });
-
-        // Add to working memory
-        if (this.memoryManager) {
-          await this.memoryManager.addToWorkingMemory('user', text);
-        }
-
-        // Mark as final transcript
-        const segment: TranscriptSegment = {
-          text,
-          timestamp: Date.now(),
-          isFinal: true
-        };
-
-        this.conversationManager.addTranscriptSegment(segment);
-
-        // Track STT cost
-        const charCount = text.length;
-        const durationSecs = charCount / 15; // Rough estimate: ~15 chars/second
-        await this.costTracker.trackSTT(durationSecs, 'scribe_v2_realtime');
-
-        // Trigger response generation based on conversation state
-        this.checkAndGenerateResponse();
       },
 
       onError: (error) => {
@@ -507,11 +513,12 @@ export class VoicePipelineOrchestrator {
   }
 
   /**
-   * Commit current STT transcript segment
+   * Finalize current STT transcript segment
+   * Note: Deepgram uses automatic endpointing, so manual finalize is rarely needed
    */
   commitTranscript(): void {
     if (this.sttHandler.isConnected()) {
-      this.sttHandler.commit(8000);
+      this.sttHandler.finalize();
     }
   }
 

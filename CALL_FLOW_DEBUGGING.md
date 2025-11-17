@@ -1545,3 +1545,76 @@ User speaks → Twilio (mulaw) → Deepgram STT → Cerebras AI → ElevenLabs T
 ---
 
 **End of debugging session 3 - November 17, 2025 - RESOLVED: Switching to Deepgram STT**
+
+---
+
+## SESSION 4: November 17, 2025 - DEEPGRAM STT INTEGRATION
+
+### Problem Solved: ElevenLabs STT Authentication Incompatibility
+
+**Root Cause:** ElevenLabs STT requires `xi-api-key` HTTP header, Cloudflare Workers WebSocket doesn't support custom headers.
+
+**Solution Implemented:** Switched to Deepgram STT (Nova-3)
+
+### Implementation Details
+
+**New Architecture:**
+```
+User speaks → Twilio (mulaw) → Deepgram Nova-3 STT → Cerebras AI → ElevenLabs TTS → User hears
+```
+
+**Changes Made:**
+
+1. **Created Deepgram STT Handler** (`src/voice-pipeline/deepgram-stt.ts`)
+   - Uses query parameter authentication (`token=API_KEY`)
+   - Supports mulaw encoding (native Twilio format)
+   - Model: nova-3 (latest, most accurate)
+   - Auto-endpointing: 300ms silence threshold
+   - Utterance end: 1000ms silence
+
+2. **Updated Voice Pipeline Orchestrator**
+   - Replaced `ElevenLabsSTTHandler` with `DeepgramSTTHandler`
+   - Updated `createSTTHandlers()` to use Deepgram's `onTranscript(text, isFinal)` interface
+   - Changed `sendAudio()` calls (Deepgram only needs buffer, not sample rate)
+   - Changed `commit()` to `finalize()` method
+
+3. **Environment Variables**
+   - Added `DEEPGRAM_API_KEY` to raindrop.manifest
+   - Added to set-all-secrets.sh
+   - Updated api-gateway to pass deepgramApiKey in config
+
+4. **Debug Markers for Deepgram**
+   - `DEEPGRAM_STT_WEBSOCKET_OPENED`
+   - `DEEPGRAM_STT_FIRST_MESSAGE_RECEIVED`
+   - `DEEPGRAM_STT_MESSAGE_CONTENT`
+   - `DEEPGRAM_STT_WEBSOCKET_CLOSED`
+   - `DEEPGRAM_STT_WEBSOCKET_ERROR`
+
+**Deployment:** November 17, 2025 - Successfully deployed
+
+**Next:** Test with actual phone call to verify Deepgram transcription works
+
+### Architecture Decision: Keep Cerebras Turn-Taking
+
+**Question:** Since Deepgram has auto-endpointing, do we still need Cerebras parallel flow?
+
+**Answer:** YES - Both serve different purposes:
+- **Deepgram endpointing:** Detects when user stops speaking (silence detection)
+- **Cerebras turn-taking:** Determines if it's a complete thought vs. just a pause
+
+**Example:**
+```
+User: "Hey Brad, I was thinking about... [pause 1s]"
+Deepgram: ✅ Utterance ended (silence detected)
+Cerebras: ❌ Don't respond - that's a thinking pause, not done speaking
+
+User: "...going to the gym tomorrow. What do you think?"
+Deepgram: ✅ Utterance ended
+Cerebras: ✅ Complete question - respond now!
+```
+
+**Decision:** Keep both systems for natural conversation flow
+
+---
+
+**End of debugging session 4 - November 17, 2025 - Deepgram STT integrated successfully**

@@ -26,6 +26,7 @@ echo ""
 echo "Setting AI service secrets..."
 raindrop build env set env:ELEVENLABS_API_KEY "$ELEVENLABS_API_KEY" && echo "✓ ELEVENLABS_API_KEY"
 raindrop build env set env:CEREBRAS_API_KEY "$CEREBRAS_API_KEY" && echo "✓ CEREBRAS_API_KEY"
+raindrop build env set env:DEEPGRAM_API_KEY "$DEEPGRAM_API_KEY" && echo "✓ DEEPGRAM_API_KEY"
 
 echo ""
 echo "Setting WorkOS authentication secrets..."

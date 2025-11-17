@@ -20,6 +20,10 @@ application "call-me-back" {
     secret = true
   }
 
+  env "DEEPGRAM_API_KEY" {
+    secret = true
+  }
+
   env "VULTR_DB_API_URL" {
     secret = true
   }

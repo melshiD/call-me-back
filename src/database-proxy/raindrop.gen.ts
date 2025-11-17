@@ -14,6 +14,7 @@ export interface Env {
   CALL_TRANSCRIPTS: SmartBucket;
   CEREBRAS_API_KEY: string;
   CONVERSATION_MEMORY: SmartMemory;
+  DEEPGRAM_API_KEY: string;
   ELEVENLABS_API_KEY: string;
   JWT_SECRET: string;
   logger: Logger;

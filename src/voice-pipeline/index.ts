@@ -66,6 +66,7 @@ export default class extends Service<Env> {
 
       // Create pipeline configuration
       const config: VoicePipelineConfig = {
+        deepgramApiKey: this.env.DEEPGRAM_API_KEY || '',
         elevenLabsApiKey: this.env.ELEVENLABS_API_KEY || '',
         cerebrasApiKey: this.env.CEREBRAS_API_KEY || '',
         voiceId,

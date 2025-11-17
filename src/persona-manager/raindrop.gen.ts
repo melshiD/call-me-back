@@ -15,6 +15,7 @@ export interface Env {
   CEREBRAS_API_KEY: string;
   CONVERSATION_MEMORY: SmartMemory;
   DATABASE_PROXY: ServiceStub<import('../database-proxy/index.js').default>;
+  DEEPGRAM_API_KEY: string;
   ELEVENLABS_API_KEY: string;
   JWT_SECRET: string;
   logger: Logger;

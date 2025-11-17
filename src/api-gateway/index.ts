@@ -339,6 +339,7 @@ export default class extends Service<Env> {
 
       // Create pipeline configuration
       const config: VoicePipelineConfig = {
+        deepgramApiKey: this.env.DEEPGRAM_API_KEY || '',
         elevenLabsApiKey: this.env.ELEVENLABS_API_KEY || '',
         cerebrasApiKey: this.env.CEREBRAS_API_KEY || '',
         voiceId,
@@ -351,6 +352,7 @@ export default class extends Service<Env> {
       };
 
       console.log('[API Gateway] Pipeline config created, API keys present:', {
+        deepgram: !!this.env.DEEPGRAM_API_KEY,
         elevenlabs: !!this.env.ELEVENLABS_API_KEY,
         cerebras: !!this.env.CEREBRAS_API_KEY
       });
