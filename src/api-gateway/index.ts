@@ -157,7 +157,6 @@ export default class extends Service<Env> {
       // Voice pipeline will fetch full persona metadata from database using these IDs
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say>Connecting you now.</Say>
     <Connect>
         <Stream url="${streamUrl}">
             <Parameter name="callId" value="${callSid}" />

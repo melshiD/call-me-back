@@ -49,6 +49,11 @@ class VoicePipeline {
     this.deepgramWs = null;
     this.elevenLabsWs = null;
 
+    // Connection state tracking
+    this.deepgramReady = false;
+    this.elevenLabsReady = false;
+    this.audioBuffer = [];  // Buffer audio until Deepgram connected
+
     // State
     this.conversationHistory = [];
     this.transcriptSegments = [];
@@ -87,6 +92,7 @@ class VoicePipeline {
         body: JSON.stringify({
           sql: `
             SELECT p.name, p.core_system_prompt, p.default_voice_id,
+                   p.max_tokens, p.temperature,
                    upr.custom_system_prompt, upr.voice_id
             FROM personas p
             LEFT JOIN user_persona_relationships upr
@@ -115,6 +121,9 @@ class VoicePipeline {
         // Use custom system prompt if set, otherwise use persona's core prompt
         this.systemPrompt = row.custom_system_prompt || row.core_system_prompt ||
           'You are a supportive friend who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.';
+        // Store AI params from database (configurable from admin panel)
+        this.maxTokens = row.max_tokens || 100;  // Default: 100 tokens (prevents mid-sentence truncation)
+        this.temperature = row.temperature || 0.7;  // Default: 0.7 (balanced creativity)
         // Note: smart_memory column doesn't exist in current schema - will be added later for static relationship context
         this.smartMemory = '';
 
@@ -122,13 +131,17 @@ class VoicePipeline {
           name: this.personaName,
           voiceId: this.voiceId,
           systemPromptLength: this.systemPrompt.length,
-          hasCallPretext: !!this.callPretext
+          hasCallPretext: !!this.callPretext,
+          maxTokens: this.maxTokens,
+          temperature: this.temperature
         });
       } else {
         console.warn(`[VoicePipeline ${this.callId}] ⚠️  Persona not found in database, using defaults`);
         this.personaName = 'Brad';
         this.voiceId = 'pNInz6obpgDQGcFmaJgB';
         this.systemPrompt = 'You are Brad, a supportive bro who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.';
+        this.maxTokens = 100;
+        this.temperature = 0.7;
         this.smartMemory = '';
       }
     } catch (error) {
@@ -136,6 +149,8 @@ class VoicePipeline {
       console.error(`[VoicePipeline ${this.callId}] Error stack:`, error.stack);
       // Use defaults on error
       this.personaName = 'Brad';
+      this.maxTokens = 100;
+      this.temperature = 0.7;
       this.voiceId = 'pNInz6obpgDQGcFmaJgB';
       this.systemPrompt = 'You are Brad, a supportive bro who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.';
       this.smartMemory = '';
@@ -160,8 +175,7 @@ class VoicePipeline {
 
       console.log(`[VoicePipeline ${this.callId}] All services connected`);
 
-      // STEP 4: Send initial greeting
-      await this.speak("Hey! Sorry it took me a minute to get to you!");
+      // STEP 4: Wait for user to speak first (no auto-greeting)
 
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Failed to start:`, error);
@@ -186,6 +200,18 @@ class VoicePipeline {
 
       this.deepgramWs.on('open', () => {
         console.log(`[VoicePipeline ${this.callId}] Deepgram connected`);
+        this.deepgramReady = true;
+
+        // Flush buffered audio
+        if (this.audioBuffer.length > 0) {
+          console.log(`[VoicePipeline ${this.callId}] Flushing ${this.audioBuffer.length} buffered audio chunks`);
+          this.audioBuffer.forEach(audioPayload => {
+            const audioBuffer = Buffer.from(audioPayload, 'base64');
+            this.deepgramWs.send(audioBuffer);
+          });
+          this.audioBuffer = [];
+        }
+
         resolve();
       });
 
@@ -232,6 +258,7 @@ class VoicePipeline {
 
       this.elevenLabsWs.on('open', () => {
         console.log(`[VoicePipeline ${this.callId}] ElevenLabs connected`);
+        this.elevenLabsReady = true;
 
         // Send initial config
         this.elevenLabsWs.send(JSON.stringify({
@@ -580,6 +607,13 @@ Answer:`;
         systemPrompt += `\n\nCALL CONTEXT: The user requested this call for the following reason: "${this.callPretext}". Keep this context in mind and be helpful with their situation.`;
       }
 
+      // CRITICAL: Enforce brevity and natural conversation
+      systemPrompt += `\n\nPhone Call Guidelines:
+- Keep responses brief and natural (1-2 short sentences)
+- Respond to what the user actually says - stay grounded in the real conversation
+- Speak conversationally, no stage directions like "(laughs)"
+- If something's unclear, just ask!`;
+
       const messages = [
         {
           role: 'system',
@@ -588,7 +622,12 @@ Answer:`;
         ...this.conversationHistory.slice(-10)
       ];
 
-      const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      // Add 15-second timeout for AI response generation
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('AI response generation timeout')), 15000)
+      );
+
+      const fetchPromise = fetch('https://api.cerebras.ai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -597,17 +636,21 @@ Answer:`;
         body: JSON.stringify({
           model: 'llama3.1-8b',
           messages: messages,
-          max_tokens: 150,
-          temperature: 0.7,
+          max_tokens: this.maxTokens,  // Configurable from admin panel (stored in personas table)
+          temperature: this.temperature,  // Configurable from admin panel (stored in personas table)
           stream: false
         })
       });
 
+      const response = await Promise.race([fetchPromise, timeoutPromise]);
       const data = await response.json();
       const aiResponse = data.choices[0]?.message?.content;
 
       if (aiResponse) {
         console.log(`[VoicePipeline ${this.callId}] AI says:`, aiResponse);
+        console.log(`[VoicePipeline ${this.callId}] AI response length: ${aiResponse.length} chars`);
+        console.log(`[VoicePipeline ${this.callId}] Finish reason:`, data.choices[0]?.finish_reason);
+
         this.conversationHistory.push({
           role: 'assistant',
           content: aiResponse
@@ -625,25 +668,43 @@ Answer:`;
    * Speak text using ElevenLabs TTS
    */
   async speak(text) {
-    // Reconnect if disconnected
-    if (!this.elevenLabsWs || this.elevenLabsWs.readyState !== WebSocket.OPEN) {
-      console.log(`[VoicePipeline ${this.callId}] ElevenLabs disconnected, reconnecting...`);
-      await this.connectElevenLabs();
+    try {
+      // Reconnect if disconnected (with 10-second timeout)
+      if (!this.elevenLabsWs || this.elevenLabsWs.readyState !== WebSocket.OPEN) {
+        console.log(`[VoicePipeline ${this.callId}] ElevenLabs disconnected, reconnecting...`);
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('ElevenLabs reconnection timeout')), 10000)
+        );
+
+        await Promise.race([
+          this.connectElevenLabs(),
+          timeoutPromise
+        ]);
+      }
+
+      console.log(`[VoicePipeline ${this.callId}] Speaking:`, text);
+      this.isSpeaking = true;
+
+      // Send text to ElevenLabs - DON'T send empty flush, it closes the connection!
+      this.elevenLabsWs.send(JSON.stringify({
+        text: text,
+        try_trigger_generation: true
+      }));
+    } catch (error) {
+      console.error(`[VoicePipeline ${this.callId}] Failed to speak:`, error);
+
+      // Fallback: just finish speaking so call doesn't hang
+      this.finishSpeaking();
+
+      // Try reconnecting in background for next time
+      setTimeout(() => {
+        console.log(`[VoicePipeline ${this.callId}] Attempting background ElevenLabs reconnection...`);
+        this.connectElevenLabs().catch(e =>
+          console.error(`[VoicePipeline ${this.callId}] Background reconnection failed:`, e)
+        );
+      }, 1000);
     }
-
-    console.log(`[VoicePipeline ${this.callId}] Speaking:`, text);
-    this.isSpeaking = true;
-
-    // Send text to ElevenLabs
-    this.elevenLabsWs.send(JSON.stringify({
-      text: text,
-      try_trigger_generation: true
-    }));
-
-    // Send flush to complete generation
-    this.elevenLabsWs.send(JSON.stringify({
-      text: ''
-    }));
   }
 
   /**
@@ -678,6 +739,12 @@ Answer:`;
    * Handle incoming audio from Twilio
    */
   handleTwilioMedia(audioPayload) {
+    // Buffer audio if Deepgram not ready yet
+    if (!this.deepgramReady) {
+      this.audioBuffer.push(audioPayload);
+      return;
+    }
+
     // Forward to Deepgram only when not speaking
     if (this.deepgramWs && !this.isSpeaking) {
       const audioBuffer = Buffer.from(audioPayload, 'base64');
