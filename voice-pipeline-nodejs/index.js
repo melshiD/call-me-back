@@ -53,6 +53,7 @@ class VoicePipeline {
     this.deepgramReady = false;
     this.elevenLabsReady = false;
     this.audioBuffer = [];  // Buffer audio until Deepgram connected
+    this.connectionHealthTimer = null; // Periodic connection health check
 
     // State
     this.conversationHistory = [];
@@ -175,12 +176,47 @@ class VoicePipeline {
 
       console.log(`[VoicePipeline ${this.callId}] All services connected`);
 
-      // STEP 4: Wait for user to speak first (no auto-greeting)
+      // STEP 4: Start connection health monitoring
+      this.startConnectionHealthMonitoring();
+
+      // STEP 5: Wait for user to speak first (no auto-greeting)
 
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Failed to start:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Monitor connection health and attempt reconnection if needed
+   */
+  startConnectionHealthMonitoring() {
+    // Check connections every 30 seconds
+    this.connectionHealthTimer = setInterval(async () => {
+      console.log(`[VoicePipeline ${this.callId}] Health check - Deepgram: ${this.deepgramReady}, ElevenLabs: ${this.elevenLabsReady}`);
+
+      // Check Deepgram connection
+      if (this.deepgramWs && this.deepgramWs.readyState !== WebSocket.OPEN) {
+        console.warn(`[VoicePipeline ${this.callId}] Deepgram connection lost, attempting reconnect...`);
+        this.deepgramReady = false;
+        try {
+          await this.connectDeepgram();
+        } catch (error) {
+          console.error(`[VoicePipeline ${this.callId}] Deepgram reconnection failed:`, error);
+        }
+      }
+
+      // Check ElevenLabs connection
+      if (this.elevenLabsWs && this.elevenLabsWs.readyState !== WebSocket.OPEN) {
+        console.warn(`[VoicePipeline ${this.callId}] ElevenLabs connection lost, attempting reconnect...`);
+        this.elevenLabsReady = false;
+        try {
+          await this.connectElevenLabs();
+        } catch (error) {
+          console.error(`[VoicePipeline ${this.callId}] ElevenLabs reconnection failed:`, error);
+        }
+      }
+    }, 30000); // Every 30 seconds
   }
 
   /**
@@ -445,7 +481,12 @@ Answer with ONE word only: WAIT, RESPOND, or UNCLEAR
 
 Answer:`;
 
-      const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      // Add 5-second timeout for turn evaluation to prevent hanging
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Turn evaluation timeout after 5 seconds')), 5000)
+      );
+
+      const fetchPromise = fetch('https://api.cerebras.ai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -460,6 +501,7 @@ Answer:`;
         })
       });
 
+      const response = await Promise.race([fetchPromise, timeoutPromise]);
       const data = await response.json();
       const decision = data.choices[0]?.message?.content?.trim().toUpperCase();
 
@@ -469,7 +511,7 @@ Answer:`;
 
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Turn evaluation failed:`, error);
-      return 'RESPOND'; // Default to responding on error
+      return 'RESPOND'; // Default to responding on error (prevents hanging)
     }
   }
 
@@ -672,6 +714,7 @@ Answer:`;
       // Reconnect if disconnected (with 10-second timeout)
       if (!this.elevenLabsWs || this.elevenLabsWs.readyState !== WebSocket.OPEN) {
         console.log(`[VoicePipeline ${this.callId}] ElevenLabs disconnected, reconnecting...`);
+        this.elevenLabsReady = false; // Reset state
 
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('ElevenLabs reconnection timeout')), 10000)
@@ -681,6 +724,11 @@ Answer:`;
           this.connectElevenLabs(),
           timeoutPromise
         ]);
+
+        // Verify connection succeeded
+        if (!this.elevenLabsReady || this.elevenLabsWs.readyState !== WebSocket.OPEN) {
+          throw new Error('ElevenLabs reconnection failed - connection not ready');
+        }
       }
 
       console.log(`[VoicePipeline ${this.callId}] Speaking:`, text);
@@ -693,6 +741,9 @@ Answer:`;
       }));
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Failed to speak:`, error);
+
+      // Mark as not ready so we retry next time
+      this.elevenLabsReady = false;
 
       // Fallback: just finish speaking so call doesn't hang
       this.finishSpeaking();
@@ -763,14 +814,21 @@ Answer:`;
       this.silenceTimer = null;
     }
 
+    if (this.connectionHealthTimer) {
+      clearInterval(this.connectionHealthTimer);
+      this.connectionHealthTimer = null;
+    }
+
     if (this.deepgramWs) {
       this.deepgramWs.close();
       this.deepgramWs = null;
+      this.deepgramReady = false;
     }
 
     if (this.elevenLabsWs) {
       this.elevenLabsWs.close();
       this.elevenLabsWs = null;
+      this.elevenLabsReady = false;
     }
   }
 }

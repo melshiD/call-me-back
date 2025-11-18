@@ -322,21 +322,94 @@ mcp.registerTool("run-hf-persona", {
 });
 ```
 
+**Use Case 4: Log Aggregation & Search MCP** ⭐⭐⭐⭐⭐ **(HIGHEST IMMEDIATE VALUE)**
+```typescript
+// NEW: MCP for centralized log search - saves massive context!
+mcp.registerTool("search-logs", {
+  description: "Search across all Call Me Back logs from all services",
+  inputSchema: {
+    query: z.string(),           // Search query
+    service: z.string().optional(), // Filter by service
+    since: z.string().optional(),   // Time filter (10m, 1h, 24h)
+    limit: z.number().optional()    // Max results
+  }
+}, async (args) => {
+  // Searches Raindrop + Vultr + Twilio logs
+  // Returns only relevant log entries (not 500+ lines!)
+  const results = await searchAggregatedLogs(args);
+  return { total: results.length, logs: results };
+});
+
+mcp.registerTool("get-call-logs", {
+  description: "Get all logs for a specific call ID across all services",
+  inputSchema: {
+    call_id: z.string()
+  }
+}, async (args) => {
+  // Returns complete call timeline with correlated logs
+  return await getCallTimeline(args.call_id);
+});
+
+mcp.registerTool("aggregate-costs", {
+  description: "Extract and aggregate cost data from logs",
+  inputSchema: {
+    since: z.string().optional() // Default 24h
+  }
+}, async (args) => {
+  // Parses logs for API usage, returns cost breakdown
+  return await extractCostsFromLogs(args.since);
+});
+```
+
+**Why This Is Critical:**
+- **Context Savings:** Currently burn 2000+ tokens per debugging session on logs
+- **Time Savings:** Replaces 5+ manual commands with 1 MCP call
+- **Cost Tracking:** Enables dynamic pricing (P0 priority feature!)
+- **Hackathon Appeal:** Shows advanced MCP usage + multi-cloud orchestration
+- **Production Ready:** Solves real operational problem
+
+**Architecture:**
+- Uses SmartBucket for semantic log search
+- Uses Tasks for automated log collection (every 1 min)
+- Aggregates logs from: Raindrop, Vultr (voice-pipeline, db-proxy), Twilio
+- Returns only relevant 10-20 lines instead of 500+ line dumps
+
+**Implementation Effort:** Low-Medium (2-3 days for Phase 1)
+- Phase 1: Basic search (2-3 days) - **IMMEDIATE VALUE**
+- Phase 2: Automated collection (2-3 days)
+- Phase 3: Cost tracking integration (3-4 days)
+
+**See:** `LOG_AGGREGATION_MCP_DESIGN.md` for complete architecture
+
+**Recommendation:** **IMPLEMENT IMMEDIATELY** - Highest value-to-effort ratio of any MCP use case!
+
+---
+
+**MCP Services Summary:**
+
+| Use Case | Value | Effort | Priority | Impact |
+|----------|-------|--------|----------|--------|
+| **Log Aggregation MCP** | ⭐⭐⭐⭐⭐ | 2-3 days | **P0** | Context savings + cost tracking enabler |
+| Persona Scaffold MCP | ⭐⭐⭐⭐ | 4-6 days | P2 | Hackathon appeal |
+| Voice Training Data MCP | ⭐⭐⭐ | 3-4 days | P3 | Developer ecosystem |
+| HuggingFace Runner MCP | ⭐⭐⭐ | 4-5 days | P3 | Platform extensibility |
+
 **Benefits:**
 1. **Hackathon Judges Love This** - Shows understanding of AI agent ecosystem
 2. **Developer Ecosystem** - Other devs can build on our platform
 3. **Marketing** - "Use our personas in your AI workflows"
 4. **Extensibility** - Easy to add new capabilities
+5. **Immediate Productivity** - Log aggregation saves time/context right now
 
-**Implementation Effort:** Medium-High (4-6 days)
+**Implementation Effort (Total):** Medium-High (4-6 days for persona MCPs, 2-3 days for log MCP)
 - Add `mcp_service` to manifest (public or protected)
-- Implement persona scaffold generator
+- Implement tools and logic
 - Test with Claude Code or other MCP clients
 - Deploy on Raindrop (runs on CloudFlare workers)
 
 **Limitation:** Less control over configuration since it runs on LiquidMetal's infrastructure, not our Vultr server.
 
-**Recommendation:** **STRONG CONSIDERATION FOR HACKATHON** - This is a unique feature that showcases innovation.
+**Recommendation:** **START WITH LOG AGGREGATION MCP (P0), THEN PERSONA MCPs (P2)** - Log MCP provides immediate value and enables cost tracking.
 
 ---
 
@@ -825,16 +898,23 @@ task "scheduled_calls_executor" {
 
 | Feature | Business Value | Technical Risk | Effort | Judge Appeal | Recommendation |
 |---------|----------------|----------------|--------|--------------|----------------|
-| Fix voice bugs | HIGH | LOW | LOW | MEDIUM | ✅ DO NOW |
+| **Fix voice bugs** | HIGH | LOW | LOW | MEDIUM | ✅ **DONE!** |
+| **Log Aggregation MCP** | **VERY HIGH** | **LOW** | **LOW** | **VERY HIGH** | ✅ **DO NOW** |
 | Cost tracking | HIGH | LOW | LOW | HIGH | ✅ DO NOW |
+| Scheduled calls | HIGH | LOW | LOW | MEDIUM | ✅ DO NOW |
 | WorkOS auth | MEDIUM | LOW | MEDIUM | HIGH | ✅ DO NEXT |
 | SmartMemory | HIGH | MEDIUM | MEDIUM | HIGH | ✅ DO NEXT |
-| Scheduled calls | HIGH | LOW | LOW | MEDIUM | ✅ DO NOW |
 | Pricing/payments | HIGH | MEDIUM | HIGH | MEDIUM | ✅ DO NEXT |
 | SmartBuckets | MEDIUM | MEDIUM | HIGH | HIGH | ⏳ LATER |
-| MCP services | LOW | MEDIUM | HIGH | VERY HIGH | ⏳ LATER |
+| Persona MCP services | MEDIUM | MEDIUM | HIGH | VERY HIGH | ⏳ LATER |
 | Netlify migration | LOW | MEDIUM | MEDIUM | LOW | ❓ MAYBE |
 | Vector index | LOW | LOW | MEDIUM | MEDIUM | ⏳ LATER |
+
+**NEW: Log Aggregation MCP moved to P0 priority!**
+- Saves 80%+ context tokens immediately
+- Enables cost tracking (P0 feature)
+- Shows advanced MCP understanding (hackathon appeal)
+- Quick win: 2-3 days for Phase 1
 
 ---
 

@@ -1,3 +1,5 @@
+#THREE BIG THINGS: Connection stability, cost tracking, and prompts need to be FAR more configurable (and the "get out of a date" config will be different from the "call from boss" or "call from sponsor" config): "Quick Calls" will be closer to what we currently implemnt.  Keep things as simple for now as is possible for hackathon.
+
 WE just 'fixed' the call connection stability, but on my last test, Sarah was EXTRA droppy-outty
 Research great pompts for voice.  Build app for me to easily configure these fantastic prompts.  Figure out how to implement SmartMemory properly to give good chat experience (currenttly they're entertaining, but not realistic)
 
@@ -31,6 +33,7 @@ Perhaps we allow users to pick which number/state location the call comes from. 
 
 !!! EXPLAIN TO CLAUDE WE NEED TO IMPLEMENT WORKOS for auth!
 
+Get ahold of an MCP server or a /skills config to be an incredible UI designer.
 
 PUNCHLIST!:
 Authentication Testing Results:
