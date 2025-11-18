@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Deploy Deepgram proxy to existing server (alongside DB proxy)
-# This adds the Deepgram proxy to your ai-tools-marketplace.io server
+# This adds the Deepgram proxy to the ai-tools-marketplace.io server
 
 set -e
 
