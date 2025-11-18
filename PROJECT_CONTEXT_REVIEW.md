@@ -1,13 +1,13 @@
 # Call Me Back - Project Context Review
 **Version:** 1.1
-**Last Updated:** 2025-11-17
-**Status:** In Development - Voice Pipeline Working (1 Volley Confirmed), WorkOS Integration Pending
+**Last Updated:** 2025-11-18
+**Status:** In Development - Personas need tuned, Deepgram/Twilio connection very spotty.  Need to implement cost tracking plan (dynamic cost tracking).  
 
 ## CRITICAL: Read These First
 1. **CRITICAL_RAINDROP_RULES.md** - Deployment commands and common mistakes
 2. **This document** - Complete project context
-4. **LOG_ANALYSIS_GUIDE.md** 
-3. **WORKOS_INTEGRATION_PLAN.md** - Pending authentication upgrade
+3. **LOG_ANALYSIS_GUIDE.md** 
+<!-- 3. **WORKOS_INTEGRATION_PLAN.md** - Pending authentication upgrade -->
 **NOTE!!:**  NEVER SHOW env vars or secrets in your logs.  If you need them in shell commands, build a script to run the command for you that pulls from the .env file without you reading the vars directly
 
 ---

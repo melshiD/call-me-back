@@ -836,7 +836,9 @@ getEmergencyFallbackPrice(service: string, pricingType: string): number {
     'deepgram': 0.0059,   // per minute
     'cerebras': 0.0000001, // per token ($0.10/1M)
     'elevenlabs': 0.00015, // per character ($0.15/1K)
-    'stripe': 0.034       // percentage
+    'stripe': 0.034,      // percentage
+    'vultr': 0.03,        // per call (~$30/month ÷ 1000 calls)
+    'raindrop': 0.02      // per call (~$20/month ÷ 1000 calls)
   };
 
   return EMERGENCY_PRICING[service] || 0;

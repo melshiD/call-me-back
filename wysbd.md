@@ -3,6 +3,12 @@ Research great pompts for voice.  Build app for me to easily configure these fan
 
 Oooh, we should enable background audio to add to the realism of calls from specific place types.
 
+LET ME FILL OUT GENERATED PERSONA TEMPLATES (need to design generated persona templates)
+
+Should we be creating a "TwiML App"? I read it on the Twilio dashboard.
+
+
+
 ## Persona info
 - 1: Role: You are an x that is good at y.  You use your knowledge or skills in y to enact towards a z. (You are an X who specalizes in Y and your goals are Z)
 - 2: Context: What is the environment?  What is the agent's "place in the world"
@@ -39,3 +45,5 @@ Authentication Testing Results:
 
   ## Note: Passwords with special characters like "!" cause JSON parsing errors. Use
   alphanumeric passwords for now.
+
+  Tell claude when to make documentationa and when not to... what to maintain and what not to.
