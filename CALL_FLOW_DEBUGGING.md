@@ -2410,3 +2410,119 @@ ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
 CEREBRAS_API_KEY=${CEREBRAS_API_KEY}
 VULTR_DB_API_URL=${VULTR_DB_API_URL}
 VULTR_DB_API_KEY=${VULTR_DB_API_KEY}
+
+---
+
+## Session 10: FIRST SUCCESSFUL TALK-RESPONSE VOLLEY! (2025-11-17)
+
+### The Breakthrough
+
+After fixing the Deepgram connection issue, we achieved our **first successful talk-response exchange**!
+
+**What Worked:**
+1. ✅ **Simplified Deepgram URL**: Used minimal query parameters `model=nova-3&encoding=mulaw&sample_rate=8000`
+2. ✅ **Direct WebSocket Connection**: Abandoned @deepgram/sdk, used raw WebSocket with Authorization header
+3. ✅ **Auto-reconnect for ElevenLabs**: ElevenLabs closes after each utterance, so we reconnect on-demand
+
+### First Successful Exchange (Single Volley)
+
+**Initial greeting worked:**
+- Call connected
+- Brad said: "Hey! Sorry it took me a minute to get to you!"
+
+**First talk-response volley:**
+- User spoke: "oh hey how are you"
+- Deepgram transcribed it
+- Cerebras generated response
+- Brad spoke back (with auto-reconnect to ElevenLabs)
+
+**Note**: Only one successful talk-response exchange confirmed so far. Need to test multiple volleys in conversation.
+
+### Technical Flow (Verified Working)
+
+```
+User speaks → Twilio → Voice Pipeline → Deepgram STT
+                                              ↓
+                                         Transcript
+                                              ↓
+                                         Cerebras AI
+                                              ↓
+                                         AI Response
+                                              ↓
+                                   ElevenLabs TTS (auto-reconnect)
+                                              ↓
+                                         Audio back to Twilio
+```
+
+### Key Fixes Applied
+
+**Fix 1: Deepgram Connection (URLSearchParams issue)**
+```javascript
+// BEFORE (failed with HTTP 400):
+const deepgramUrl = 'wss://api.deepgram.com/v1/listen?' + new URLSearchParams({
+  model: 'nova-2',
+  // ... lots of parameters
+});
+
+// AFTER (works!):
+const deepgramUrl = 'wss://api.deepgram.com/v1/listen?model=nova-3&encoding=mulaw&sample_rate=8000';
+```
+
+**Fix 2: ElevenLabs Auto-Reconnect**
+```javascript
+async speak(text) {
+  // Reconnect if disconnected
+  if (!this.elevenLabsWs || this.elevenLabsWs.readyState !== WebSocket.OPEN) {
+    console.log(`[VoicePipeline ${this.callId}] ElevenLabs disconnected, reconnecting...`);
+    await this.connectElevenLabs();
+  }
+  
+  // Send text...
+}
+```
+
+### Current Status
+
+**Working:**
+- ✅ Call connection (no more hangups)
+- ✅ Initial greeting
+- ✅ Deepgram speech-to-text
+- ✅ Cerebras AI response generation
+- ✅ ElevenLabs text-to-speech with auto-reconnect
+- ✅ ONE successful talk-response volley
+
+**Needs Testing:**
+- ⏳ Multiple conversation volleys
+- ⏳ Extended conversation flow
+- ⏳ Error recovery
+- ⏳ Interrupt handling
+
+### Next Steps
+
+**Immediate Testing:**
+- [ ] Test multiple talk-response volleys
+- [ ] Verify conversation can continue beyond first exchange
+- [ ] Test edge cases (long pauses, interruptions, etc.)
+
+**Once Multi-Volley Confirmed:**
+- [ ] Add turn-taking logic (Cerebras parallel evaluation)
+- [ ] Add interrupt detection
+- [ ] Persist conversation history to database
+- [ ] Add persona switching
+- [ ] Add cost tracking
+
+### The Journey
+
+**Sessions 1-8**: Debugging Cloudflare Workers WebSocket limitation
+**Session 9**: Migration to Node.js on Vultr  
+**Session 10**: Fixed Deepgram connection → **FIRST SUCCESSFUL VOLLEY!**
+
+**Root causes solved:**
+1. ✅ Cloudflare Workers platform limitation (migrated to Node.js)
+2. ✅ URLSearchParams object construction issue in ES modules
+3. ✅ ElevenLabs connection closing after each utterance
+
+**Current blocker**: Need to verify multi-volley conversation works consistently.
+
+---
+
