@@ -40,6 +40,11 @@ export default class extends Service<Env> {
         return await this.handleScenarioTemplates(request, path);
       }
 
+      // Admin routes
+      if (path.startsWith('/api/admin')) {
+        return await this.handleAdminRoutes(request, path);
+      }
+
       // Debug endpoint - check env vars
       if (path === '/api/debug/env') {
         return new Response(JSON.stringify({
@@ -52,6 +57,13 @@ export default class extends Service<Env> {
       }
 
       // WebSocket echo test endpoint
+      if (path === '/api/debug/ws-echo') {
+        const upgradeHeader = request.headers.get('Upgrade');
+        if (upgradeHeader !== 'websocket') {
+          return new Response('Expected WebSocket', { status: 426 });
+        }
+        return await this.handleEchoWebSocket(request);
+      }
       if (path === '/api/debug/ws-echo') {
         const upgradeHeader = request.headers.get('Upgrade');
         if (upgradeHeader !== 'websocket') {
@@ -1023,5 +1035,84 @@ export default class extends Service<Env> {
     }
 
     return null;
+  }
+
+  /**
+   * Handle admin routes - restricted to dave.melshman@gmail.com
+   */
+  private async handleAdminRoutes(request: Request, path: string): Promise<Response> {
+    try {
+      // Get user from token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+
+      // Get user email from database
+      const userResult = await this.env.DATABASE_PROXY.executeQuery(
+        'SELECT email FROM users WHERE id = $1',
+        [userId]
+      );
+
+      if (!userResult.rows || userResult.rows.length === 0) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+
+      const userEmail = userResult.rows[0].email;
+      if (userEmail !== 'dave.melshman@gmail.com') {
+        return new Response('Forbidden - Admin access only', { status: 403 });
+      }
+
+      // GET /api/admin/personas - List all personas
+      if (request.method === 'GET' && path === '/api/admin/personas') {
+        const personas = await this.env.DATABASE_PROXY.executeQuery(
+          'SELECT id, name, default_voice_id, core_system_prompt, max_tokens, temperature FROM personas ORDER BY name',
+          []
+        );
+
+        return new Response(JSON.stringify(personas.rows), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // PUT /api/admin/personas/:id - Update persona
+      if (request.method === 'PUT' && path.startsWith('/api/admin/personas/')) {
+        const personaId = path.split('/').pop();
+        const body = await request.json() as any;
+
+        await this.env.DATABASE_PROXY.executeQuery(
+          `UPDATE personas
+           SET default_voice_id = $1,
+               core_system_prompt = $2,
+               max_tokens = $3,
+               temperature = $4
+           WHERE id = $5`,
+          [
+            body.default_voice_id,
+            body.core_system_prompt,
+            body.max_tokens || 150,
+            body.temperature || 0.7,
+            personaId
+          ]
+        );
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      return new Response('Not Found', { status: 404 });
+    } catch (error) {
+      this.env.logger.error('Admin route error', {
+        error: error instanceof Error ? error.message : String(error),
+        path
+      });
+      return new Response(JSON.stringify({
+        error: error instanceof Error ? error.message : 'Admin error'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
   }
 }

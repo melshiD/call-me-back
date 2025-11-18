@@ -85,7 +85,7 @@ class VoicePipeline {
           'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`  // Fixed: Changed from X-API-Key to Authorization: Bearer
         },
         body: JSON.stringify({
-          query: `
+          sql: `
             SELECT p.name, p.core_system_prompt, p.default_voice_id,
                    upr.custom_system_prompt, upr.voice_id
             FROM personas p

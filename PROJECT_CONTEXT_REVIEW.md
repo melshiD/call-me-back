@@ -7,6 +7,7 @@
 1. **CRITICAL_RAINDROP_RULES.md** - Deployment commands and common mistakes
 2. **This document** - Complete project context
 3. **WORKOS_INTEGRATION_PLAN.md** - Pending authentication upgrade
+**NOTE!!:**  NEVER SHOW env vars or secrets in your logs.  If you need them in shell commands, build a script to run the command for you that pulls from the .env file without you reading the vars directly
 
 ---
 
@@ -98,6 +99,7 @@
 - **Frontend:** Deployed to Vercel via `vercel --prod` (NOT git push)
 - **Backend Services:** Deployed to Raindrop via `raindrop build deploy`
 - **Voice Pipeline:** Deployed to Vultr via `./deploy.sh` in `voice-pipeline-nodejs/`
+- **Majority of DB operations:** On Vultr also (PostgreSQL)
 - **They are INDEPENDENT** - must deploy separately
 
 ---
@@ -539,9 +541,17 @@ vercel --prod
 ### Making Database Changes
 1. Create new migration file in `migrations/`
 2. Number it sequentially (007, 008, etc.)
-3. Apply via `./apply-migrations.sh` (targets Vultr)
+3. Apply via `./apply-migrations.sh` (targets Vultr) OR via curl to db-proxy (see below)
 4. Update services to use new schema via DATABASE_PROXY
 5. Test with demo user (demo@callmeback.ai / demo123)
+
+**Running Migrations via DB-Proxy API (CRITICAL: Use "sql" not "query"):**
+```bash
+curl -X POST https://db.ai-tools-marketplace.io/query \
+  -H "Authorization: Bearer $VULTR_DB_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"sql": "ALTER TABLE ...", "params": []}'
+```
 
 ---
 
