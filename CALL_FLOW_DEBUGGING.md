@@ -2526,3 +2526,415 @@ async speak(text) {
 
 ---
 
+
+---
+
+## Session 10: Turn-Taking Restructure & Persona Metadata Integration (2025-11-17)
+
+### Turn-Taking Flow Redesign
+
+**Problem:** The bot was responding before users finished speaking, leading to interruptions and partial responses.
+
+**Root Cause:** The system was sending partial transcripts to the AI as they arrived, causing the bot to generate responses mid-sentence.
+
+**Solution:** Restructure the flow so that the **full user transcript** is only sent to the AI chatbot **AFTER** the turn-detection heuristic/LLM has decided it's time to respond.
+
+#### New Turn-Taking Flow
+
+```
+User speaks → Deepgram transcription → Silence detection
+                                              ↓
+                                       Is silence > 500ms?
+                                              ↓
+                                           YES → Is silence > 1200ms?
+                                                      ↓
+                                                    YES → Trigger turn evaluation
+                                                            ↓
+                                                      Heuristic analysis
+                                                            ↓
+                                                      Linguistic completeness check
+                                                            ↓
+                                                      LLM evaluation (Cerebras)
+                                                            ↓
+                                                      Decision: WAIT or RESPOND
+                                                            ↓
+                                                      RESPOND → Send FULL transcript to AI
+                                                                       ↓
+                                                                 AI generates response
+                                                                       ↓
+                                                                 ElevenLabs TTS
+                                                                       ↓
+                                                                 Bot speaks
+
+                                                      WAIT → Schedule next evaluation
+                                                               ↓
+                                                         Return to silence detection
+```
+
+#### Key Changes in Code
+
+**1. `triggerTurnEvaluation()` - Turn detection only (lines 270-296)**
+
+```javascript
+async triggerTurnEvaluation() {
+  this.isEvaluating = true;
+  this.evaluationCount++;
+
+  const currentTranscript = this.getPartialTranscript();
+  console.log(`[VoicePipeline ${this.callId}] Evaluating turn (attempt ${this.evaluationCount}): "${currentTranscript}"`);
+
+  // Use heuristic + LLM to decide if user is done speaking
+  const decision = await this.evaluateConversationalCompleteness(currentTranscript);
+
+  console.log(`[VoicePipeline ${this.callId}] Turn Decision: ${decision}`);
+
+  this.isEvaluating = false;
+
+  if (decision === 'RESPOND') {
+    // User has finished speaking - NOW we can send the full transcript to AI
+    this.triggerResponse('turn_complete');
+  } else {
+    // WAIT - user is still speaking, schedule next check
+    this.silenceTimer = setTimeout(() => {
+      this.onSilenceDetected();
+    }, this.config.llmEvalThresholdMs);
+  }
+}
+```
+
+**2. `triggerResponse()` - Called AFTER turn detection confirms user is done (lines 440-470)**
+
+```javascript
+async triggerResponse(reason) {
+  console.log(`[VoicePipeline ${this.callId}] User finished speaking (reason: ${reason}). Sending full transcript to AI...`);
+
+  // Clear silence timer
+  if (this.silenceTimer) {
+    clearTimeout(this.silenceTimer);
+    this.silenceTimer = null;
+  }
+
+  // Get FINAL complete user transcript (accumulated from all segments)
+  const userMessage = this.getPartialTranscript();
+  console.log(`[VoicePipeline ${this.callId}] Full user transcript: "${userMessage}"`);
+
+  // Add to conversation history
+  this.conversationHistory.push({
+    role: 'user',
+    content: userMessage
+  });
+
+  // Reset for next turn
+  this.transcriptSegments = [];
+  this.evaluationCount = 0;
+
+  // Generate AI response using the COMPLETE user message
+  await this.generateResponse();
+}
+```
+
+**Benefits:**
+- ✅ Bot no longer interrupts users mid-sentence
+- ✅ AI receives complete thoughts, not fragments
+- ✅ More natural conversation flow
+- ✅ Better response quality (AI has full context)
+
+### Persona Metadata Architecture
+
+**Problem:** Voice pipeline was using hardcoded persona data (voice_id, system_prompt). No way to customize per user or persona.
+
+**Initial Approach (REJECTED):** Pass all metadata through TwiML parameters:
+- ❌ 512-character limit on TwiML parameters
+- ❌ Tight coupling between API Gateway and voice pipeline
+- ❌ No clear separation of concerns
+
+**Final Approach (APPROVED):** Minimal TwiML parameters, voice pipeline fetches full metadata from database:
+- ✅ TwiML passes only IDs: `callId`, `userId`, `personaId`, `callPretext`
+- ✅ Voice pipeline fetches full metadata from database on startup
+- ✅ No parameter size limits
+- ✅ Clean separation of concerns
+- ✅ Voice pipeline has full control over its data
+
+#### Data Flow
+
+```
+API Gateway (Raindrop)
+   ↓
+TwiML Response with minimal parameters:
+   - callId (e.g., "CA1234...")
+   - userId (e.g., "demo_user")
+   - personaId (e.g., "brad_001")
+   - callPretext (e.g., "Save me from a bad date")
+   ↓
+Twilio connects to: wss://voice.ai-tools-marketplace.io/stream
+   ↓
+Voice Pipeline (Vultr Node.js)
+   ↓
+Extracts parameters from WebSocket "start" message
+   ↓
+Fetches persona metadata from database:
+   - personas.name
+   - personas.default_voice_id
+   - personas.core_system_prompt
+   - user_persona_relationships.voice_id (custom override)
+   - user_persona_relationships.custom_system_prompt (custom override)
+   - user_persona_relationships.smart_memory
+   ↓
+Uses metadata to configure:
+   - ElevenLabs TTS (voiceId)
+   - AI system prompt (systemPrompt + smartMemory + callPretext)
+   ↓
+Bot speaks with correct voice and persona
+```
+
+#### Database Schema
+
+**personas table:**
+- `id` - Persona identifier (e.g., "brad_001")
+- `name` - Display name (e.g., "Brad")
+- `core_system_prompt` - Base persona behavior
+- `default_voice_id` - Default ElevenLabs voice
+
+**user_persona_relationships table:**
+- `user_id` - User identifier
+- `persona_id` - Links to personas.id
+- `custom_system_prompt` - Optional override of core_system_prompt
+- `voice_id` - Optional override of default_voice_id
+- `smart_memory` - Configured relationship context and behavioral notes
+
+#### Implementation Details
+
+**1. Constructor receives minimal parameters (lines 35-71)**
+
+```javascript
+class VoicePipeline {
+  constructor(twilioWs, callParams) {
+    this.twilioWs = twilioWs;
+    this.callId = callParams.callId;
+    this.userId = callParams.userId;
+    this.personaId = callParams.personaId;
+    this.callPretext = callParams.callPretext || ''; // e.g., "Save me from a bad date"
+
+    // Persona metadata (will be fetched from database)
+    this.personaName = null;
+    this.voiceId = null;
+    this.systemPrompt = null;
+    this.smartMemory = null;
+    // ...
+  }
+}
+```
+
+**2. Database fetching on startup (lines 73-138)**
+
+```javascript
+async fetchPersonaMetadata() {
+  console.log(`[VoicePipeline ${this.callId}] Fetching persona metadata for ${this.personaId}...`);
+
+  const response = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-API-Key': env.VULTR_DB_API_KEY
+    },
+    body: JSON.stringify({
+      query: `
+        SELECT p.name, p.core_system_prompt, p.default_voice_id,
+               upr.custom_system_prompt, upr.voice_id, upr.smart_memory
+        FROM personas p
+        LEFT JOIN user_persona_relationships upr
+          ON upr.persona_id = p.id AND upr.user_id = $1
+        WHERE p.id = $2
+      `,
+      params: [this.userId, this.personaId]
+    })
+  });
+
+  const result = await response.json();
+
+  if (result.rows && result.rows.length > 0) {
+    const row = result.rows[0];
+    this.personaName = row.name || 'Brad';
+    // Use custom voice if set, otherwise use persona's default voice
+    this.voiceId = row.voice_id || row.default_voice_id || 'pNInz6obpgDQGcFmaJgB';
+    // Use custom system prompt if set, otherwise use persona's core prompt
+    this.systemPrompt = row.custom_system_prompt || row.core_system_prompt ||
+      'You are a supportive friend who keeps it real...';
+    // Get smartMemory (configured relationships/behavior) if available
+    this.smartMemory = row.smart_memory || '';
+  }
+}
+```
+
+**3. Startup sequence (lines 140-165)**
+
+```javascript
+async start() {
+  console.log(`[VoicePipeline ${this.callId}] Starting...`);
+
+  // STEP 1: Fetch persona metadata from database
+  await this.fetchPersonaMetadata();
+
+  // STEP 2: Connect to Deepgram STT
+  await this.connectDeepgram();
+
+  // STEP 3: Connect to ElevenLabs TTS (using persona's voiceId)
+  await this.connectElevenLabs();
+
+  console.log(`[VoicePipeline ${this.callId}] All services connected`);
+
+  // STEP 4: Send initial greeting
+  await this.speak("Hey! Sorry it took me a minute to get to you!");
+}
+```
+
+**4. ElevenLabs uses persona voiceId (lines 216-220)**
+
+```javascript
+async connectElevenLabs() {
+  console.log(`[VoicePipeline ${this.callId}] Connecting to ElevenLabs with voice: ${this.voiceId}...`);
+
+  const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}/stream-input?model_id=eleven_turbo_v2_5&output_format=ulaw_8000`;
+  // ...
+}
+```
+
+**5. AI system prompt with smartMemory and callPretext (lines 558-584)**
+
+```javascript
+async generateResponse() {
+  console.log(`[VoicePipeline ${this.callId}] Generating response...`);
+
+  // Build system prompt with persona configuration, smartMemory, and callPretext
+  let systemPrompt = this.systemPrompt;
+
+  // Add smartMemory if available (configured relationships/behavior)
+  if (this.smartMemory) {
+    systemPrompt += `\n\nRELATIONSHIP CONTEXT:\n${this.smartMemory}`;
+  }
+
+  // Add callPretext if available (reason for the call, e.g., "Save me from a bad date")
+  if (this.callPretext) {
+    systemPrompt += `\n\nCALL CONTEXT: The user requested this call for the following reason: "${this.callPretext}". Keep this context in mind and be helpful with their situation.`;
+  }
+
+  const messages = [
+    {
+      role: 'system',
+      content: systemPrompt
+    },
+    ...this.conversationHistory.slice(-10)
+  ];
+  // ...
+}
+```
+
+**6. WebSocket handler extracts and passes parameters (lines 719-728)**
+
+```javascript
+const callId = message.start.customParameters?.callId || 'unknown';
+const userId = message.start.customParameters?.userId || 'unknown';
+const personaId = message.start.customParameters?.personaId || 'brad_001';
+const callPretext = message.start.customParameters?.callPretext || '';
+
+console.log('[Voice Pipeline] Call params:', { callId, userId, personaId, callPretext });
+
+const streamSid = message.start.streamSid;
+
+pipeline = new VoicePipeline(twilioWs, { callId, userId, personaId, callPretext });
+```
+
+**7. API Gateway TwiML (src/api-gateway/index.ts:128-157)**
+
+```typescript
+const userId = 'demo_user'; // TODO: Lookup user by phone number
+const personaId = 'brad_001'; // TODO: Get from user preferences or call context
+const callPretext = ''; // TODO: Get from call trigger request (e.g., "Save me from a bad date")
+
+const streamUrl = `wss://voice.ai-tools-marketplace.io/stream`;
+
+// TwiML with minimal parameters - voice pipeline fetches full metadata from database
+const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say>Connecting you now.</Say>
+    <Connect>
+        <Stream url="${streamUrl}">
+            <Parameter name="callId" value="${callSid}" />
+            <Parameter name="userId" value="${userId}" />
+            <Parameter name="personaId" value="${personaId}" />
+            <Parameter name="callPretext" value="${callPretext}" />
+        </Stream>
+    </Connect>
+</Response>`;
+```
+
+#### Persona Customization Hierarchy
+
+**Voice Selection:**
+1. `user_persona_relationships.voice_id` (highest priority - user's custom choice)
+2. `personas.default_voice_id` (persona default)
+3. Hardcoded fallback: `pNInz6obpgDQGcFmaJgB` (Brad)
+
+**System Prompt:**
+1. `user_persona_relationships.custom_system_prompt` (highest priority - user customization)
+2. `personas.core_system_prompt` (persona default)
+3. Hardcoded fallback: "You are a supportive friend..."
+
+**Enhancements:**
+- `smart_memory`: Appended to system prompt as "RELATIONSHIP CONTEXT"
+- `callPretext`: Appended to system prompt as "CALL CONTEXT"
+
+#### Benefits
+
+**Flexibility:**
+- ✅ Users can customize personas without changing core definitions
+- ✅ Same persona can behave differently for different users
+- ✅ Easy to add new personas (just database entries)
+
+**Context:**
+- ✅ Smart memory provides relationship history and behavioral notes
+- ✅ Call pretext gives immediate situational context
+- ✅ AI has both long-term and immediate context
+
+**Scalability:**
+- ✅ No TwiML parameter size limits
+- ✅ Database can store unlimited metadata
+- ✅ Easy to add new metadata fields without changing TwiML
+
+**Separation of Concerns:**
+- ✅ API Gateway only knows about call routing
+- ✅ Voice pipeline owns persona data fetching and configuration
+- ✅ Database is source of truth for persona metadata
+
+### Future Enhancements
+
+**1. Call Pretext Source:**
+Currently `callPretext` is empty string in API Gateway. Future implementation:
+- Get from "Schedule a Call" page when user triggers call
+- Store in database with call record
+- Support > 512 characters if needed (stored in DB, not TwiML)
+
+**2. Phone Number Lookup:**
+Currently using hardcoded `userId`. Future implementation:
+- Lookup user by incoming phone number
+- Query: `SELECT user_id FROM user_phone_numbers WHERE phone_number = $1`
+
+**3. Persona Selection:**
+Currently using hardcoded `personaId`. Future implementation:
+- Get from user preferences or call trigger
+- Support multiple personas per user
+- Allow user to select persona when scheduling call
+
+### Testing
+
+**Test scenarios:**
+1. ✅ Voice pipeline fetches persona metadata on startup
+2. ✅ ElevenLabs uses correct voice_id
+3. ✅ AI uses persona system_prompt
+4. ⏳ Smart memory context integration
+5. ⏳ Call pretext context integration
+6. ⏳ Custom voice_id override
+7. ⏳ Custom system_prompt override
+
+---
+

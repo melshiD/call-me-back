@@ -129,6 +129,7 @@ export default class extends Service<Env> {
       // For now, use a default persona - later we'll do phone number lookup
       const userId = 'demo_user'; // TODO: Lookup user by phone number
       const personaId = 'brad_001'; // TODO: Get from user preferences or call context
+      const callPretext = ''; // TODO: Get from call trigger request (e.g., "Save me from a bad date")
 
       // Build WebSocket URL for Media Streams (without query parameters)
       // Twilio Stream URLs do NOT support query parameters - use <Parameter> elements instead
@@ -137,10 +138,11 @@ export default class extends Service<Env> {
       // DNS: voice.ai-tools-marketplace.io must point to 144.202.15.249 (A record)
       const streamUrl = `wss://voice.ai-tools-marketplace.io/stream`;
 
-      this.env.logger.info('Generated stream URL (Vultr voice pipeline)', { streamUrl, callSid, userId, personaId });
+      this.env.logger.info('Generated stream URL (Vultr voice pipeline)', { streamUrl, callSid, userId, personaId, callPretext });
 
       // Generate TwiML response with Media Streams
       // Use <Parameter> elements to pass custom data (sent in WebSocket "start" message)
+      // Voice pipeline will fetch full persona metadata from database using these IDs
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Say>Connecting you now.</Say>
@@ -149,6 +151,7 @@ export default class extends Service<Env> {
             <Parameter name="callId" value="${callSid}" />
             <Parameter name="userId" value="${userId}" />
             <Parameter name="personaId" value="${personaId}" />
+            <Parameter name="callPretext" value="${callPretext}" />
         </Stream>
     </Connect>
 </Response>`;

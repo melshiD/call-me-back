@@ -37,6 +37,13 @@ class VoicePipeline {
     this.callId = callParams.callId;
     this.userId = callParams.userId;
     this.personaId = callParams.personaId;
+    this.callPretext = callParams.callPretext || ''; // e.g., "Save me from a bad date"
+
+    // Persona metadata (will be fetched from database)
+    this.personaName = null;
+    this.voiceId = null;
+    this.systemPrompt = null;
+    this.smartMemory = null;
 
     // Service connections
     this.deepgramWs = null;
@@ -64,21 +71,96 @@ class VoicePipeline {
   }
 
   /**
+   * Fetch persona metadata from database
+   * Fetches: name, voice_id, system_prompt, smart_memory
+   */
+  async fetchPersonaMetadata() {
+    try {
+      console.log(`[VoicePipeline ${this.callId}] Fetching persona metadata for ${this.personaId}...`);
+
+      const response = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`  // Fixed: Changed from X-API-Key to Authorization: Bearer
+        },
+        body: JSON.stringify({
+          query: `
+            SELECT p.name, p.core_system_prompt, p.default_voice_id,
+                   upr.custom_system_prompt, upr.voice_id
+            FROM personas p
+            LEFT JOIN user_persona_relationships upr
+              ON upr.persona_id = p.id AND upr.user_id = $1
+            WHERE p.id = $2
+          `,
+          params: [this.userId, this.personaId]
+        })
+      });
+
+      console.log(`[VoicePipeline ${this.callId}] Database response status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Database query failed: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log(`[VoicePipeline ${this.callId}] Database result:`, JSON.stringify(result, null, 2));
+
+      if (result.rows && result.rows.length > 0) {
+        const row = result.rows[0];
+        this.personaName = row.name || 'Brad';
+        // Use custom voice if set, otherwise use persona's default voice
+        this.voiceId = row.voice_id || row.default_voice_id || 'pNInz6obpgDQGcFmaJgB';
+        // Use custom system prompt if set, otherwise use persona's core prompt
+        this.systemPrompt = row.custom_system_prompt || row.core_system_prompt ||
+          'You are a supportive friend who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.';
+        // Note: smart_memory column doesn't exist in current schema - will be added later for static relationship context
+        this.smartMemory = '';
+
+        console.log(`[VoicePipeline ${this.callId}] ✅ Loaded persona successfully:`, {
+          name: this.personaName,
+          voiceId: this.voiceId,
+          systemPromptLength: this.systemPrompt.length,
+          hasCallPretext: !!this.callPretext
+        });
+      } else {
+        console.warn(`[VoicePipeline ${this.callId}] ⚠️  Persona not found in database, using defaults`);
+        this.personaName = 'Brad';
+        this.voiceId = 'pNInz6obpgDQGcFmaJgB';
+        this.systemPrompt = 'You are Brad, a supportive bro who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.';
+        this.smartMemory = '';
+      }
+    } catch (error) {
+      console.error(`[VoicePipeline ${this.callId}] ❌ Failed to fetch persona metadata:`, error);
+      console.error(`[VoicePipeline ${this.callId}] Error stack:`, error.stack);
+      // Use defaults on error
+      this.personaName = 'Brad';
+      this.voiceId = 'pNInz6obpgDQGcFmaJgB';
+      this.systemPrompt = 'You are Brad, a supportive bro who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.';
+      this.smartMemory = '';
+    }
+  }
+
+  /**
    * Start the voice pipeline
    */
   async start() {
     try {
       console.log(`[VoicePipeline ${this.callId}] Starting...`);
 
-      // Connect to Deepgram STT
+      // STEP 1: Fetch persona metadata from database
+      await this.fetchPersonaMetadata();
+
+      // STEP 2: Connect to Deepgram STT
       await this.connectDeepgram();
 
-      // Connect to ElevenLabs TTS
+      // STEP 3: Connect to ElevenLabs TTS (using persona's voiceId)
       await this.connectElevenLabs();
 
       console.log(`[VoicePipeline ${this.callId}] All services connected`);
 
-      // Send initial greeting
+      // STEP 4: Send initial greeting
       await this.speak("Hey! Sorry it took me a minute to get to you!");
 
     } catch (error) {
@@ -138,10 +220,9 @@ class VoicePipeline {
    */
   async connectElevenLabs() {
     return new Promise((resolve, reject) => {
-      console.log(`[VoicePipeline ${this.callId}] Connecting to ElevenLabs...`);
+      console.log(`[VoicePipeline ${this.callId}] Connecting to ElevenLabs with voice: ${this.voiceId}...`);
 
-      const voiceId = 'pNInz6obpgDQGcFmaJgB'; // Brad's voice
-      const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input?model_id=eleven_turbo_v2_5&output_format=ulaw_8000`;
+      const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}/stream-input?model_id=eleven_turbo_v2_5&output_format=ulaw_8000`;
 
       this.elevenLabsWs = new WebSocket(wsUrl, {
         headers: {
@@ -486,10 +567,23 @@ Answer:`;
     try {
       console.log(`[VoicePipeline ${this.callId}] Generating response...`);
 
+      // Build system prompt with persona configuration, smartMemory, and callPretext
+      let systemPrompt = this.systemPrompt;
+
+      // Add smartMemory if available (configured relationships/behavior)
+      if (this.smartMemory) {
+        systemPrompt += `\n\nRELATIONSHIP CONTEXT:\n${this.smartMemory}`;
+      }
+
+      // Add callPretext if available (reason for the call, e.g., "Save me from a bad date")
+      if (this.callPretext) {
+        systemPrompt += `\n\nCALL CONTEXT: The user requested this call for the following reason: "${this.callPretext}". Keep this context in mind and be helpful with their situation.`;
+      }
+
       const messages = [
         {
           role: 'system',
-          content: 'You are Brad, a supportive bro who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.'
+          content: systemPrompt
         },
         ...this.conversationHistory.slice(-10)
       ];
@@ -630,12 +724,13 @@ wss.on('connection', async (twilioWs, req) => {
         const callId = message.start.customParameters?.callId || 'unknown';
         const userId = message.start.customParameters?.userId || 'unknown';
         const personaId = message.start.customParameters?.personaId || 'brad_001';
+        const callPretext = message.start.customParameters?.callPretext || '';
 
-        console.log('[Voice Pipeline] Call params:', { callId, userId, personaId });
+        console.log('[Voice Pipeline] Call params:', { callId, userId, personaId, callPretext });
 
         const streamSid = message.start.streamSid;
 
-        pipeline = new VoicePipeline(twilioWs, { callId, userId, personaId });
+        pipeline = new VoicePipeline(twilioWs, { callId, userId, personaId, callPretext });
         pipeline.streamSid = streamSid;
 
         await pipeline.start();

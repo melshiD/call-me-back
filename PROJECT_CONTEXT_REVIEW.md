@@ -860,5 +860,7 @@ When working on this project:
 **The app is functional but needs WorkOS integration to meet hackathon requirements.**
 
 ---
-
+## Other docs currently required: Read the following: ##
+- VOICE_PIPELINE_DEBUG_FINDINGS.md
 **End of Review Document**
+##### AND REMEMBER, NEVER SHOW SECRETS IN THE LOGS OR TO A USER! #####
