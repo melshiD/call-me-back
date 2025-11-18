@@ -862,5 +862,6 @@ When working on this project:
 ---
 ## Other docs currently required: Read the following: ##
 - VOICE_PIPELINE_DEBUG_FINDINGS.md
+- VOICE_PIPELINE_DEBUG_AND_TASKS.md
 **End of Review Document**
 ##### AND REMEMBER, NEVER SHOW SECRETS IN THE LOGS OR TO A USER! #####

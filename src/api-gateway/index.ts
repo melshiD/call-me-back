@@ -125,11 +125,11 @@ export default class extends Service<Env> {
 
       this.env.logger.info('Incoming call', { callSid, from, to });
 
-      // Extract userId and personaId from query params or default
-      // For now, use a default persona - later we'll do phone number lookup
-      const userId = 'demo_user'; // TODO: Lookup user by phone number
-      const personaId = 'brad_001'; // TODO: Get from user preferences or call context
-      const callPretext = ''; // TODO: Get from call trigger request (e.g., "Save me from a bad date")
+      // Extract userId and personaId from query params (passed by call-orchestrator)
+      const url = new URL(request.url);
+      const userId = url.searchParams.get('userId') || 'demo_user';
+      const personaId = url.searchParams.get('personaId') || 'brad_001';
+      const callPretext = url.searchParams.get('callPretext') || '';
 
       // Build WebSocket URL for Media Streams (without query parameters)
       // Twilio Stream URLs do NOT support query parameters - use <Parameter> elements instead
@@ -771,6 +771,7 @@ export default class extends Service<Env> {
         userId?: string;
         paymentIntentId?: string; // For one-time Stripe payments
         useCredits?: boolean; // To use account credits instead
+        callPretext?: string; // Optional scenario/context for this specific call
       };
 
       if (!body.phoneNumber) {
@@ -816,23 +817,31 @@ export default class extends Service<Env> {
         });
       }
 
-      this.env.logger.info('Triggering call', { 
-        phoneNumber: body.phoneNumber, 
-        userId, 
+      this.env.logger.info('Triggering call', {
+        phoneNumber: body.phoneNumber,
+        userId,
         personaId,
         paymentMethod,
-        paymentStatus
+        paymentStatus,
+        hasCallPretext: !!body.callPretext
       });
 
       // Call the call-orchestrator service to initiate the call
-      const result = await this.env.CALL_ORCHESTRATOR.initiateCall({
+      const initiateCallInput: any = {
         userId,
         personaId,
         phoneNumber: body.phoneNumber,
         paymentMethod,
         paymentIntentId,
         paymentStatus
-      });
+      };
+
+      // Add callPretext if provided
+      if (body.callPretext) {
+        initiateCallInput.callPretext = body.callPretext;
+      }
+
+      const result = await this.env.CALL_ORCHESTRATOR.initiateCall(initiateCallInput);
 
       return new Response(JSON.stringify({
         success: true,

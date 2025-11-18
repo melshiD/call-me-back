@@ -206,18 +206,25 @@ export const useCallsStore = defineStore('calls', () => {
    *   - Check for concurrent calls per user (max 1)
    *   - Connection fee: $0.25, Per-minute rate: $0.40
    */
-  const triggerCall = async (phoneNumber, personaId, paymentIntentId) => {
+  const triggerCall = async (phoneNumber, personaId, paymentIntentId, callPretext = null) => {
     try {
+      const requestBody = {
+        phoneNumber,
+        personaId,
+        paymentIntentId
+      };
+
+      // Add callPretext if provided (scenario/context for this specific call)
+      if (callPretext) {
+        requestBody.callPretext = callPretext;
+      }
+
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/calls/trigger`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          phoneNumber,
-          personaId,
-          paymentIntentId
-        })
+        body: JSON.stringify(requestBody)
       })
 
       if (!response.ok) {

@@ -7,13 +7,14 @@ export default class extends Service<Env> {
     return new Response('Not implemented', { status: 501 });
   }
 
-  async initiateCall(input: { 
-    userId: string; 
-    personaId: string; 
+  async initiateCall(input: {
+    userId: string;
+    personaId: string;
     phoneNumber: string;
     paymentMethod?: string;
     paymentIntentId?: string;
     paymentStatus?: string;
+    callPretext?: string;
   }): Promise<Call> {
     try {
       this.env.logger.info('Initiating call', { 
@@ -73,8 +74,16 @@ export default class extends Service<Env> {
 
       // Get the API gateway URL for webhooks
       // This should be the public API Gateway URL
+      // Pass persona, user IDs, and optional call pretext via query params so TwiML can include them
       const baseUrl = 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run';
-      const answerUrl = `${baseUrl}/api/voice/answer`;
+      const params = new URLSearchParams({
+        userId: input.userId,
+        personaId: input.personaId
+      });
+      if (input.callPretext) {
+        params.set('callPretext', input.callPretext);
+      }
+      const answerUrl = `${baseUrl}/api/voice/answer?${params.toString()}`;
 
       // Call Twilio API
       const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Calls.json`;
