@@ -268,25 +268,27 @@ class VoicePipeline {
   }
 
   /**
-   * Trigger LLM evaluation of conversation completeness
+   * Trigger turn evaluation (heuristic + LLM) to determine if user is done speaking
+   * This is ONLY turn detection - does NOT trigger AI response generation yet
    */
   async triggerTurnEvaluation() {
     this.isEvaluating = true;
     this.evaluationCount++;
 
-    const partialTranscript = this.getPartialTranscript();
-    console.log(`[VoicePipeline ${this.callId}] Evaluating turn (attempt ${this.evaluationCount}): "${partialTranscript}"`);
+    const currentTranscript = this.getPartialTranscript();
+    console.log(`[VoicePipeline ${this.callId}] Evaluating turn (attempt ${this.evaluationCount}): "${currentTranscript}"`);
 
-    const decision = await this.evaluateConversationalCompleteness(partialTranscript);
+    const decision = await this.evaluateConversationalCompleteness(currentTranscript);
 
-    console.log(`[VoicePipeline ${this.callId}] LLM Decision: ${decision}`);
+    console.log(`[VoicePipeline ${this.callId}] Turn Decision: ${decision}`);
 
     this.isEvaluating = false;
 
     if (decision === 'RESPOND') {
-      this.triggerResponse('llm_eval_complete');
+      // User has finished speaking - NOW we can send the full transcript to AI for response generation
+      this.triggerResponse('turn_complete');
     } else {
-      // WAIT or UNCLEAR - schedule next check
+      // WAIT - user is still speaking, schedule next check
       this.silenceTimer = setTimeout(() => {
         this.onSilenceDetected();
       }, this.config.llmEvalThresholdMs);
@@ -294,28 +296,44 @@ class VoicePipeline {
   }
 
   /**
-   * LLM-based evaluation of whether user is done speaking
+   * Combined heuristic + LLM evaluation with heuristic override
    */
   async evaluateConversationalCompleteness(transcript) {
+    // First check heuristic - it's fast and catches obvious cases
+    const heuristicDecision = this.heuristicTurnEvaluation(transcript);
+
+    // If heuristic says RESPOND (obvious complete statement/question), trust it
+    if (heuristicDecision === 'RESPOND') {
+      console.log(`[VoicePipeline ${this.callId}] Heuristic override: RESPOND`);
+      return 'RESPOND';
+    }
+
+    // If heuristic says WAIT (obvious incomplete), trust it
+    if (heuristicDecision === 'WAIT') {
+      console.log(`[VoicePipeline ${this.callId}] Heuristic override: WAIT`);
+      return 'WAIT';
+    }
+
+    // Only use LLM for unclear cases
     try {
-      const prompt = `Analyze if the user has finished speaking:
+      const prompt = `Analyze if the user has finished speaking in a natural phone conversation:
 
 User said: "${transcript}"
 
-Incomplete indicators:
-- Trailing "um", "uh", "so", "and", "but"
-- Unfinished sentences
-- Open-ended phrases like "I want to..."
+RESPOND immediately if:
+- Complete question (e.g., "did you get the invoice?", "how are you?")
+- Complete statement with clear intent
+- Greeting or acknowledgment (e.g., "thanks", "okay", "got it")
+- Natural conversation turn-ending
 
-Complete indicators:
-- Full question or statement
-- Natural end punctuation
-- Clear intent expressed
+WAIT only if:
+- Trailing "um", "uh", "so", "and then", "but"
+- Mid-sentence pause (clearly incomplete thought)
+- Building up to something ("I was thinking..." with nothing after)
 
-Answer with ONE word only:
-- WAIT (user likely has more to say)
-- RESPOND (user is done, respond now)
-- UNCLEAR (not sure, wait longer)
+Default to RESPOND unless clearly incomplete.
+
+Answer with ONE word only: WAIT, RESPOND, or UNCLEAR
 
 Answer:`;
 
@@ -339,47 +357,93 @@ Answer:`;
 
       if (decision.includes('RESPOND')) return 'RESPOND';
       if (decision.includes('WAIT')) return 'WAIT';
-      return 'UNCLEAR';
+      return 'RESPOND'; // Default to RESPOND for UNCLEAR
 
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Turn evaluation failed:`, error);
-
-      // Fallback to heuristic
-      return this.heuristicTurnEvaluation(transcript);
+      return 'RESPOND'; // Default to responding on error
     }
   }
 
   /**
-   * Heuristic-based fallback for turn evaluation
+   * Semantic-based turn evaluation (inspired by OpenAI's semantic_vad)
+   * Analyzes linguistic completeness rather than just word counts
    */
   heuristicTurnEvaluation(transcript) {
     const text = transcript.trim().toLowerCase();
-    const words = text.split(/\s+/);
+    const words = text.split(/\s+/).filter(w => w.length > 0);
 
-    // Very short - probably incomplete
-    if (words.length < 2) return 'WAIT';
+    if (words.length === 0) return 'WAIT';
 
-    // Ends with incomplete markers
-    const incompleteEndings = ['um', 'uh', 'so', 'and', 'but', 'or', 'because', 'like'];
     const lastWord = words[words.length - 1];
-    if (incompleteEndings.includes(lastWord)) return 'WAIT';
+    const firstWord = words[0];
 
-    // Contains question words and reasonable length
-    const questionWords = ['what', 'where', 'when', 'who', 'why', 'how', 'can', 'could', 'would', 'should'];
-    const hasQuestionWord = words.some(w => questionWords.includes(w));
-    if (hasQuestionWord && words.length >= 3) return 'RESPOND';
+    // 1. WAIT indicators - obvious incompleteness
+    const fillerEndings = ['um', 'uh', 'er', 'ah', 'hmm'];
+    if (fillerEndings.includes(lastWord)) return 'WAIT';
 
-    // Reasonable length statement
-    if (words.length >= 5) return 'RESPOND';
+    const conjunctionEndings = ['and', 'but', 'or', 'so', 'because', 'since', 'while', 'although'];
+    if (conjunctionEndings.includes(lastWord)) return 'WAIT';
 
+    const prepositionEndings = ['to', 'in', 'on', 'at', 'for', 'with', 'about', 'from'];
+    if (prepositionEndings.includes(lastWord)) return 'WAIT';
+
+    const articleEndings = ['a', 'an', 'the'];
+    if (articleEndings.includes(lastWord)) return 'WAIT';
+
+    // Incomplete phrase patterns
+    if (text.endsWith('i was') || text.endsWith('i am') || text.endsWith('i will') ||
+        text.endsWith('you were') || text.endsWith('you are') || text.endsWith('that is')) {
+      return 'WAIT';
+    }
+
+    // 2. RESPOND indicators - clear semantic completeness
+
+    // Question patterns - complete questions should respond
+    const questionStarts = ['what', 'where', 'when', 'who', 'why', 'how', 'can', 'could',
+                           'would', 'should', 'did', 'do', 'does', 'is', 'are', 'was', 'were'];
+    if (questionStarts.includes(firstWord) && words.length >= 3) {
+      return 'RESPOND'; // e.g., "how are you", "did you get it"
+    }
+
+    // Imperative/request patterns
+    const imperativeStarts = ['please', 'let', 'go', 'send', 'give', 'show', 'tell'];
+    if (imperativeStarts.includes(firstWord) && words.length >= 2) {
+      return 'RESPOND'; // e.g., "please send it", "tell me"
+    }
+
+    // Acknowledgments and affirmations
+    const acknowledgments = ['yeah', 'yes', 'yep', 'okay', 'ok', 'sure', 'alright', 'right',
+                            'thanks', 'thank you', 'got it', 'i see', 'no problem'];
+    if (acknowledgments.includes(text) || acknowledgments.some(ack => text === ack)) {
+      return 'RESPOND';
+    }
+
+    // Complete statements with subject-verb-object structure (rough heuristic)
+    // If contains pronouns + verbs + reasonable length, likely complete
+    const pronouns = ['i', 'you', 'he', 'she', 'it', 'we', 'they'];
+    const commonVerbs = ['is', 'are', 'was', 'were', 'have', 'has', 'had', 'will', 'would',
+                        'can', 'could', 'do', 'does', 'did', 'get', 'got', 'want', 'need',
+                        'think', 'know', 'see', 'said', 'make', 'go', 'send', 'sent'];
+
+    const hasPronoun = words.some(w => pronouns.includes(w));
+    const hasVerb = words.some(w => commonVerbs.includes(w));
+
+    if (hasPronoun && hasVerb && words.length >= 4) {
+      return 'RESPOND'; // e.g., "i sent you the invoice"
+    }
+
+    // 3. Default to UNCLEAR for edge cases
     return 'UNCLEAR';
   }
 
   /**
    * Trigger full AI response generation
+   * This is called ONLY AFTER turn detection has decided the user is done speaking
+   * The full user transcript is now sent to the chatbot flow for response generation
    */
   async triggerResponse(reason) {
-    console.log(`[VoicePipeline ${this.callId}] Triggering response (reason: ${reason})`);
+    console.log(`[VoicePipeline ${this.callId}] User finished speaking (reason: ${reason}). Sending full transcript to AI...`);
 
     // Clear silence timer
     if (this.silenceTimer) {
@@ -387,9 +451,11 @@ Answer:`;
       this.silenceTimer = null;
     }
 
-    // Get final transcript
+    // Get FINAL complete user transcript (accumulated from all segments)
     const userMessage = this.getPartialTranscript();
+    console.log(`[VoicePipeline ${this.callId}] Full user transcript: "${userMessage}"`);
 
+    // Add to conversation history
     this.conversationHistory.push({
       role: 'user',
       content: userMessage
@@ -399,7 +465,7 @@ Answer:`;
     this.transcriptSegments = [];
     this.evaluationCount = 0;
 
-    // Generate AI response
+    // Generate AI response using the COMPLETE user message
     await this.generateResponse();
   }
 
