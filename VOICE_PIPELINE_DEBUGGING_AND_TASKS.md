@@ -26,6 +26,20 @@
 4. **Deployed fixes to Vultr**
    - Voice pipeline successfully deployed with authorization fix
 
+5. **Fixed overly verbose personas** (2025-11-18)
+   - Initially reduced max_tokens from 150 to 40 (voice-pipeline-nodejs/index.js:607)
+   - Added strict brevity instruction to system prompt (voice-pipeline-nodejs/index.js:584)
+   - Eliminated stage directions like "(laughs)" from phone conversations
+   - Deployed to production
+
+6. **Removed auto-greeting and made AI params admin-configurable** (2025-11-18)
+   - Removed hardcoded greeting "Hey! Sorry it took me a minute to get to you!" (voice-pipeline-nodejs/index.js:164)
+   - User now speaks first to start conversation naturally
+   - Made max_tokens and temperature configurable from admin panel (voice-pipeline-nodejs/index.js:88-95, 119-121, 616-617)
+   - Voice pipeline now fetches AI params from personas table instead of hardcoding
+   - Default values: max_tokens: 70 (prevents mid-sentence truncation), temperature: 0.7
+   - Deployed to production
+
 ---
 
 ## 🔥 Active Tasks (In Progress)
@@ -172,6 +186,24 @@ const summary = await summarizeMemory(sessionId);
 - **Root cause:** Audio sent before connection established
 - **Fix:** Priority 1 task above
 
+### Issue 4: Personas Too Verbose (FIXED ✅)
+- **Symptom:** Personas "going ON and ON" with long monologues and stage directions like "(laughs to self)"
+- **Root cause:** max_tokens: 150 was too high for natural phone conversations
+- **Fix:** Now configurable from admin panel (default: 70 tokens) + added brevity instruction to system prompt
+- **Status:** Fixed in latest deployment (2025-11-18)
+
+### Issue 5: Auto-Greeting Prevents User from Starting Conversation (FIXED ✅)
+- **Symptom:** Call immediately says "Hey! Sorry it took me a minute to get to you!" before user can speak
+- **Root cause:** Hardcoded greeting in voice pipeline start() method
+- **Fix:** Removed auto-greeting; call now waits for user to say "Hello" first
+- **Status:** Fixed in latest deployment (2025-11-18)
+
+### Issue 6: Token Limit Truncating Responses Mid-Sentence (FIXED ✅)
+- **Symptom:** AI responses cut off mid-sentence when max_tokens too low
+- **Root cause:** max_tokens: 40 was too restrictive after fixing verbosity
+- **Fix:** Increased default to 70 tokens, made configurable from admin panel per persona
+- **Status:** Fixed in latest deployment (2025-11-18)
+
 ---
 
 ## 📊 Testing Checklist
@@ -241,8 +273,10 @@ curl https://voice.ai-tools-marketplace.io/health
 
 **Immediate (Current Session):**
 - ✅ Database authorization working
-- ⏳ Persona selection working (Brad/Sarah/Alex)
-- ⏳ Voice and system prompts load correctly per persona
+- ✅ Persona selection working (Brad/Sarah/Alex)
+- ✅ Voice and system prompts load correctly per persona
+- ✅ AI parameters (max_tokens, temperature) configurable from admin panel
+- ✅ Auto-greeting removed; user starts conversation naturally
 
 **Short-term (Next Session):**
 - Multi-turn conversations working (5+ exchanges)

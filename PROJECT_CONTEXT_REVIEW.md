@@ -6,6 +6,7 @@
 ## CRITICAL: Read These First
 1. **CRITICAL_RAINDROP_RULES.md** - Deployment commands and common mistakes
 2. **This document** - Complete project context
+4. **LOG_ANALYSIS_GUIDE.md** 
 3. **WORKOS_INTEGRATION_PLAN.md** - Pending authentication upgrade
 **NOTE!!:**  NEVER SHOW env vars or secrets in your logs.  If you need them in shell commands, build a script to run the command for you that pulls from the .env file without you reading the vars directly
 
