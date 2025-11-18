@@ -1,7 +1,7 @@
 # Call Me Back - Project Context Review
-**Version:** 1.0
-**Last Updated:** 2025-11-16
-**Status:** In Development - Auth Working, WorkOS Integration Pending
+**Version:** 1.1
+**Last Updated:** 2025-11-17
+**Status:** In Development - Voice Pipeline Working (1 Volley Confirmed), WorkOS Integration Pending
 
 ## CRITICAL: Read These First
 1. **CRITICAL_RAINDROP_RULES.md** - Deployment commands and common mistakes
@@ -15,35 +15,60 @@
 **Call Me Back** is an AI-powered phone companion that enables users to receive immediate or scheduled phone calls from customizable AI personas (Brad the bro, Sarah the empathetic friend, Alex the creative). Built for a hackathon with Vue.js frontend, Raindrop backend services, and integrates Twilio voice, Cerebras AI, ElevenLabs TTS, and (soon) WorkOS authentication.
 
 **Current State:**
-- ✅ **Twilio integration WORKING** (Fixed 2025-11-16: env vars now use `this.env`, credentials set, API calls successful. Trial account limitation only - needs verified numbers)
-- ✅ **Authentication WORKING** (Frontend calling real API, users can register/login/add contacts)
-- ⚠️ **WorkOS LIKELY FALLING BACK TO JWT** - AuthKit shows no usage despite credentials being set. Need to investigate why WorkOS path isn't being used (likely error in WorkOS authentication causing fallback)
-- ✅ **Contacts functionality WORKING** (Add/remove contacts tested, "Add to Contacts" button functional)
+- ✅ **Voice Pipeline WORKING** (2025-11-17: First successful talk-response volley! Deepgram→Cerebras→ElevenLabs working)
+- ✅ **Twilio integration WORKING** (TwiML connects to wss://voice.ai-tools-marketplace.io/stream)
+- ✅ **Authentication WORKING** (JWT-based, registration/login/add contacts functional)
+- ⚠️ **WorkOS NOT IMPLEMENTED** - Still using JWT, WorkOS required for hackathon
+- ✅ **Voice Pipeline Migrated to Node.js/Vultr** (Cloudflare Workers can't make outbound WebSocket connections)
 - ✅ Personas loading from Vultr PostgreSQL (Brad, Sarah, Alex)
-- ✅ Database fully migrated to Vultr PostgreSQL via database-proxy pattern
+- ✅ Database fully migrated to Vultr PostgreSQL
 - ✅ Frontend deployed to Vercel
-- ✅ Backend deployed to Raindrop (sandbox mode)
-- ⚠️ Timezone handling needed for scheduled calls
+- ✅ Backend services deployed to Raindrop
+- ⏳ **Multi-turn conversation** needs testing (only 1 volley confirmed so far)
+- ⏳ **Turn-taking logic** not yet implemented (need Cerebras parallel evaluation)
 
 ---
 
 ## Architecture Overview
 
-### Deployment Model
+### Deployment Model (UPDATED 2025-11-17)
+
+**CRITICAL CHANGE**: Voice Pipeline moved to Node.js/Vultr due to Cloudflare Workers WebSocket limitation.
+
 ```
-┌─────────────────┐         ┌──────────────────────┐         ┌─────────────────┐
-│  Vercel Frontend│ ──────> │  Raindrop API Gateway│ ──────> │ Database Proxy  │
-│  (Vue.js SPA)   │         │  (Hono Router)       │         │  (Service)      │
-└─────────────────┘         └──────────────────────┘         └─────────────────┘
-                                      │                               │
-                                      ├──> Auth Manager               │
-                                      ├──> Call Orchestrator          │
-                                      ├──> Persona Manager            │
-                                      ├──> Payment Processor          ▼
-                                      └──> Voice Pipeline     ┌─────────────────┐
-                                                              │ Vultr PostgreSQL│
-                                                              │   144.202.15.249│
-                                                              └─────────────────┘
+┌─────────────────┐         ┌──────────────────────────────────────────┐
+│  Vercel Frontend│ ──────> │    CLOUDFLARE WORKERS (Raindrop)        │
+│  (Vue.js SPA)   │         │  ┌────────────────────────────────────┐ │
+└─────────────────┘         │  │  • API Gateway (Hono)              │ │
+                            │  │  • Auth Manager (JWT)              │ │
+         ┌──────────────────┤  │  • Database Proxy                   │ │
+         │                  │  │  • Persona Manager                  │ │
+         │                  │  │  • Call Orchestrator                │ │
+         │                  │  │  • Payment Processor                │ │
+         │                  │  │  • Webhook Handler                  │ │
+         │                  │  └────────────────────────────────────┘ │
+         │                  └──────────────────────────────────────────┘
+         │                                      │
+         │                                      ▼
+         │                  ┌─────────────────────────────────────────┐
+         │                  │   VULTR SERVER (144.202.15.249)         │
+         │                  │  ┌───────────────────────────────────┐  │
+         │                  │  │ Voice Pipeline (Node.js/PM2)      │  │
+         │  TwiML connects  │  │  • Twilio WebSocket (wss://)      │  │
+         └─────────────────>│  │  • Deepgram STT (outbound WS)     │  │
+           to wss://        │  │  • Cerebras AI (HTTP)              │  │
+           voice.ai-tools-  │  │  • ElevenLabs TTS (outbound WS)   │  │
+           marketplace.io   │  └───────────────────────────────────┘  │
+                            │  ┌───────────────────────────────────┐  │
+                            │  │ Database Proxy (HTTP)             │  │
+                            │  └───────────────────────────────────┘  │
+                            │  ┌───────────────────────────────────┐  │
+                            │  │ Vultr PostgreSQL (Direct)         │  │
+                            │  └───────────────────────────────────┘  │
+                            │  ┌───────────────────────────────────┐  │
+                            │  │ Caddy (SSL/TLS reverse proxy)     │  │
+                            │  └───────────────────────────────────┘  │
+                            └─────────────────────────────────────────┘
 ```
 
 ### Key Architectural Decisions
@@ -62,9 +87,17 @@
 - **How:** Services call `DATABASE_PROXY.executeQuery()` instead of direct SQL
 - **All services use this:** auth-manager, call-orchestrator, persona-manager
 
-**3. Frontend/Backend Separation**
+**3. Voice Pipeline: Node.js on Vultr (NOT Cloudflare Workers)**
+- **Why:** Cloudflare Workers CANNOT make outbound WebSocket connections (platform limitation)
+- **Evidence:** 8 debugging sessions proved `fetch()` with `Upgrade: websocket` hangs indefinitely
+- **Solution:** Migrated ONLY voice-pipeline to Node.js/PM2 on Vultr (Sessions 9-10 in CALL_FLOW_DEBUGGING.md)
+- **URL:** wss://voice.ai-tools-marketplace.io/stream (Caddy provides SSL)
+- **Status:** ✅ Working! First successful talk-response volley confirmed
+
+**4. Frontend/Backend Separation**
 - **Frontend:** Deployed to Vercel via `vercel --prod` (NOT git push)
-- **Backend:** Deployed to Raindrop via `raindrop build deploy`
+- **Backend Services:** Deployed to Raindrop via `raindrop build deploy`
+- **Voice Pipeline:** Deployed to Vultr via `./deploy.sh` in `voice-pipeline-nodejs/`
 - **They are INDEPENDENT** - must deploy separately
 
 ---
@@ -75,7 +108,8 @@
 |-----------|-----|
 | **Frontend** | https://call-me-back-nugbql1rx-david-melsheimers-projects.vercel.app |
 | **API Gateway** | https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run |
-| **Vultr DB Proxy** | http://144.202.15.249:3000 |
+| **Voice Pipeline** | wss://voice.ai-tools-marketplace.io/stream ✅ WORKING |
+| **Vultr DB Proxy** | https://db.ai-tools-marketplace.io |
 | **Branch** | main (@01ka41s1...) |
 | **Mode** | Sandbox (see .raindrop/config.json) |
 
@@ -155,10 +189,14 @@
 - Stripe integration (not fully tested)
 - Pricing: $0.25 connection fee + $0.40/minute
 
-**voice-pipeline** (`src/voice-pipeline/index.ts`)
-- WebSocket-based real-time voice processing
-- ElevenLabs STT → Cerebras AI → ElevenLabs TTS pipeline
-- Target: <3s total response time
+**voice-pipeline** (`voice-pipeline-nodejs/index.js`) **[MIGRATED TO NODE.JS]**
+- **Location**: Vultr server (144.202.15.249) running on PM2
+- **URL**: wss://voice.ai-tools-marketplace.io/stream
+- **Stack**: Node.js + Express + ws library (NOT Cloudflare Workers)
+- **Flow**: Twilio WebSocket → Deepgram STT → Cerebras AI → ElevenLabs TTS → Twilio
+- **Status**: ✅ First successful talk-response volley confirmed (Session 10)
+- **Pending**: Multi-turn conversation, turn-taking logic, interrupt handling
+- **Deployment**: `cd voice-pipeline-nodejs && ./deploy.sh`
 
 **webhook-handler** (`src/webhook-handler/index.ts`)
 - Processes Twilio and Stripe webhooks
@@ -405,19 +443,25 @@ vercel --prod
 - User login: `POST /api/auth/login`
 - JWT token generation
 - Personas API: `GET /api/personas` (returns Brad, Sarah, Alex from Vultr)
-- **Twilio integration: `POST /api/calls/trigger`** (API calls work, trial account limits verified numbers)
+- **Twilio integration: `POST /api/calls/trigger`** (Full integration working!)
+- **Voice Pipeline**: Twilio → Deepgram → Cerebras → ElevenLabs → Twilio (1 volley confirmed!)
 - Frontend deploys successfully
-- Backend deploys successfully
+- Backend deploys successfully (Raindrop)
+- Voice pipeline deploys successfully (Vultr/PM2)
 - Database queries via database-proxy
 
-### ❌ Not Tested / Not Working
-- WorkOS authentication (not implemented)
-- Call triggering with real phone numbers (Twilio trial account limitation - **integration works!**)
-- Add to contacts functionality
+### ⏳ Partially Working / Needs Testing
+- **Multi-turn conversation** (only 1 volley confirmed, needs more testing)
+- **Turn-taking logic** (not implemented - need Cerebras parallel evaluation from conversation-manager.ts)
+- **Interrupt handling** (not implemented)
+
+### ❌ Not Implemented
+- WorkOS authentication (critical for hackathon - still using JWT)
 - Scheduled calls with timezone handling
 - Payment processing with Stripe
-- Voice pipeline with actual calls (Twilio works, need to test full pipeline)
-- WebSocket voice streaming
+- Call recording/transcripts
+- Persona switching mid-call
+- Cost tracking per call
 
 ---
 

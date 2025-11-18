@@ -29,7 +29,7 @@ app.get('/health', (req, res) => {
 
 /**
  * Voice Pipeline Class
- * Manages the complete voice conversation flow
+ * Manages the complete voice conversation flow with intelligent turn-taking
  */
 class VoicePipeline {
   constructor(twilioWs, callParams) {
@@ -44,9 +44,21 @@ class VoicePipeline {
 
     // State
     this.conversationHistory = [];
-    this.currentTranscript = '';
+    this.transcriptSegments = [];
+    this.lastSpeechTime = 0;
     this.isSpeaking = false;
+    this.isEvaluating = false;
     this.streamSid = null;
+    this.silenceTimer = null;
+    this.evaluationCount = 0;
+
+    // Turn-taking config
+    this.config = {
+      shortSilenceMs: 500,       // Ignore pauses shorter than this
+      llmEvalThresholdMs: 1200,  // Trigger LLM eval after this silence
+      forceResponseMs: 3000,     // Force response after this silence
+      maxEvaluations: 2          // Max LLM evals before forcing
+    };
 
     console.log(`[VoicePipeline ${this.callId}] Initialized`, callParams);
   }
@@ -67,7 +79,7 @@ class VoicePipeline {
       console.log(`[VoicePipeline ${this.callId}] All services connected`);
 
       // Send initial greeting
-      await this.speak("Hey! Sorry it took me a minute to get to yoU!");
+      await this.speak("Hey! Sorry it took me a minute to get to you!");
 
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Failed to start:`, error);
@@ -82,7 +94,6 @@ class VoicePipeline {
     return new Promise((resolve, reject) => {
       console.log(`[VoicePipeline ${this.callId}] Connecting to Deepgram...`);
 
-      // Connect directly to Deepgram WebSocket API - MINIMAL parameters like working test
       const deepgramUrl = 'wss://api.deepgram.com/v1/listen?model=nova-3&encoding=mulaw&sample_rate=8000';
 
       this.deepgramWs = new WebSocket(deepgramUrl, {
@@ -102,7 +113,7 @@ class VoicePipeline {
           const transcript = response.channel?.alternatives?.[0]?.transcript;
           if (transcript && transcript.trim()) {
             console.log(`[VoicePipeline ${this.callId}] User said:`, transcript);
-            this.handleTranscript(transcript);
+            this.handleTranscriptSegment(transcript);
           }
         } catch (error) {
           console.error(`[VoicePipeline ${this.callId}] Error parsing Deepgram response:`, error);
@@ -118,7 +129,6 @@ class VoicePipeline {
         console.log(`[VoicePipeline ${this.callId}] Deepgram connection closed`);
       });
 
-      // Timeout after 5 seconds
       setTimeout(() => reject(new Error('Deepgram connection timeout')), 5000);
     });
   }
@@ -164,17 +174,16 @@ class VoicePipeline {
           const message = JSON.parse(data.toString());
 
           if (message.audio) {
-            // Send audio to Twilio
             const audioBuffer = Buffer.from(message.audio, 'base64');
             this.sendAudioToTwilio(audioBuffer);
           }
 
           if (message.isFinal) {
             console.log(`[VoicePipeline ${this.callId}] ElevenLabs finished speaking`);
-            this.isSpeaking = false;
+            this.finishSpeaking();
           }
         } catch (error) {
-          // Binary audio data, send directly to Twilio
+          // Binary audio data
           this.sendAudioToTwilio(data);
         }
       });
@@ -187,30 +196,221 @@ class VoicePipeline {
         console.log(`[VoicePipeline ${this.callId}] ElevenLabs connection closed`);
       });
 
-      // Timeout after 5 seconds
       setTimeout(() => reject(new Error('ElevenLabs connection timeout')), 5000);
     });
   }
 
   /**
-   * Handle incoming transcript from Deepgram
+   * Handle incoming transcript segment from Deepgram
    */
-  async handleTranscript(transcript) {
-    // If we're currently speaking, user interrupted us
+  handleTranscriptSegment(transcript) {
+    // If AI was speaking and user interrupted
     if (this.isSpeaking) {
       console.log(`[VoicePipeline ${this.callId}] User interrupted!`);
+      // TODO: Stop TTS playback
       this.isSpeaking = false;
-      // Could stop TTS here if we want to handle interruptions
+      this.transcriptSegments = [];
+      this.evaluationCount = 0;
     }
 
-    this.currentTranscript = transcript;
+    // Add to transcript segments
+    this.transcriptSegments.push({
+      text: transcript,
+      timestamp: Date.now()
+    });
+
+    this.lastSpeechTime = Date.now();
+
+    // Reset silence timer
+    this.resetSilenceTimer();
+  }
+
+  /**
+   * Reset silence timer
+   */
+  resetSilenceTimer() {
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+    }
+
+    // Schedule silence check after LLM eval threshold
+    this.silenceTimer = setTimeout(() => {
+      this.onSilenceDetected();
+    }, this.config.llmEvalThresholdMs);
+  }
+
+  /**
+   * Detect silence and trigger appropriate action
+   */
+  onSilenceDetected() {
+    const silenceDuration = Date.now() - this.lastSpeechTime;
+
+    console.log(`[VoicePipeline ${this.callId}] Silence detected: ${silenceDuration}ms`);
+
+    // Short silence - just a natural pause, keep listening
+    if (silenceDuration < this.config.shortSilenceMs) {
+      return;
+    }
+
+    // LLM evaluation threshold reached
+    if (silenceDuration >= this.config.llmEvalThresholdMs &&
+        this.evaluationCount < this.config.maxEvaluations &&
+        !this.isEvaluating) {
+      this.triggerTurnEvaluation();
+      return;
+    }
+
+    // Force response after maximum wait time
+    if (silenceDuration >= this.config.forceResponseMs) {
+      console.log(`[VoicePipeline ${this.callId}] Force response timeout`);
+      this.triggerResponse('force_timeout');
+    }
+  }
+
+  /**
+   * Trigger LLM evaluation of conversation completeness
+   */
+  async triggerTurnEvaluation() {
+    this.isEvaluating = true;
+    this.evaluationCount++;
+
+    const partialTranscript = this.getPartialTranscript();
+    console.log(`[VoicePipeline ${this.callId}] Evaluating turn (attempt ${this.evaluationCount}): "${partialTranscript}"`);
+
+    const decision = await this.evaluateConversationalCompleteness(partialTranscript);
+
+    console.log(`[VoicePipeline ${this.callId}] LLM Decision: ${decision}`);
+
+    this.isEvaluating = false;
+
+    if (decision === 'RESPOND') {
+      this.triggerResponse('llm_eval_complete');
+    } else {
+      // WAIT or UNCLEAR - schedule next check
+      this.silenceTimer = setTimeout(() => {
+        this.onSilenceDetected();
+      }, this.config.llmEvalThresholdMs);
+    }
+  }
+
+  /**
+   * LLM-based evaluation of whether user is done speaking
+   */
+  async evaluateConversationalCompleteness(transcript) {
+    try {
+      const prompt = `Analyze if the user has finished speaking:
+
+User said: "${transcript}"
+
+Incomplete indicators:
+- Trailing "um", "uh", "so", "and", "but"
+- Unfinished sentences
+- Open-ended phrases like "I want to..."
+
+Complete indicators:
+- Full question or statement
+- Natural end punctuation
+- Clear intent expressed
+
+Answer with ONE word only:
+- WAIT (user likely has more to say)
+- RESPOND (user is done, respond now)
+- UNCLEAR (not sure, wait longer)
+
+Answer:`;
+
+      const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.CEREBRAS_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'llama3.1-8b',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 10,
+          temperature: 0.3,
+          stream: false
+        })
+      });
+
+      const data = await response.json();
+      const decision = data.choices[0]?.message?.content?.trim().toUpperCase();
+
+      if (decision.includes('RESPOND')) return 'RESPOND';
+      if (decision.includes('WAIT')) return 'WAIT';
+      return 'UNCLEAR';
+
+    } catch (error) {
+      console.error(`[VoicePipeline ${this.callId}] Turn evaluation failed:`, error);
+
+      // Fallback to heuristic
+      return this.heuristicTurnEvaluation(transcript);
+    }
+  }
+
+  /**
+   * Heuristic-based fallback for turn evaluation
+   */
+  heuristicTurnEvaluation(transcript) {
+    const text = transcript.trim().toLowerCase();
+    const words = text.split(/\s+/);
+
+    // Very short - probably incomplete
+    if (words.length < 2) return 'WAIT';
+
+    // Ends with incomplete markers
+    const incompleteEndings = ['um', 'uh', 'so', 'and', 'but', 'or', 'because', 'like'];
+    const lastWord = words[words.length - 1];
+    if (incompleteEndings.includes(lastWord)) return 'WAIT';
+
+    // Contains question words and reasonable length
+    const questionWords = ['what', 'where', 'when', 'who', 'why', 'how', 'can', 'could', 'would', 'should'];
+    const hasQuestionWord = words.some(w => questionWords.includes(w));
+    if (hasQuestionWord && words.length >= 3) return 'RESPOND';
+
+    // Reasonable length statement
+    if (words.length >= 5) return 'RESPOND';
+
+    return 'UNCLEAR';
+  }
+
+  /**
+   * Trigger full AI response generation
+   */
+  async triggerResponse(reason) {
+    console.log(`[VoicePipeline ${this.callId}] Triggering response (reason: ${reason})`);
+
+    // Clear silence timer
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
+
+    // Get final transcript
+    const userMessage = this.getPartialTranscript();
+
     this.conversationHistory.push({
       role: 'user',
-      content: transcript
+      content: userMessage
     });
+
+    // Reset for next turn
+    this.transcriptSegments = [];
+    this.evaluationCount = 0;
 
     // Generate AI response
     await this.generateResponse();
+  }
+
+  /**
+   * Get partial transcript for evaluation
+   */
+  getPartialTranscript() {
+    return this.transcriptSegments
+      .map(seg => seg.text)
+      .join(' ')
+      .trim();
   }
 
   /**
@@ -220,13 +420,12 @@ class VoicePipeline {
     try {
       console.log(`[VoicePipeline ${this.callId}] Generating response...`);
 
-      // Build conversation context
       const messages = [
         {
           role: 'system',
           content: 'You are Brad, a supportive bro who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.'
         },
-        ...this.conversationHistory.slice(-10) // Last 10 messages for context
+        ...this.conversationHistory.slice(-10)
       ];
 
       const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
@@ -254,7 +453,6 @@ class VoicePipeline {
           content: aiResponse
         });
 
-        // Speak the response
         await this.speak(aiResponse);
       }
     } catch (error) {
@@ -289,6 +487,14 @@ class VoicePipeline {
   }
 
   /**
+   * Mark AI as done speaking, ready for next turn
+   */
+  finishSpeaking() {
+    console.log(`[VoicePipeline ${this.callId}] Finished speaking, ready for user input`);
+    this.isSpeaking = false;
+  }
+
+  /**
    * Send audio to Twilio
    */
   sendAudioToTwilio(audioBuffer) {
@@ -312,7 +518,7 @@ class VoicePipeline {
    * Handle incoming audio from Twilio
    */
   handleTwilioMedia(audioPayload) {
-    // Forward to Deepgram
+    // Forward to Deepgram only when not speaking
     if (this.deepgramWs && !this.isSpeaking) {
       const audioBuffer = Buffer.from(audioPayload, 'base64');
       this.deepgramWs.send(audioBuffer);
@@ -324,6 +530,11 @@ class VoicePipeline {
    */
   cleanup() {
     console.log(`[VoicePipeline ${this.callId}] Cleaning up...`);
+
+    if (this.silenceTimer) {
+      clearTimeout(this.silenceTimer);
+      this.silenceTimer = null;
+    }
 
     if (this.deepgramWs) {
       this.deepgramWs.close();
@@ -343,39 +554,32 @@ wss.on('connection', async (twilioWs, req) => {
 
   let pipeline = null;
 
-  // Handle messages from Twilio
   twilioWs.on('message', async (data) => {
     try {
       const message = JSON.parse(data.toString());
 
-      // Handle Twilio start message
       if (message.event === 'start') {
         console.log('[Voice Pipeline] Received START message from Twilio');
 
-        // Extract parameters from Twilio's customParameters
         const callId = message.start.customParameters?.callId || 'unknown';
         const userId = message.start.customParameters?.userId || 'unknown';
         const personaId = message.start.customParameters?.personaId || 'brad_001';
 
         console.log('[Voice Pipeline] Call params:', { callId, userId, personaId });
 
-        // Store streamSid for media responses
         const streamSid = message.start.streamSid;
 
-        // Initialize voice pipeline
         pipeline = new VoicePipeline(twilioWs, { callId, userId, personaId });
         pipeline.streamSid = streamSid;
 
         await pipeline.start();
       }
 
-      // Handle Twilio media messages (audio from user)
       else if (message.event === 'media' && pipeline) {
         const audioPayload = message.media.payload;
         pipeline.handleTwilioMedia(audioPayload);
       }
 
-      // Handle Twilio stop message
       else if (message.event === 'stop') {
         console.log('[Voice Pipeline] Received STOP message from Twilio');
         if (pipeline) {
