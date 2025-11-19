@@ -9,6 +9,7 @@ export interface Env {
   annotation: Annotation<Omit<MRNObject, 'type' | 'applicationName' | 'versionId'>>;
   API_GATEWAY: ServiceStub<import('../api-gateway/index.js').default>;
   CALL_ME_BACK_DB: SmartSql;
+  CALL_ME_BACK_LOGS: SmartBucket;
   CALL_ORCHESTRATOR: ServiceStub<import('../call-orchestrator/index.js').default>;
   CALL_TRANSCRIPTS: SmartBucket;
   CEREBRAS_API_KEY: string;

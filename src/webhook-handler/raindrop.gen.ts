@@ -10,6 +10,7 @@ export interface Env {
   API_GATEWAY: ServiceStub<import('../api-gateway/index.js').default>;
   AUTH_MANAGER: ServiceStub<import('../auth-manager/index.js').default>;
   CALL_ME_BACK_DB: SmartSql;
+  CALL_ME_BACK_LOGS: SmartBucket;
   CALL_ORCHESTRATOR: ServiceStub<import('../call-orchestrator/index.js').default>;
   CALL_TRANSCRIPTS: SmartBucket;
   CEREBRAS_API_KEY: string;

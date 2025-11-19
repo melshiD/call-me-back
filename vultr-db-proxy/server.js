@@ -3,6 +3,10 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const { Pool } = require('pg');
+const { exec } = require('child_process');
+const util = require('util');
+
+const execPromise = util.promisify(exec);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -156,6 +160,59 @@ app.post('/batch', authenticateApiKey, async (req, res) => {
     });
   } finally {
     client.release();
+  }
+});
+
+// Log fetch endpoint - for MCP log aggregator
+app.post('/logs/fetch', authenticateApiKey, async (req, res) => {
+  const { service, lines = 100 } = req.body;
+
+  if (!service) {
+    return res.status(400).json({ error: 'Service name is required' });
+  }
+
+  // Validate service name to prevent command injection
+  const allowedServices = ['voice-pipeline', 'db-proxy'];
+  if (!allowedServices.includes(service)) {
+    return res.status(400).json({
+      error: 'Invalid service name',
+      allowed: allowedServices
+    });
+  }
+
+  // Validate lines is a number
+  const numLines = parseInt(lines, 10);
+  if (isNaN(numLines) || numLines < 1 || numLines > 1000) {
+    return res.status(400).json({
+      error: 'Lines must be a number between 1 and 1000'
+    });
+  }
+
+  console.log(`Fetching ${numLines} lines from ${service} logs`);
+
+  try {
+    // Execute PM2 logs command
+    const command = `pm2 logs ${service} --lines ${numLines} --nostream`;
+    const { stdout, stderr } = await execPromise(command, {
+      timeout: 5000, // 5 second timeout
+      maxBuffer: 10 * 1024 * 1024 // 10MB max
+    });
+
+    // Return logs (stdout + stderr for complete output)
+    res.json({
+      success: true,
+      service,
+      lines: numLines,
+      logs: stdout + (stderr ? '\n' + stderr : '')
+    });
+  } catch (error) {
+    console.error(`Error fetching ${service} logs:`, error.message);
+
+    res.status(500).json({
+      error: 'Failed to fetch logs',
+      service,
+      message: error.message
+    });
   }
 });
 
