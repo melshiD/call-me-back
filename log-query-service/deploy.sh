@@ -7,13 +7,18 @@ set -e
 
 echo "🚀 Deploying log-query-service to Vultr..."
 
+# Load environment variables
+echo "🔐 Loading environment variables..."
+chmod +x load-env.sh
+./load-env.sh
+
 # Build tarball
 echo "📦 Creating deployment package..."
 tar -czf log-query-service.tar.gz \
   server.js \
   package.json \
   ecosystem.config.js \
-  setup-env.sh \
+  .env \
   collectors/ \
   trackers/ \
   routes/ \
@@ -21,24 +26,17 @@ tar -czf log-query-service.tar.gz \
 
 # Copy to Vultr
 echo "📤 Uploading to Vultr..."
-scp log-query-service.tar.gz root@144.202.15.249:/root/
+scp -i ~/.ssh/vultr_cmb log-query-service.tar.gz root@144.202.15.249:/root/
 
 # SSH and deploy
 echo "🔧 Extracting and installing..."
-ssh root@144.202.15.249 << 'ENDSSH'
+ssh -i ~/.ssh/vultr_cmb root@144.202.15.249 << 'ENDSSH'
   cd /root
   mkdir -p log-query-service
   tar -xzf log-query-service.tar.gz -C log-query-service/
   cd log-query-service
 
-  # Setup environment (will read from root .env if it exists on Vultr)
-  if [ -f "../.env" ]; then
-    chmod +x setup-env.sh
-    ./setup-env.sh
-  else
-    echo "⚠️  No root .env found, you'll need to create .env manually"
-  fi
-
+  # .env is already included in the tarball
   npm install --production
 
   # Stop if already running
@@ -57,8 +55,8 @@ ENDSSH
 rm log-query-service.tar.gz
 
 echo "✨ Service deployed successfully!"
-echo "🔍 Check status: ssh root@144.202.15.249 'pm2 status'"
-echo "📋 View logs: ssh root@144.202.15.249 'pm2 logs log-query-service'"
+echo "🔍 Check status: ssh -i ~/.ssh/vultr_cmb root@144.202.15.249 'pm2 status'"
+echo "📋 View logs: ssh -i ~/.ssh/vultr_cmb root@144.202.15.249 'pm2 logs log-query-service'"
 echo "🌐 Test: curl https://logs.ai-tools-marketplace.io/health"
 echo ""
 echo "⚠️  Don't forget to configure Caddy reverse proxy!"

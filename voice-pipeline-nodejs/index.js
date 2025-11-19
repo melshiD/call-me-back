@@ -257,6 +257,15 @@ class VoicePipeline {
           const transcript = response.channel?.alternatives?.[0]?.transcript;
           if (transcript && transcript.trim()) {
             console.log(`[VoicePipeline ${this.callId}] User said:`, transcript);
+
+            // Log Deepgram usage for cost tracking
+            const duration = response.duration;
+            const confidence = response.channel?.alternatives?.[0]?.confidence;
+            const isFinal = response.is_final;
+            if (duration !== undefined || confidence !== undefined) {
+              console.log(`[VoicePipeline ${this.callId}] Deepgram transcript: duration: ${duration || 0} confidence: ${confidence || 0} is_final: ${isFinal || false}`);
+            }
+
             this.handleTranscriptSegment(transcript);
           }
         } catch (error) {
@@ -317,6 +326,11 @@ class VoicePipeline {
         try {
           const message = JSON.parse(data.toString());
 
+          // Log all non-audio messages for debugging
+          if (!message.audio) {
+            console.log(`[VoicePipeline ${this.callId}] ElevenLabs message:`, JSON.stringify(message));
+          }
+
           if (message.audio) {
             const audioBuffer = Buffer.from(message.audio, 'base64');
             this.sendAudioToTwilio(audioBuffer);
@@ -325,6 +339,11 @@ class VoicePipeline {
           if (message.isFinal) {
             console.log(`[VoicePipeline ${this.callId}] ElevenLabs finished speaking`);
             this.finishSpeaking();
+          }
+
+          // Check for errors
+          if (message.error) {
+            console.error(`[VoicePipeline ${this.callId}] ElevenLabs error message:`, message.error);
           }
         } catch (error) {
           // Binary audio data
@@ -336,8 +355,9 @@ class VoicePipeline {
         console.error(`[VoicePipeline ${this.callId}] ElevenLabs error:`, error);
       });
 
-      this.elevenLabsWs.on('close', () => {
-        console.log(`[VoicePipeline ${this.callId}] ElevenLabs connection closed`);
+      this.elevenLabsWs.on('close', (code, reason) => {
+        console.log(`[VoicePipeline ${this.callId}] ElevenLabs connection closed - Code: ${code}, Reason: ${reason}`);
+        this.elevenLabsReady = false;
       });
 
       setTimeout(() => reject(new Error('ElevenLabs connection timeout')), 5000);
@@ -693,6 +713,11 @@ Answer:`;
         console.log(`[VoicePipeline ${this.callId}] AI response length: ${aiResponse.length} chars`);
         console.log(`[VoicePipeline ${this.callId}] Finish reason:`, data.choices[0]?.finish_reason);
 
+        // Log Cerebras usage for cost tracking
+        if (data.usage) {
+          console.log(`[VoicePipeline ${this.callId}] Cerebras usage: model: ${data.model || 'llama3.1-8b'} prompt_tokens: ${data.usage.prompt_tokens} completion_tokens: ${data.usage.completion_tokens} total_tokens: ${data.usage.total_tokens}`);
+        }
+
         this.conversationHistory.push({
           role: 'assistant',
           content: aiResponse
@@ -734,11 +759,16 @@ Answer:`;
       console.log(`[VoicePipeline ${this.callId}] Speaking:`, text);
       this.isSpeaking = true;
 
-      // Send text to ElevenLabs - DON'T send empty flush, it closes the connection!
+      // Send text to ElevenLabs with flush flag
+      // ElevenLabs stream-input API: Send text with flush=true to trigger generation
       this.elevenLabsWs.send(JSON.stringify({
         text: text,
-        try_trigger_generation: true
+        flush: true
       }));
+
+      // Log ElevenLabs usage for cost tracking
+      console.log(`[VoicePipeline ${this.callId}] ElevenLabs TTS: characters: ${text.length} voice_id: ${this.voiceId} model: eleven_turbo_v2_5`);
+      console.log(`[VoicePipeline ${this.callId}] Sent text with flush=true to ElevenLabs`);
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Failed to speak:`, error);
 

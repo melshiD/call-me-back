@@ -2,7 +2,16 @@
 
 **Version:** 1.0.0
 **Purpose:** Real-time cost tracking and log aggregation for Call Me Back
-**Status:** Production Ready
+**Status:** ✅ FULLY OPERATIONAL (voice-pipeline integration complete 2025-11-19)
+
+## ✅ Integration Status
+
+- ✅ Voice-pipeline logging Cerebras usage (model + tokens)
+- ✅ Voice-pipeline logging ElevenLabs character counts
+- ✅ Voice-pipeline logging Deepgram duration/confidence
+- ✅ Collectors ready to parse all usage data
+- ✅ Service deployed to Vultr
+- 🔲 Awaiting first test call to validate end-to-end
 
 ---
 
@@ -154,6 +163,29 @@ npm start
 ```
 
 See [DEPLOYMENT_INSTRUCTIONS.md](./DEPLOYMENT_INSTRUCTIONS.md) for full deployment guide.
+
+---
+
+## Expected Log Formats (2025-11-19)
+
+The collectors parse these exact patterns from voice-pipeline logs:
+
+**Cerebras:**
+```
+[VoicePipeline CA...] Cerebras usage: model: llama3.1-8b prompt_tokens: 25 completion_tokens: 50 total_tokens: 75
+```
+
+**ElevenLabs:**
+```
+[VoicePipeline CA...] ElevenLabs TTS: characters: 145 voice_id: pNInz6obpgDQGcFmaJgB model: eleven_turbo_v2_5
+```
+
+**Deepgram:**
+```
+[VoicePipeline CA...] Deepgram transcript: duration: 2.5 confidence: 0.95 is_final: true
+```
+
+Parsers: See `collectors/cerebras.js`, `collectors/elevenlabs.js`, `collectors/deepgram.js`
 
 ---
 

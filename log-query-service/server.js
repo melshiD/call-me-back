@@ -26,10 +26,12 @@ const logger = winston.createLogger({
 // Import routes
 const usageCallRoute = require('./routes/usage/call');
 const usageCalculateRoute = require('./routes/usage/calculate');
+const logsTranscriptsRoute = require('./routes/logs/transcripts');
 
 // Mount routes
 app.use('/api/usage/call', usageCallRoute);
 app.use('/api/usage/calculate', usageCalculateRoute);
+app.use('/api/logs/transcripts', logsTranscriptsRoute);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -51,6 +53,10 @@ app.get('/', (req, res) => {
       usage: {
         call: '/api/usage/call/:callId',
         calculate: 'POST /api/usage/calculate'
+      },
+      logs: {
+        transcripts: '/api/logs/transcripts?limit=3&sort=longest&since=7d',
+        transcript: '/api/logs/transcripts/:callId'
       }
     }
   });

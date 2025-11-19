@@ -10,15 +10,16 @@ class DeepgramCollector {
   }
 
   async search({ query, since = '1h', limit = 100 }) {
-    // Extract Deepgram events from voice-pipeline logs
+    // Extract Deepgram/transcript events from voice-pipeline logs
+    const searchQuery = query || 'transcript';
     const vultrLogs = await this.vultrCollector.search({
-      query: 'deepgram',
+      query: searchQuery,
       since,
       limit: limit * 2 // Get more to filter down
     });
 
     return vultrLogs
-      .filter(log => log.message.toLowerCase().includes('deepgram'))
+      .filter(log => log.message.toLowerCase().includes('transcript'))
       .map(log => ({
         ...log,
         service: 'deepgram',
@@ -29,11 +30,13 @@ class DeepgramCollector {
 
   parseDeepgramLog(message) {
     // Extract: transcript, duration, confidence, etc.
+    // Actual format: [VoicePipeline CALL_ID] Full user transcript: "text here"
     const patterns = {
-      transcript: /transcript:\s*(.+?)(?=\s*\[|$)/i,
+      transcript: /Full user transcript:\s*"(.+?)"/i,
       duration: /duration:\s*(\d+\.?\d*)/i,
       confidence: /confidence:\s*(\d+\.?\d*)/i,
-      isFinal: /is_final:\s*(true|false)/i
+      isFinal: /is_final:\s*(true|false)/i,
+      callId: /\[VoicePipeline\s+(CA[a-f0-9]+)\]/i
     };
 
     const data = {};
@@ -41,6 +44,9 @@ class DeepgramCollector {
       const match = message.match(pattern);
       if (match) data[key] = match[1];
     }
+
+    // Default isFinal to true if not specified
+    if (!data.isFinal) data.isFinal = 'true';
 
     return data;
   }

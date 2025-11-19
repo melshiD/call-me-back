@@ -1,5 +1,5 @@
 /**
- * Log Aggregator MCP Service
+ * Log Aggregator MCP Service - WITH MANUAL TRANSPORT
  *
  * Provides MCP tools for searching and retrieving logs across all Call Me Back services
  */
@@ -19,30 +19,81 @@ import {
   TimelineEntry
 } from './types';
 
+// ATTEMPTING MANUAL TRANSPORT SETUP
+console.log('[MCP DEBUG] Loading log-aggregator with manual transport attempt');
+
+// Tool registration happens once, not per request
+let toolsRegistered = false;
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // Get MCP server instance
-    const mcpServer = env.LOG_AGGREGATOR;
-
-    // Register simple ping tool
-    mcpServer.registerTool('ping', {
-      description: 'Test tool that returns pong'
-    }, async () => {
-      return { message: 'pong' };
+    console.log('[MCP DEBUG] fetch() called', {
+      method: request.method,
+      url: request.url,
+      headers: Object.fromEntries(request.headers.entries())
     });
 
-    // Register simple echo tool
-    mcpServer.registerTool('echo', {
-      description: 'Echo back the input message',
-      inputSchema: {
-        message: z.string()
+    try {
+      // Get MCP server instance
+      const mcpServer = env.LOG_AGGREGATOR;
+
+      // Register tools only once
+      if (!toolsRegistered) {
+        console.log('[MCP DEBUG] Registering tools...');
+
+        mcpServer.registerTool('ping', {
+          description: 'Test tool that returns pong'
+        }, async () => {
+          console.log('[MCP DEBUG] ping tool called');
+          return {
+            content: [{ type: 'text', text: 'pong' }]
+          };
+        });
+
+        mcpServer.registerTool('echo', {
+          description: 'Echo back the input message',
+          inputSchema: {
+            message: z.string()
+          }
+        }, async (args: any) => {
+          console.log('[MCP DEBUG] echo tool called', args);
+          return {
+            content: [{ type: 'text', text: `Echo: ${args.message}` }]
+          };
+        });
+
+        toolsRegistered = true;
+        console.log('[MCP DEBUG] Tools registered successfully');
       }
-    }, async (args: any) => {
-      return { echo: args.message };
-    });
 
-    // Framework handles MCP protocol routing - return minimal response
-    return new Response();
+      // Check if server is connected
+      console.log('[MCP DEBUG] Server connected?', mcpServer.isConnected());
+
+      // Let framework handle the protocol
+      // Framework should automatically route MCP requests
+      console.log('[MCP DEBUG] Returning empty response, letting framework handle protocol');
+      return new Response(null, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+    } catch (error) {
+      console.error('[MCP DEBUG] Error in fetch():', error);
+      return new Response(JSON.stringify({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: error instanceof Error ? error.message : 'Internal server error',
+          data: error instanceof Error ? error.stack : undefined
+        },
+        id: null
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
   }
 };
 

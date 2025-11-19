@@ -1,5 +1,8 @@
 # Log Query Service - Deployment Instructions
 
+**Status:** ✅ Voice-pipeline integration complete (2025-11-19)
+**Ready for:** Production deployment and testing
+
 ## Prerequisites
 
 1. **Local Machine:**
