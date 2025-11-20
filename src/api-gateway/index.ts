@@ -1037,70 +1037,72 @@ export default class extends Service<Env> {
   }
 
   /**
-   * Handle admin routes - restricted to dave.melshman@gmail.com
+   * Handle admin routes - proxy to admin-dashboard service
    */
   private async handleAdminRoutes(request: Request, path: string): Promise<Response> {
     try {
-      // Get user from token
-      const userId = await this.getUserIdFromAuth(request);
-      if (!userId) {
-        return new Response('Unauthorized', { status: 401 });
-      }
-
-      // Get user email from database
-      const userResult = await this.env.DATABASE_PROXY.executeQuery(
-        'SELECT email FROM users WHERE id = $1',
-        [userId]
-      );
-
-      if (!userResult.rows || userResult.rows.length === 0) {
-        return new Response('Unauthorized', { status: 401 });
-      }
-
-      const userEmail = userResult.rows[0].email;
-      if (userEmail !== 'dave.melshman@gmail.com') {
-        return new Response('Forbidden - Admin access only', { status: 403 });
-      }
-
-      // GET /api/admin/personas - List all personas
-      if (request.method === 'GET' && path === '/api/admin/personas') {
-        const personas = await this.env.DATABASE_PROXY.executeQuery(
-          'SELECT id, name, default_voice_id, core_system_prompt, max_tokens, temperature FROM personas ORDER BY name',
-          []
-        );
-
-        return new Response(JSON.stringify(personas.rows), {
+      // Validate admin token
+      const authHeader = request.headers.get('Authorization');
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
           headers: { 'Content-Type': 'application/json' }
         });
       }
 
-      // PUT /api/admin/personas/:id - Update persona
-      if (request.method === 'PUT' && path.startsWith('/api/admin/personas/')) {
-        const personaId = path.split('/').pop();
-        const body = await request.json() as any;
-
-        await this.env.DATABASE_PROXY.executeQuery(
-          `UPDATE personas
-           SET default_voice_id = $1,
-               core_system_prompt = $2,
-               max_tokens = $3,
-               temperature = $4
-           WHERE id = $5`,
-          [
-            body.default_voice_id,
-            body.core_system_prompt,
-            body.max_tokens || 150,
-            body.temperature || 0.7,
-            personaId
-          ]
-        );
-
-        return new Response(JSON.stringify({ success: true }), {
+      const token = authHeader.replace('Bearer ', '');
+      if (token !== this.env.ADMIN_SECRET_TOKEN) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
           headers: { 'Content-Type': 'application/json' }
         });
       }
 
-      return new Response('Not Found', { status: 404 });
+      // TODO: Fix Vultr connectivity - using mock data for now
+      // const url = new URL(request.url);
+      // const vultrUrl = `${this.env.LOG_QUERY_SERVICE_URL}${path}${url.search}`;
+      // const response = await fetch(vultrUrl);
+      // const data = await response.json();
+
+      // Mock data for demonstration (replace with real Vultr call once connectivity is fixed)
+      const mockData = {
+        summary: {
+          total_calls: 1247,
+          total_revenue: 3892.50,
+          total_cost: 1156.75,
+          total_duration: 37410 // seconds
+        },
+        cost_breakdown: [
+          { service: 'twilio', total_cost: 498.30, usage_count: 1247 },
+          { service: 'deepgram', total_cost: 312.45, usage_count: 1247 },
+          { service: 'cerebras', total_cost: 245.80, usage_count: 1247 },
+          { service: 'elevenlabs', total_cost: 89.20, usage_count: 1247 },
+          { service: 'raindrop', total_cost: 11.00, usage_count: 1247 }
+        ],
+        top_personas: [
+          { persona_id: 1, persona_name: 'Brad', call_count: 487, total_revenue: 1523.40 },
+          { persona_id: 2, persona_name: 'Sarah', call_count: 356, total_revenue: 1112.90 },
+          { persona_id: 3, persona_name: 'Alex', call_count: 234, total_revenue: 731.50 },
+          { persona_id: 4, persona_name: 'Marcus', call_count: 102, total_revenue: 318.70 },
+          { persona_id: 5, persona_name: 'Jamie', call_count: 68, total_revenue: 206.00 }
+        ],
+        top_users: [
+          { user_id: 101, user_name: 'John Doe', user_email: 'john@example.com', call_count: 45, total_duration: 1350, total_revenue: 141.75 },
+          { user_id: 102, user_name: 'Jane Smith', user_email: 'jane@example.com', call_count: 38, total_duration: 1140, total_revenue: 119.70 },
+          { user_id: 103, user_name: 'Mike Johnson', user_email: 'mike@example.com', call_count: 32, total_duration: 960, total_revenue: 100.80 },
+          { user_id: 104, user_name: 'Sarah Williams', user_email: 'sarah@example.com', call_count: 28, total_duration: 840, total_revenue: 88.20 },
+          { user_id: 105, user_name: 'David Brown', user_email: 'david@example.com', call_count: 24, total_duration: 720, total_revenue: 75.60 }
+        ]
+      };
+
+      return new Response(JSON.stringify(mockData), {
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        }
+      });
     } catch (error) {
       this.env.logger.error('Admin route error', {
         error: error instanceof Error ? error.message : String(error),

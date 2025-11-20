@@ -5,6 +5,8 @@ export interface Env {
   _raindrop: {
     app: App;
   };
+  ADMIN_DASHBOARD: ServiceStub<import('../admin-dashboard/index.js').default>;
+  ADMIN_SECRET_TOKEN: string;
   AI: Ai;
   annotation: Annotation<Omit<MRNObject, 'type' | 'applicationName' | 'versionId'>>;
   AUTH_MANAGER: ServiceStub<import('../auth-manager/index.js').default>;
@@ -14,10 +16,12 @@ export interface Env {
   CALL_TRANSCRIPTS: SmartBucket;
   CEREBRAS_API_KEY: string;
   CONVERSATION_MEMORY: SmartMemory;
+  COST_ANALYTICS: ServiceStub<import('../cost-analytics/index.js').default>;
   DATABASE_PROXY: ServiceStub<import('../database-proxy/index.js').default>;
   DEEPGRAM_API_KEY: string;
   ELEVENLABS_API_KEY: string;
   JWT_SECRET: string;
+  LOG_QUERY_SERVICE_URL: string;
   logger: Logger;
   mem: KvCache;
   PAYMENT_PROCESSOR: ServiceStub<import('../payment-processor/index.js').default>;

@@ -17,7 +17,6 @@ export interface Env {
   CALL_TRANSCRIPTS: SmartBucket;
   CEREBRAS_API_KEY: string;
   CONVERSATION_MEMORY: SmartMemory;
-  COST_ANALYTICS: ServiceStub<import('../cost-analytics/index.js').default>;
   DATABASE_PROXY: ServiceStub<import('../database-proxy/index.js').default>;
   DEEPGRAM_API_KEY: string;
   ELEVENLABS_API_KEY: string;
@@ -36,6 +35,7 @@ export interface Env {
   VOICE_PIPELINE: ServiceStub<import('../voice-pipeline/index.js').default>;
   VULTR_DB_API_KEY: string;
   VULTR_DB_API_URL: string;
+  WEBHOOK_HANDLER: ServiceStub<import('../webhook-handler/index.js').default>;
   WORKOS_API_KEY: string;
   WORKOS_CLIENT_ID: string;
 }

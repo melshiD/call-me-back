@@ -54,6 +54,18 @@ const routes = [
     name: 'PersonaAdmin',
     component: () => import('../views/PersonaAdmin.vue'),
     meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin/login',
+    name: 'AdminLogin',
+    component: () => import('../views/AdminLogin.vue'),
+    meta: { requiresAdminGuest: true }
+  },
+  {
+    path: '/admin/dashboard',
+    name: 'AdminDashboard',
+    component: () => import('../views/AdminDashboard.vue'),
+    meta: { requiresAdminAuth: true }
   }
 ]
 
@@ -65,8 +77,16 @@ const router = createRouter({
 // Navigation guards
 router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
+  const adminToken = localStorage.getItem('adminToken')
 
-  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+  // Admin authentication checks
+  if (to.meta.requiresAdminAuth && !adminToken) {
+    next('/admin/login')
+  } else if (to.meta.requiresAdminGuest && adminToken) {
+    next('/admin/dashboard')
+  }
+  // Regular user authentication checks
+  else if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
   } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
     next('/dashboard')

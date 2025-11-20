@@ -49,7 +49,7 @@ const handleLogout = () => {
 <style scoped>
 #app {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #0a0e1a;
 }
 
 .navbar {
@@ -125,9 +125,7 @@ const handleLogout = () => {
 }
 
 .main-content {
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
+  /* Pages control their own max-width and padding */
 }
 
 @media (max-width: 768px) {
@@ -139,10 +137,6 @@ const handleLogout = () => {
   .navbar-menu {
     width: 100%;
     justify-content: center;
-  }
-
-  .main-content {
-    padding: 1rem;
   }
 }
 </style>

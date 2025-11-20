@@ -5,7 +5,6 @@ export interface Env {
   _raindrop: {
     app: App;
   };
-  ADMIN_DASHBOARD: ServiceStub<import('../admin-dashboard/index.js').default>;
   ADMIN_SECRET_TOKEN: string;
   AI: Ai;
   annotation: Annotation<Omit<MRNObject, 'type' | 'applicationName' | 'versionId'>>;
@@ -36,6 +35,7 @@ export interface Env {
   VOICE_PIPELINE: ServiceStub<import('../voice-pipeline/index.js').default>;
   VULTR_DB_API_KEY: string;
   VULTR_DB_API_URL: string;
+  WEBHOOK_HANDLER: ServiceStub<import('../webhook-handler/index.js').default>;
   WORKOS_API_KEY: string;
   WORKOS_CLIENT_ID: string;
 }
