@@ -91,18 +91,55 @@
             </div>
           </div>
 
-          <!-- Right: Vertical Auto-Scrolling Showcase -->
+          <!-- Right: Interactive Persona Showcase -->
           <div class="lg:col-span-5 relative h-[600px] hidden lg:flex items-center justify-center opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.3s]">
             <!-- Gradient fade masks at top and bottom -->
             <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-midnight to-transparent z-20 pointer-events-none"></div>
             <div class="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-midnight to-transparent z-20 pointer-events-none"></div>
 
-            <div class="persona-showcase relative w-[320px] h-full overflow-hidden">
-              <!-- Scrolling container - duplicated for infinite loop -->
-              <div class="persona-scroll-track flex flex-col gap-6 animate-scrollUp hover:[animation-play-state:paused]" style="will-change: transform;">
+            <!-- Navigation Dots -->
+            <div class="absolute right-0 top-0 flex flex-col gap-3 z-30 pr-4 pt-2">
+              <button
+                v-for="(persona, index) in personas"
+                :key="index"
+                @click="scrollToPersona(index)"
+                class="group relative w-3 h-3 transition-all duration-300"
+                :class="activePersona === index ? 'scale-125' : 'scale-100 hover:scale-110'"
+              >
+                <!-- Outer glow ring -->
+                <div
+                  class="absolute inset-0 rounded-full transition-all duration-500"
+                  :class="activePersona === index ? 'opacity-100 scale-150 blur-md' : 'opacity-0 scale-100'"
+                  :style="{ backgroundColor: persona.color }"
+                ></div>
+
+                <!-- Main dot -->
+                <div
+                  class="relative w-full h-full rounded-full border-2 transition-all duration-300"
+                  :class="activePersona === index ? 'bg-opacity-100 shadow-lg' : 'bg-opacity-30 border-opacity-50'"
+                  :style="{
+                    backgroundColor: activePersona === index ? persona.color : 'transparent',
+                    borderColor: persona.color,
+                    boxShadow: activePersona === index ? `0 0 20px ${persona.color}, 0 0 10px ${persona.color}` : 'none'
+                  }"
+                ></div>
+
+                <!-- Pulse effect for active -->
+                <div
+                  v-if="activePersona === index"
+                  class="absolute inset-0 rounded-full animate-ping"
+                  :style="{ backgroundColor: persona.color }"
+                  style="animation-duration: 2s;"
+                ></div>
+              </button>
+            </div>
+
+            <div ref="personaContainer" class="persona-showcase relative w-[320px] h-full overflow-y-auto overflow-x-hidden scroll-smooth snap-y snap-mandatory scrollbar-hide" @scroll="handleScroll">
+              <!-- Persona cards - NO DUPLICATES, just the 5 personas -->
+              <div class="flex flex-col gap-6">
 
                 <!-- Brad Card - The No-Excuses Coach -->
-                <div class="persona-card-wrapper flex-shrink-0">
+                <div class="persona-card-wrapper flex-shrink-0 snap-start">
                   <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-glow rounded-[24px] shadow-[0_24px_80px_rgba(251,191,36,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(251,191,36,0.6)]">
                     <!-- Dynamic diagonal stripes background -->
                     <div class="absolute inset-0 opacity-10" style="background: repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(251,191,36,0.3) 20px, rgba(251,191,36,0.3) 40px);"></div>
@@ -164,7 +201,7 @@
                 </div>
 
                 <!-- Sarah Card - The Always-There Friend -->
-                <div class="persona-card-wrapper flex-shrink-0">
+                <div class="persona-card-wrapper flex-shrink-0 snap-start">
                   <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-cyan-400 rounded-[24px] shadow-[0_24px_80px_rgba(34,211,238,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(34,211,238,0.6)]">
                     <!-- Dynamic pattern background -->
                     <div class="absolute inset-0 opacity-8" style="background-image: radial-gradient(circle, rgba(34,211,238,0.4) 1px, transparent 1px); background-size: 20px 20px;"></div>
@@ -226,7 +263,7 @@
                 </div>
 
                 <!-- Alex Card - The Level-Up Challenger -->
-                <div class="persona-card-wrapper flex-shrink-0">
+                <div class="persona-card-wrapper flex-shrink-0 snap-start">
                   <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-solar rounded-[24px] shadow-[0_24px_80px_rgba(255,107,53,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(255,107,53,0.6)]">
                     <!-- Geometric pattern background -->
                     <div class="absolute inset-0 opacity-10" style="background: repeating-linear-gradient(-45deg, transparent, transparent 15px, rgba(255,107,53,0.3) 15px, rgba(255,107,53,0.3) 30px);"></div>
@@ -288,7 +325,7 @@
                 </div>
 
                 <!-- Marcus Card - The Deal Closer -->
-                <div class="persona-card-wrapper flex-shrink-0">
+                <div class="persona-card-wrapper flex-shrink-0 snap-start">
                   <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-purple-500 rounded-[24px] shadow-[0_24px_80px_rgba(168,85,247,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(168,85,247,0.6)]">
                     <!-- Hexagon pattern background -->
                     <div class="absolute inset-0 opacity-10" style="background-image: repeating-linear-gradient(0deg, transparent, transparent 25px, rgba(168,85,247,0.3) 25px, rgba(168,85,247,0.3) 27px), repeating-linear-gradient(90deg, transparent, transparent 25px, rgba(168,85,247,0.3) 25px, rgba(168,85,247,0.3) 27px);"></div>
@@ -343,7 +380,7 @@
                 </div>
 
                 <!-- Jamie Card - The Adventure Buddy -->
-                <div class="persona-card-wrapper flex-shrink-0">
+                <div class="persona-card-wrapper flex-shrink-0 snap-start">
                   <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-lime-400 rounded-[24px] shadow-[0_24px_80px_rgba(163,230,53,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(163,230,53,0.6)]">
                     <!-- Wave pattern background -->
                     <div class="absolute inset-0 opacity-10" style="background: repeating-radial-gradient(circle at 0 0, transparent 0, rgba(163,230,53,0.3) 25px, transparent 50px);"></div>
@@ -397,161 +434,6 @@
                   </div>
                 </div>
 
-                <!-- DUPLICATE SET FOR INFINITE SCROLL -->
-                <!-- Brad Card - The No-Excuses Coach (Duplicate) -->
-                <div class="persona-card-wrapper flex-shrink-0">
-                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-glow rounded-[24px] shadow-[0_24px_80px_rgba(251,191,36,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(251,191,36,0.6)]">
-                    <div class="absolute inset-0 opacity-10" style="background: repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(251,191,36,0.3) 20px, rgba(251,191,36,0.3) 40px);"></div>
-                    <div class="absolute top-0 right-0 w-32 h-32 bg-glow -mr-8 -mt-8 rotate-12 opacity-90"></div>
-                    <div class="absolute bottom-0 left-0 w-24 h-24 bg-ember -ml-6 -mb-6 -rotate-12 opacity-80"></div>
-                    <div class="relative z-10 w-36 h-36 mx-auto mt-6 mb-4 rounded-2xl overflow-hidden border-4 border-glow shadow-[0_12px_40px_rgba(251,191,36,0.6)] bg-gradient-to-br from-glow/30 to-ember/30 flex items-center justify-center">
-                      <div class="text-6xl font-black text-glow/60 select-none">B</div>
-                      <div class="absolute top-2 right-2 bg-deep text-glow text-xs font-black px-2 py-1 rounded-md uppercase tracking-wider">Coach</div>
-                    </div>
-                    <div class="relative z-20 px-6">
-                      <h3 class="text-5xl font-[--font-display] font-black text-glow mb-1 tracking-tight uppercase" style="text-shadow: 3px 3px 0px rgba(0,0,0,0.8), -1px -1px 0px rgba(251,191,36,0.3);">Brad</h3>
-                      <div class="bg-glow text-deep px-3 py-1.5 inline-block font-black text-base uppercase tracking-wider mb-3 -rotate-1 shadow-lg">NO EXCUSES</div>
-                      <div class="flex flex-wrap gap-2 mb-3">
-                        <div class="bg-deep border-2 border-glow text-glow px-3 py-1 text-xs font-bold uppercase rounded-lg">6:30AM DAILY</div>
-                        <div class="bg-glow text-deep px-3 py-1 text-xs font-black uppercase rounded-lg">47 DAY STREAK</div>
-                        <div class="bg-white/10 backdrop-blur text-cream px-3 py-1 text-xs font-bold uppercase rounded-lg">100% ACCOUNTABILITY</div>
-                      </div>
-                      <div class="bg-glow/20 backdrop-blur border-l-4 border-glow p-3 mb-2">
-                        <p class="text-sm text-cream font-semibold leading-tight">Wake up to REAL motivation. Remembers your goals. Tracks progress. Zero tolerance for BS.</p>
-                      </div>
-                      <div class="flex justify-between items-center bg-deep/80 rounded-xl p-2 border-2 border-glow/40">
-                        <div class="text-center flex-1"><div class="text-xl font-black text-glow">∞</div><div class="text-[9px] text-glow/70 uppercase font-bold">Motivation</div></div>
-                        <div class="w-px h-8 bg-glow/30"></div>
-                        <div class="text-center flex-1"><div class="text-xl font-black text-glow">RISE</div><div class="text-[9px] text-glow/70 uppercase font-bold">& Grind</div></div>
-                      </div>
-                    </div>
-                    <div class="absolute bottom-3 right-3 bg-glow text-deep w-12 h-12 rounded-full flex items-center justify-center font-black text-xl rotate-12 shadow-xl border-2 border-deep">💪</div>
-                  </div>
-                </div>
-
-                <!-- Sarah Card - The Always-There Friend (Duplicate) -->
-                <div class="persona-card-wrapper flex-shrink-0">
-                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-cyan-400 rounded-[24px] shadow-[0_24px_80px_rgba(34,211,238,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(34,211,238,0.6)]">
-                    <div class="absolute inset-0 opacity-8" style="background-image: radial-gradient(circle, rgba(34,211,238,0.4) 1px, transparent 1px); background-size: 20px 20px;"></div>
-                    <div class="absolute top-0 left-0 w-28 h-28 bg-cyan-400 -ml-8 -mt-8 -rotate-12 opacity-90"></div>
-                    <div class="absolute bottom-0 right-0 w-20 h-20 bg-cyan-500 -mr-4 -mb-4 rotate-12 opacity-80"></div>
-                    <div class="relative z-10 w-36 h-36 mx-auto mt-6 mb-4 rounded-2xl overflow-hidden border-4 border-cyan-400 shadow-[0_12px_40px_rgba(34,211,238,0.6)] bg-gradient-to-br from-cyan-400/30 to-cyan-500/30 flex items-center justify-center">
-                      <div class="text-6xl font-black text-cyan-400/60 select-none">S</div>
-                      <div class="absolute top-2 right-2 bg-deep text-cyan-400 text-xs font-black px-2 py-1 rounded-md uppercase tracking-wider">Friend</div>
-                    </div>
-                    <div class="relative z-20 px-6">
-                      <h3 class="text-5xl font-[--font-display] font-black text-cyan-400 mb-1 tracking-tight uppercase" style="text-shadow: 3px 3px 0px rgba(0,0,0,0.8), -1px -1px 0px rgba(34,211,238,0.3);">Sarah</h3>
-                      <div class="bg-cyan-400 text-deep px-3 py-1.5 inline-block font-black text-base uppercase tracking-wider mb-3 rotate-1 shadow-lg">ALWAYS THERE</div>
-                      <div class="flex flex-wrap gap-2 mb-3">
-                        <div class="bg-deep border-2 border-cyan-400 text-cyan-400 px-3 py-1 text-xs font-bold uppercase rounded-lg">24/7 SOS</div>
-                        <div class="bg-cyan-400 text-deep px-3 py-1 text-xs font-black uppercase rounded-lg">INSTANT ESCAPE</div>
-                        <div class="bg-white/10 backdrop-blur text-cream px-3 py-1 text-xs font-bold uppercase rounded-lg">YOUR LIFELINE</div>
-                      </div>
-                      <div class="bg-cyan-400/20 backdrop-blur border-l-4 border-cyan-400 p-3 mb-2">
-                        <p class="text-sm text-cream font-semibold leading-tight">Emergency contact. Social escape artist. Knows your story. Gets you out gracefully.</p>
-                      </div>
-                      <div class="flex justify-between items-center bg-deep/80 rounded-xl p-2 border-2 border-cyan-400/40">
-                        <div class="text-center flex-1"><div class="text-xl font-black text-cyan-400">911</div><div class="text-[9px] text-cyan-400/70 uppercase font-bold">Response</div></div>
-                        <div class="w-px h-8 bg-cyan-400/30"></div>
-                        <div class="text-center flex-1"><div class="text-xl font-black text-cyan-400">∞</div><div class="text-[9px] text-cyan-400/70 uppercase font-bold">Empathy</div></div>
-                      </div>
-                    </div>
-                    <div class="absolute bottom-3 right-3 bg-cyan-400 text-deep w-12 h-12 rounded-full flex items-center justify-center font-black text-xl -rotate-12 shadow-xl border-2 border-deep">🛟</div>
-                  </div>
-                </div>
-
-                <!-- Alex Card - The Level-Up Challenger (Duplicate) -->
-                <div class="persona-card-wrapper flex-shrink-0">
-                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-solar rounded-[24px] shadow-[0_24px_80px_rgba(255,107,53,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(255,107,53,0.6)]">
-                    <div class="absolute inset-0 opacity-10" style="background: repeating-linear-gradient(-45deg, transparent, transparent 15px, rgba(255,107,53,0.3) 15px, rgba(255,107,53,0.3) 30px);"></div>
-                    <div class="absolute top-0 right-0 w-32 h-32 bg-solar -mr-10 -mt-10 rotate-45 opacity-90"></div>
-                    <div class="absolute bottom-0 left-0 w-24 h-24 bg-ember -ml-8 -mb-8 rotate-12 opacity-80"></div>
-                    <div class="relative z-10 w-36 h-36 mx-auto mt-6 mb-4 rounded-2xl overflow-hidden border-4 border-solar shadow-[0_12px_40px_rgba(255,107,53,0.6)] bg-gradient-to-br from-solar/30 to-ember/30 flex items-center justify-center">
-                      <div class="text-6xl font-black text-solar/60 select-none">A</div>
-                      <div class="absolute top-2 right-2 bg-deep text-solar text-xs font-black px-2 py-1 rounded-md uppercase tracking-wider">Pro</div>
-                    </div>
-                    <div class="relative z-20 px-6">
-                      <h3 class="text-5xl font-[--font-display] font-black text-solar mb-1 tracking-tight uppercase" style="text-shadow: 3px 3px 0px rgba(0,0,0,0.8), -1px -1px 0px rgba(255,107,53,0.3);">Alex</h3>
-                      <div class="bg-solar text-deep px-3 py-1.5 inline-block font-black text-base uppercase tracking-wider mb-3 -rotate-2 shadow-lg">LEVEL UP</div>
-                      <div class="flex flex-wrap gap-2 mb-3">
-                        <div class="bg-deep border-2 border-solar text-solar px-3 py-1 text-xs font-bold uppercase rounded-lg">INTERVIEW PREP</div>
-                        <div class="bg-solar text-deep px-3 py-1 text-xs font-black uppercase rounded-lg">CHALLENGE MODE</div>
-                        <div class="bg-white/10 backdrop-blur text-cream px-3 py-1 text-xs font-bold uppercase rounded-lg">GROWTH HACKER</div>
-                      </div>
-                      <div class="bg-solar/20 backdrop-blur border-l-4 border-solar p-3 mb-2">
-                        <p class="text-sm text-cream font-semibold leading-tight">Practice hard conversations. Nail interviews. Push limits. Competitive growth mindset.</p>
-                      </div>
-                      <div class="flex justify-between items-center bg-deep/80 rounded-xl p-2 border-2 border-solar/40">
-                        <div class="text-center flex-1"><div class="text-xl font-black text-solar">↗</div><div class="text-[9px] text-solar/70 uppercase font-bold">Next Level</div></div>
-                        <div class="w-px h-8 bg-solar/30"></div>
-                        <div class="text-center flex-1"><div class="text-xl font-black text-solar">TOP 1%</div><div class="text-[9px] text-solar/70 uppercase font-bold">Mindset</div></div>
-                      </div>
-                    </div>
-                    <div class="absolute bottom-3 right-3 bg-solar text-deep w-12 h-12 rounded-full flex items-center justify-center font-black text-xl rotate-12 shadow-xl border-2 border-deep">⚡</div>
-                  </div>
-                </div>
-
-                <!-- Marcus Card - The Deal Closer (Duplicate) -->
-                <div class="persona-card-wrapper flex-shrink-0">
-                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-purple-500 rounded-[24px] shadow-[0_24px_80px_rgba(168,85,247,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(168,85,247,0.6)]">
-                    <div class="absolute inset-0 opacity-10" style="background-image: repeating-linear-gradient(0deg, transparent, transparent 25px, rgba(168,85,247,0.3) 25px, rgba(168,85,247,0.3) 27px), repeating-linear-gradient(90deg, transparent, transparent 25px, rgba(168,85,247,0.3) 25px, rgba(168,85,247,0.3) 27px);"></div>
-                    <div class="absolute top-0 left-0 w-28 h-28 bg-purple-500 -ml-10 -mt-10 rotate-45 opacity-90"></div>
-                    <div class="absolute bottom-0 right-0 w-24 h-24 bg-purple-600 -mr-8 -mb-8 -rotate-12 opacity-80"></div>
-                    <div class="relative z-10 w-36 h-36 mx-auto mt-6 mb-4 rounded-2xl overflow-hidden border-4 border-purple-500 shadow-[0_12px_40px_rgba(168,85,247,0.6)] bg-gradient-to-br from-purple-500/30 to-purple-600/30 flex items-center justify-center">
-                      <div class="text-6xl font-black text-purple-500/60 select-none">M</div>
-                      <div class="absolute top-2 right-2 bg-deep text-purple-400 text-xs font-black px-2 py-1 rounded-md uppercase tracking-wider">Closer</div>
-                    </div>
-                    <div class="relative z-20 px-6">
-                      <h3 class="text-5xl font-[--font-display] font-black text-purple-400 mb-1 tracking-tight uppercase" style="text-shadow: 3px 3px 0px rgba(0,0,0,0.8), -1px -1px 0px rgba(168,85,247,0.3);">Marcus</h3>
-                      <div class="bg-purple-500 text-deep px-3 py-1.5 inline-block font-black text-base uppercase tracking-wider mb-3 rotate-1 shadow-lg">CLOSE DEALS</div>
-                      <div class="flex flex-wrap gap-2 mb-3">
-                        <div class="bg-deep border-2 border-purple-500 text-purple-400 px-3 py-1 text-xs font-bold uppercase rounded-lg">NEGOTIATION</div>
-                        <div class="bg-purple-500 text-deep px-3 py-1 text-xs font-black uppercase rounded-lg">SALES PRO</div>
-                        <div class="bg-white/10 backdrop-blur text-cream px-3 py-1 text-xs font-bold uppercase rounded-lg">POWER MOVES</div>
-                      </div>
-                      <div class="bg-purple-500/20 backdrop-blur border-l-4 border-purple-500 p-3 mb-2">
-                        <p class="text-sm text-cream font-semibold leading-tight">Negotiation leverage. Strategic timing. Calls during deals to boost your position. Close with confidence.</p>
-                      </div>
-                      <div class="flex justify-between items-center bg-deep/80 rounded-xl p-2 border-2 border-purple-500/40">
-                        <div class="text-center flex-1"><div class="text-xl font-black text-purple-400">$$$</div><div class="text-[9px] text-purple-400/70 uppercase font-bold">Value Add</div></div>
-                        <div class="w-px h-8 bg-purple-500/30"></div>
-                        <div class="text-center flex-1"><div class="text-xl font-black text-purple-400">WIN</div><div class="text-[9px] text-purple-400/70 uppercase font-bold">Every Time</div></div>
-                      </div>
-                    </div>
-                    <div class="absolute bottom-3 right-3 bg-purple-500 text-deep w-12 h-12 rounded-full flex items-center justify-center font-black text-xl -rotate-12 shadow-xl border-2 border-deep">💼</div>
-                  </div>
-                </div>
-
-                <!-- Jamie Card - The Adventure Buddy (Duplicate) -->
-                <div class="persona-card-wrapper flex-shrink-0">
-                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-lime-400 rounded-[24px] shadow-[0_24px_80px_rgba(163,230,53,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(163,230,53,0.6)]">
-                    <div class="absolute inset-0 opacity-10" style="background: repeating-radial-gradient(circle at 0 0, transparent 0, rgba(163,230,53,0.3) 25px, transparent 50px);"></div>
-                    <div class="absolute top-0 right-0 w-32 h-32 bg-lime-400 -mr-12 -mt-12 -rotate-45 opacity-90"></div>
-                    <div class="absolute bottom-0 left-0 w-20 h-20 bg-lime-500 -ml-6 -mb-6 rotate-12 opacity-80"></div>
-                    <div class="relative z-10 w-36 h-36 mx-auto mt-6 mb-4 rounded-2xl overflow-hidden border-4 border-lime-400 shadow-[0_12px_40px_rgba(163,230,53,0.6)] bg-gradient-to-br from-lime-400/30 to-lime-500/30 flex items-center justify-center">
-                      <div class="text-6xl font-black text-lime-400/60 select-none">J</div>
-                      <div class="absolute top-2 right-2 bg-deep text-lime-400 text-xs font-black px-2 py-1 rounded-md uppercase tracking-wider">Wild</div>
-                    </div>
-                    <div class="relative z-20 px-6">
-                      <h3 class="text-5xl font-[--font-display] font-black text-lime-400 mb-1 tracking-tight uppercase" style="text-shadow: 3px 3px 0px rgba(0,0,0,0.8), -1px -1px 0px rgba(163,230,53,0.3);">Jamie</h3>
-                      <div class="bg-lime-400 text-deep px-3 py-1.5 inline-block font-black text-base uppercase tracking-wider mb-3 -rotate-2 shadow-lg">LET'S GO!</div>
-                      <div class="flex flex-wrap gap-2 mb-3">
-                        <div class="bg-deep border-2 border-lime-400 text-lime-400 px-3 py-1 text-xs font-bold uppercase rounded-lg">SPONTANEOUS</div>
-                        <div class="bg-lime-400 text-deep px-3 py-1 text-xs font-black uppercase rounded-lg">ADVENTURE</div>
-                        <div class="bg-white/10 backdrop-blur text-cream px-3 py-1 text-xs font-bold uppercase rounded-lg">LIVE WILD</div>
-                      </div>
-                      <div class="bg-lime-400/20 backdrop-blur border-l-4 border-lime-400 p-3 mb-2">
-                        <p class="text-sm text-cream font-semibold leading-tight">Random challenges. Road trip decision maker. Break routine. Say yes to life. Your fun enabler.</p>
-                      </div>
-                      <div class="flex justify-between items-center bg-deep/80 rounded-xl p-2 border-2 border-lime-400/40">
-                        <div class="text-center flex-1"><div class="text-xl font-black text-lime-400">🎲</div><div class="text-[9px] text-lime-400/70 uppercase font-bold">Random Fun</div></div>
-                        <div class="w-px h-8 bg-lime-400/30"></div>
-                        <div class="text-center flex-1"><div class="text-xl font-black text-lime-400">YOLO</div><div class="text-[9px] text-lime-400/70 uppercase font-bold">Mindset</div></div>
-                      </div>
-                    </div>
-                    <div class="absolute bottom-3 right-3 bg-lime-400 text-deep w-12 h-12 rounded-full flex items-center justify-center font-black text-xl rotate-12 shadow-xl border-2 border-deep">🚀</div>
-                  </div>
-                </div>
 
               </div>
             </div>
@@ -923,5 +805,79 @@
 </template>
 
 <script setup>
-// No JS needed - pure Tailwind implementation
+import { ref, onMounted, onUnmounted } from 'vue';
+
+// Persona data with colors for navigation dots
+const personas = [
+  { name: 'Brad', color: '#fbbf24' }, // glow
+  { name: 'Sarah', color: '#22d3ee' }, // cyan-400
+  { name: 'Alex', color: '#ff6b35' }, // solar
+  { name: 'Marcus', color: '#a855f7' }, // purple-500
+  { name: 'Jamie', color: '#a3e635' }  // lime-400
+];
+
+// Reactive state
+const activePersona = ref(0);
+const personaContainer = ref(null);
+
+// Scroll to a specific persona
+const scrollToPersona = (index) => {
+  if (personaContainer.value) {
+    const cards = personaContainer.value.querySelectorAll('.persona-card-wrapper');
+    if (cards[index]) {
+      cards[index].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+};
+
+// Detect which persona is currently in view
+const handleScroll = () => {
+  if (!personaContainer.value) return;
+
+  const container = personaContainer.value;
+  const cards = container.querySelectorAll('.persona-card-wrapper');
+  const containerRect = container.getBoundingClientRect();
+  const containerCenter = containerRect.top + containerRect.height / 2;
+
+  let closestIndex = 0;
+  let closestDistance = Infinity;
+
+  cards.forEach((card, index) => {
+    const cardRect = card.getBoundingClientRect();
+    const cardCenter = cardRect.top + cardRect.height / 2;
+    const distance = Math.abs(cardCenter - containerCenter);
+
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestIndex = index;
+    }
+  });
+
+  activePersona.value = closestIndex;
+};
+
+// Setup scroll listener
+onMounted(() => {
+  if (personaContainer.value) {
+    personaContainer.value.addEventListener('scroll', handleScroll);
+  }
+});
+
+onUnmounted(() => {
+  if (personaContainer.value) {
+    personaContainer.value.removeEventListener('scroll', handleScroll);
+  }
+});
 </script>
+
+<style scoped>
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Opera */
+}
+</style>
