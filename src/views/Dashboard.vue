@@ -1,122 +1,143 @@
 <template>
-  <div class="dashboard-page">
-    <h1 class="page-title">Dashboard</h1>
-
-    <!-- Quick Actions -->
-    <div class="quick-actions">
-      <router-link to="/schedule" class="action-card">
-        <div class="action-icon">📞</div>
-        <h3>Schedule Call</h3>
-        <p>Set up a new call</p>
-      </router-link>
-
-      <router-link to="/contacts" class="action-card">
-        <div class="action-icon">👥</div>
-        <h3>My Contacts</h3>
-        <p>Manage personas</p>
-      </router-link>
-
-      <router-link to="/personas" class="action-card">
-        <div class="action-icon">🎭</div>
-        <h3>Explore Personas</h3>
-        <p>Find new personas</p>
-      </router-link>
+  <div class="min-h-screen bg-midnight text-cream font-[--font-body] pt-24 pb-16 px-6">
+    <!-- Ambient Background -->
+    <div class="fixed inset-0 -z-10 bg-midnight">
+      <div class="grain-overlay absolute inset-0 pointer-events-none mix-blend-overlay opacity-50"></div>
+      <div class="absolute w-[600px] h-[600px] -top-[200px] -right-[200px] opacity-10 pointer-events-none blur-[120px] animate-[float_20s_ease-in-out_infinite] bg-gradient-radial from-glow via-ember to-transparent"></div>
+      <div class="absolute w-[500px] h-[500px] bottom-[10%] -left-[150px] opacity-12 pointer-events-none blur-[120px] animate-[float_25s_ease-in-out_infinite_reverse] bg-gradient-radial from-solar to-transparent"></div>
     </div>
 
-    <!-- Stats Overview -->
-    <div v-if="userStore.usageStats" class="stats-section">
-      <h2 class="section-title">Usage Overview</h2>
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-value">{{ userStore.usageStats.total_calls }}</div>
-          <div class="stat-label">Total Calls</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-value">{{ userStore.usageStats.total_minutes }}</div>
-          <div class="stat-label">Total Minutes</div>
-        </div>
-
-        <div class="stat-card">
-          <div class="stat-value">${{ userStore.usageStats.total_spent.toFixed(2) }}</div>
-          <div class="stat-label">Total Spent</div>
-        </div>
-
-        <div class="stat-card highlight">
-          <div class="stat-value">{{ userStore.usageStats.current_month.calls }}</div>
-          <div class="stat-label">This Month</div>
-          <small>${{ userStore.usageStats.current_month.spent.toFixed(2) }}</small>
-        </div>
-      </div>
-    </div>
-
-    <!-- Recent Calls -->
-    <div class="recent-calls-section">
-      <h2 class="section-title">Recent Calls</h2>
-
-      <div v-if="callsStore.calls.length === 0" class="empty-state">
-        <p>No calls yet. <router-link to="/schedule">Schedule your first call</router-link></p>
+    <div class="max-w-7xl mx-auto">
+      <!-- Header -->
+      <div class="mb-12 text-center opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards]">
+        <h1 class="text-5xl lg:text-6xl font-[--font-display] font-black mb-4 tracking-tight">
+          <span class="bg-gradient-to-r from-glow via-ember to-solar bg-clip-text text-transparent">Mission Control</span>
+        </h1>
+        <p class="text-lg text-cream/70">Your AI companion dashboard</p>
       </div>
 
-      <div v-else class="calls-list">
-        <div v-for="call in callsStore.calls.slice(0, 5)" :key="call.id" class="call-card">
-          <div class="call-header">
-            <div class="call-persona">
-              <h3>{{ call.persona_name }}</h3>
-              <span
-                class="badge"
-                :class="{
-                  'badge-success': call.status === 'completed',
-                  'badge-danger': call.status === 'failed',
-                  'badge-warning': call.status === 'in-progress'
-                }"
-              >
-                {{ call.status }}
-              </span>
-            </div>
-            <div class="call-cost">${{ call.cost.toFixed(2) }}</div>
+      <!-- Quick Actions -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12 opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.1s]">
+        <router-link to="/schedule" class="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-8 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(251,191,36,0.2)] overflow-hidden">
+          <div class="absolute top-0 right-0 w-32 h-32 bg-glow/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+          <div class="relative z-10 text-center">
+            <div class="text-5xl mb-4">📞</div>
+            <h3 class="text-xl font-bold mb-2">Schedule Call</h3>
+            <p class="text-sm text-cream/60">Set up a new call</p>
           </div>
+        </router-link>
 
-          <!-- NEW: Show scenario if present -->
-          <div v-if="call.call_scenario" class="call-scenario-badge">
-            <span class="scenario-icon">🎭</span>
-            <span class="scenario-preview">{{ truncateScenario(call.call_scenario) }}</span>
+        <router-link to="/contacts" class="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-8 transition-all duration-500 hover:bg-white/[0.12] hover:border-ember/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(255,140,66,0.2)] overflow-hidden">
+          <div class="absolute top-0 right-0 w-32 h-32 bg-ember/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+          <div class="relative z-10 text-center">
+            <div class="text-5xl mb-4">👥</div>
+            <h3 class="text-xl font-bold mb-2">My Contacts</h3>
+            <p class="text-sm text-cream/60">Manage personas</p>
           </div>
+        </router-link>
 
-          <div class="call-details">
-            <div class="call-detail">
-              <strong>Duration:</strong> {{ Math.floor(call.duration / 60) }}m {{ call.duration % 60 }}s
-            </div>
-            <div class="call-detail">
-              <strong>Started:</strong> {{ formatDate(call.start_time) }}
-            </div>
-            <div v-if="call.sid" class="call-detail">
-              <strong>Call ID:</strong> {{ call.sid }}
-            </div>
+        <router-link to="/personas" class="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-8 transition-all duration-500 hover:bg-white/[0.12] hover:border-solar/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(255,107,53,0.2)] overflow-hidden">
+          <div class="absolute top-0 right-0 w-32 h-32 bg-solar/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+          <div class="relative z-10 text-center">
+            <div class="text-5xl mb-4">🎭</div>
+            <h3 class="text-xl font-bold mb-2">Explore Personas</h3>
+            <p class="text-sm text-cream/60">Find new personas</p>
           </div>
-        </div>
-
-        <router-link v-if="callsStore.calls.length > 5" to="/profile" class="view-all-link">
-          View all calls →
         </router-link>
       </div>
-    </div>
 
-    <!-- Upcoming Scheduled Calls -->
-    <div v-if="callsStore.scheduledCalls.length > 0" class="scheduled-section">
-      <h2 class="section-title">Upcoming Calls</h2>
-
-      <div class="scheduled-list">
-        <div
-          v-for="call in callsStore.scheduledCalls"
-          :key="call.id"
-          class="scheduled-card"
-        >
-          <div class="scheduled-info">
-            <h3>{{ getPersonaName(call.persona_id) }}</h3>
-            <p class="scheduled-time">{{ formatScheduledTime(call.scheduled_time) }}</p>
+      <!-- Usage Stats -->
+      <div v-if="userStore.usageStats" class="mb-12 opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.2s]">
+        <h2 class="text-3xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
+          <span class="w-2 h-2 bg-glow rounded-full"></span>
+          Usage Overview
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-6">
+            <div class="text-4xl font-[--font-display] font-black mb-2 text-glow">{{ userStore.usageStats.total_calls }}</div>
+            <div class="text-sm text-cream/60 uppercase tracking-wider font-bold">Total Calls</div>
           </div>
-          <router-link to="/schedule" class="btn btn-secondary">Manage</router-link>
+          <div class="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-6">
+            <div class="text-4xl font-[--font-display] font-black mb-2 text-ember">{{ userStore.usageStats.total_minutes }}</div>
+            <div class="text-sm text-cream/60 uppercase tracking-wider font-bold">Total Minutes</div>
+          </div>
+          <div class="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-6">
+            <div class="text-4xl font-[--font-display] font-black mb-2 text-solar">${{ userStore.usageStats.total_spent.toFixed(2) }}</div>
+            <div class="text-sm text-cream/60 uppercase tracking-wider font-bold">Total Spent</div>
+          </div>
+          <div class="bg-gradient-to-r from-glow/20 to-ember/20 backdrop-blur-xl border-2 border-glow/40 rounded-2xl p-6">
+            <div class="text-4xl font-[--font-display] font-black mb-2">{{ userStore.usageStats.current_month.calls }}</div>
+            <div class="text-sm uppercase tracking-wider font-bold mb-1">This Month</div>
+            <div class="text-xs text-cream/70">${{ userStore.usageStats.current_month.spent.toFixed(2) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Calls -->
+      <div class="mb-12 opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.3s]">
+        <h2 class="text-3xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
+          <span class="w-2 h-2 bg-ember rounded-full"></span>
+          Recent Calls
+        </h2>
+
+        <div v-if="callsStore.calls.length === 0" class="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-12 text-center">
+          <p class="text-cream/60">No calls yet. <router-link to="/schedule" class="text-glow hover:text-ember transition-colors duration-300 font-semibold">Schedule your first call</router-link></p>
+        </div>
+
+        <div v-else class="space-y-4">
+          <div v-for="call in callsStore.calls.slice(0, 5)" :key="call.id" class="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-6 hover:border-glow/30 transition-all duration-300">
+            <div class="flex items-start justify-between mb-4">
+              <div>
+                <h3 class="text-xl font-bold mb-1">{{ call.persona_name }}</h3>
+                <span class="inline-block px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider"
+                  :class="{
+                    'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30': call.status === 'completed',
+                    'bg-red-500/20 text-red-400 border border-red-500/30': call.status === 'failed',
+                    'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30': call.status === 'in-progress'
+                  }">
+                  {{ call.status }}
+                </span>
+              </div>
+              <div class="text-2xl font-black text-glow">${{ call.cost.toFixed(2) }}</div>
+            </div>
+
+            <div v-if="call.call_scenario" class="bg-white/5 border-l-4 border-glow p-4 rounded-lg mb-4">
+              <div class="flex items-start gap-3">
+                <span class="text-xl">🎭</span>
+                <p class="text-sm text-cream/70 italic">{{ truncateScenario(call.call_scenario) }}</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-4 text-sm text-cream/60">
+              <div><strong class="text-cream">Duration:</strong> {{ Math.floor(call.duration / 60) }}m {{ call.duration % 60 }}s</div>
+              <div><strong class="text-cream">Started:</strong> {{ formatDate(call.start_time) }}</div>
+              <div v-if="call.sid" class="truncate"><strong class="text-cream">ID:</strong> {{ call.sid }}</div>
+            </div>
+          </div>
+
+          <router-link v-if="callsStore.calls.length > 5" to="/profile" class="block text-center py-4 bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl text-glow hover:text-ember hover:border-glow/30 transition-all duration-300 font-semibold">
+            View all calls →
+          </router-link>
+        </div>
+      </div>
+
+      <!-- Upcoming Scheduled Calls -->
+      <div v-if="callsStore.scheduledCalls.length > 0" class="opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.4s]">
+        <h2 class="text-3xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
+          <span class="w-2 h-2 bg-solar rounded-full"></span>
+          Upcoming Calls
+        </h2>
+
+        <div class="space-y-4">
+          <div v-for="call in callsStore.scheduledCalls" :key="call.id" class="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-6 flex items-center justify-between hover:border-solar/30 transition-all duration-300">
+            <div>
+              <h3 class="text-xl font-bold mb-2">{{ getPersonaName(call.persona_id) }}</h3>
+              <p class="text-cream/60">{{ formatScheduledTime(call.scheduled_time) }}</p>
+            </div>
+            <router-link to="/schedule" class="px-6 py-3 bg-gradient-to-r from-solar to-ember rounded-xl text-deep font-bold hover:scale-105 transition-transform duration-300">
+              Manage
+            </router-link>
+          </div>
         </div>
       </div>
     </div>
@@ -173,249 +194,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.dashboard-page {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-title {
-  font-size: 2.5rem;
-  color: white;
-  margin-bottom: 2rem;
-  text-align: center;
-  font-weight: 700;
-}
-
-.section-title {
-  font-size: 1.5rem;
-  color: white;
-  margin-bottom: 1.5rem;
-  font-weight: 600;
-}
-
-/* Quick Actions */
-.quick-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-  margin-bottom: 3rem;
-}
-
-.action-card {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  text-align: center;
-  text-decoration: none;
-  color: inherit;
-  transition: all 0.3s;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.action-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
-}
-
-.action-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-}
-
-.action-card h3 {
-  margin: 0.5rem 0;
-  color: #333;
-  font-size: 1.2rem;
-}
-
-.action-card p {
-  margin: 0;
-  color: #6c757d;
-  font-size: 0.9rem;
-}
-
-/* Stats Section */
-.stats-section {
-  margin-bottom: 3rem;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-}
-
-.stat-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.stat-card.highlight {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.stat-value {
-  font-size: 2.5rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-}
-
-.stat-label {
-  font-size: 0.9rem;
-  opacity: 0.8;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.stat-card small {
-  display: block;
-  margin-top: 0.5rem;
-  font-size: 0.85rem;
-}
-
-/* Recent Calls */
-.recent-calls-section,
-.scheduled-section {
-  margin-bottom: 3rem;
-}
-
-.calls-list,
-.scheduled-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.call-card,
-.scheduled-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.call-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 1rem;
-}
-
-.call-persona {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.call-persona h3 {
-  margin: 0;
-  font-size: 1.2rem;
-  color: #333;
-}
-
-.call-cost {
-  font-size: 1.3rem;
-  font-weight: 700;
-  color: #667eea;
-}
-
-.call-scenario-badge {
-  background: #f8f9fa;
-  border-left: 3px solid #667eea;
-  padding: 0.75rem;
-  margin: 0.75rem 0;
-  border-radius: 4px;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-}
-
-.scenario-icon {
-  font-size: 1.2em;
-  flex-shrink: 0;
-}
-
-.scenario-preview {
-  color: #495057;
-  font-size: 0.9rem;
-  font-style: italic;
-  line-height: 1.4;
-}
-
-.call-details {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
-  color: #6c757d;
-  font-size: 0.9rem;
-}
-
-.scheduled-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.scheduled-info h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.1rem;
-  color: #333;
-}
-
-.scheduled-time {
-  margin: 0;
-  color: #6c757d;
-  font-size: 0.9rem;
-}
-
-.empty-state {
-  background: white;
-  border-radius: 12px;
-  padding: 3rem;
-  text-align: center;
-  color: #6c757d;
-}
-
-.empty-state a {
-  color: #667eea;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.view-all-link {
-  display: block;
-  text-align: center;
-  padding: 1rem;
-  background: white;
-  border-radius: 8px;
-  color: #667eea;
-  text-decoration: none;
-  font-weight: 500;
-  transition: background 0.3s;
-}
-
-.view-all-link:hover {
-  background: #f8f9fa;
-}
-
-@media (max-width: 768px) {
-  .call-header,
-  .scheduled-card {
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .call-persona {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .scheduled-card .btn {
-    width: 100%;
-  }
+.grain-overlay {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='4' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
 }
 </style>

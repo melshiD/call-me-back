@@ -20,6 +20,11 @@ const routes = [
     meta: { requiresGuest: true }
   },
   {
+    path: '/pricing',
+    name: 'Pricing',
+    component: () => import('../views/Pricing.vue')
+  },
+  {
     path: '/dashboard',
     name: 'Dashboard',
     component: () => import('../views/Dashboard.vue'),
@@ -40,7 +45,12 @@ const routes = [
   {
     path: '/personas',
     name: 'Personas',
-    component: () => import('../views/Personas.vue'),
+    component: () => import('../views/Personas.vue')
+  },
+  {
+    path: '/personas/config',
+    name: 'PersonaConfig',
+    component: () => import('../views/PersonaConfig.vue'),
     meta: { requiresAuth: true }
   },
   {
@@ -71,7 +81,15 @@ const routes = [
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  scrollBehavior(to, from, savedPosition) {
+    // Always scroll to top when navigating to a new page
+    if (savedPosition) {
+      return savedPosition
+    } else {
+      return { top: 0, behavior: 'smooth' }
+    }
+  }
 })
 
 // Navigation guards

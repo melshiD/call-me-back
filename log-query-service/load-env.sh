@@ -24,6 +24,9 @@ POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 
 # Cache Settings
 CACHE_TTL=300
+
+# Admin Authentication
+ADMIN_SECRET_TOKEN=${ADMIN_SECRET_TOKEN}
 EOF
 
 echo "Environment variables loaded from parent .env"

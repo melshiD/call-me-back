@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const Database = require('../../utils/database');
 const { getCachedData, setCachedData } = require('../../utils/cache');
+const authMiddleware = require('../../middleware/auth');
 
 const db = new Database();
 
 // GET /api/admin/dashboard
 // Returns aggregated system-wide metrics
-router.get('/', async (req, res) => {
+router.get('/', authMiddleware, async (req, res) => {
   try {
     const { period = '30d' } = req.query;
     const cacheKey = `admin_dashboard_${period}`;
@@ -25,11 +26,17 @@ router.get('/', async (req, res) => {
       SELECT
         COUNT(*) as total_calls,
         COUNT(DISTINCT user_id) as active_users,
-        SUM(duration_seconds) as total_duration_seconds,
-        SUM(cost_usd) as total_cost_usd,
-        AVG(cost_usd) as avg_cost_per_call,
+        COALESCE(SUM(duration_seconds), 0) as total_duration_seconds,
+        COALESCE(SUM(actual_cost_cents), 0) / 100.0 as total_cost_usd,
+        COALESCE(SUM(estimated_cost_cents), 0) / 100.0 as estimated_cost_usd,
+        COALESCE(AVG(actual_cost_cents), 0) / 100.0 as avg_cost_per_call,
         COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_calls,
-        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_calls
+        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_calls,
+        COUNT(CASE WHEN status = 'in-progress' THEN 1 END) as in_progress_calls,
+        COUNT(CASE WHEN status = 'initiating' THEN 1 END) as initiating_calls,
+        COALESCE(SUM(CASE WHEN status = 'failed' THEN actual_cost_cents END), 0) / 100.0 as failed_call_costs,
+        COALESCE(SUM(CASE WHEN status = 'failed' THEN estimated_cost_cents END), 0) / 100.0 as failed_call_estimated_costs,
+        COALESCE(SUM(CASE WHEN status = 'completed' THEN actual_cost_cents END), 0) / 100.0 as completed_call_costs
       FROM calls
       WHERE created_at > NOW() - INTERVAL '${periodDays} days'
     `);
@@ -40,8 +47,7 @@ router.get('/', async (req, res) => {
     const costByServiceQuery = await db.pool.query(`
       SELECT
         service,
-        SUM(total_cost) as total_cost,
-        SUM(usage_amount) as total_usage,
+        COALESCE(SUM(calculated_cost_cents), 0) / 100.0 as total_cost,
         COUNT(*) as event_count
       FROM call_cost_events
       WHERE created_at > NOW() - INTERVAL '${periodDays} days'
@@ -68,6 +74,11 @@ router.get('/', async (req, res) => {
       LIMIT 5
     `);
 
+    // Calculate failed call costs (use actual if available, otherwise estimated)
+    const failedCallCostTotal = parseFloat(stats.failed_call_costs) > 0
+      ? parseFloat(stats.failed_call_costs)
+      : parseFloat(stats.failed_call_estimated_costs || 0);
+
     const result = {
       period: {
         label: `Last ${periodDays} days`,
@@ -80,6 +91,8 @@ router.get('/', async (req, res) => {
         activeUsers: parseInt(stats.active_users),
         completedCalls: parseInt(stats.completed_calls),
         failedCalls: parseInt(stats.failed_calls),
+        inProgressCalls: parseInt(stats.in_progress_calls || 0),
+        initiatingCalls: parseInt(stats.initiating_calls || 0),
         failureRate: stats.total_calls > 0
           ? ((parseInt(stats.failed_calls) / parseInt(stats.total_calls)) * 100).toFixed(2) + '%'
           : '0%',
@@ -92,9 +105,27 @@ router.get('/', async (req, res) => {
       financials: {
         revenue: revenue.toFixed(2),
         totalCost: totalCost.toFixed(2),
+        estimatedCost: parseFloat(stats.estimated_cost_usd || 0).toFixed(2),
+        failedCallCosts: failedCallCostTotal.toFixed(2),
+        completedCallCosts: parseFloat(stats.completed_call_costs || 0).toFixed(2),
         grossProfit: grossProfit.toFixed(2),
         marginPercent: marginPercent + '%',
         avgCostPerCall: parseFloat(stats.avg_cost_per_call || 0).toFixed(4)
+      },
+      callStatusBreakdown: {
+        completed: parseInt(stats.completed_calls),
+        failed: parseInt(stats.failed_calls),
+        inProgress: parseInt(stats.in_progress_calls || 0),
+        initiating: parseInt(stats.initiating_calls || 0),
+        completedPercent: stats.total_calls > 0
+          ? ((parseInt(stats.completed_calls) / parseInt(stats.total_calls)) * 100).toFixed(1) + '%'
+          : '0%',
+        failedPercent: stats.total_calls > 0
+          ? ((parseInt(stats.failed_calls) / parseInt(stats.total_calls)) * 100).toFixed(1) + '%'
+          : '0%',
+        inProgressPercent: stats.total_calls > 0
+          ? ((parseInt(stats.in_progress_calls || 0) / parseInt(stats.total_calls)) * 100).toFixed(1) + '%'
+          : '0%'
       },
       costByService: costByServiceQuery.rows.map(row => ({
         service: row.service,

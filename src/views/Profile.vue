@@ -1,300 +1,369 @@
 <template>
-  <div class="profile-page">
-    <h1 class="page-title">Profile & Settings</h1>
+  <div class="min-h-screen bg-midnight text-cream overflow-x-hidden font-[--font-body] pt-24 pb-16 px-6">
+    <!-- Ambient Background -->
+    <div class="fixed inset-0 -z-10 bg-midnight">
+      <div class="grain-overlay absolute inset-0 pointer-events-none mix-blend-overlay opacity-50"></div>
+      <div class="absolute w-[600px] h-[600px] -top-[200px] right-[10%] opacity-10 pointer-events-none blur-[120px] animate-[float_20s_ease-in-out_infinite] bg-gradient-radial from-glow via-ember to-transparent"></div>
+      <div class="absolute w-[500px] h-[500px] bottom-[15%] -left-[150px] opacity-12 pointer-events-none blur-[120px] animate-[float_25s_ease-in-out_infinite_reverse] bg-gradient-radial from-solar to-transparent"></div>
+    </div>
 
-    <div class="profile-container">
-      <!-- User Profile Section -->
-      <div class="card">
-        <h2 class="card-title">Profile Information</h2>
-
-        <form v-if="!editingProfile" class="profile-display">
-          <div class="info-item">
-            <strong>Name:</strong> {{ authStore.user?.name }}
-          </div>
-          <div class="info-item">
-            <strong>Email:</strong> {{ authStore.user?.email }}
-          </div>
-          <div class="info-item">
-            <strong>Phone:</strong> {{ authStore.user?.phone }}
-          </div>
-          <div class="info-item">
-            <strong>Member since:</strong> {{ formatDate(authStore.user?.created_at) }}
-          </div>
-
-          <button @click="editingProfile = true" class="btn btn-secondary">
-            Edit Profile
-          </button>
-        </form>
-
-        <form v-else @submit.prevent="handleUpdateProfile" class="profile-form">
-          <div class="form-group">
-            <label class="form-label" for="name">Name</label>
-            <input
-              id="name"
-              v-model="profileForm.name"
-              type="text"
-              class="form-control"
-              required
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="email">Email</label>
-            <input
-              id="email"
-              v-model="profileForm.email"
-              type="email"
-              class="form-control"
-              required
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="phone">Phone</label>
-            <input
-              id="phone"
-              v-model="profileForm.phone"
-              type="tel"
-              class="form-control"
-              required
-            />
-          </div>
-
-          <div v-if="profileError" class="error-message">
-            {{ profileError }}
-          </div>
-
-          <div v-if="profileSuccess" class="success-message">
-            Profile updated successfully!
-          </div>
-
-          <div class="form-actions">
-            <button type="button" @click="cancelEdit" class="btn btn-secondary">
-              Cancel
-            </button>
-            <button type="submit" class="btn btn-primary" :disabled="profileLoading">
-              {{ profileLoading ? 'Saving...' : 'Save Changes' }}
-            </button>
-          </div>
-        </form>
+    <div class="max-w-7xl mx-auto">
+      <!-- Header -->
+      <div class="mb-12 text-center opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards]">
+        <h1 class="text-5xl lg:text-6xl font-[--font-display] font-black mb-4 tracking-tight">
+          <span class="bg-gradient-to-r from-glow via-ember to-solar bg-clip-text text-transparent">Profile & Settings</span>
+        </h1>
+        <p class="text-lg text-cream/70">Manage your account and view activity</p>
       </div>
 
-      <!-- Billing Section -->
-      <div class="card">
-        <h2 class="card-title">Payment Methods</h2>
+      <!-- Grid Layout -->
+      <div class="grid lg:grid-cols-2 gap-8">
+        <!-- Profile Info Card -->
+        <div class="opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.1s]">
+          <div class="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 h-full">
+            <h2 class="text-2xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
+              <span class="w-2 h-2 bg-glow rounded-full"></span>
+              Profile Information
+            </h2>
 
-        <div v-if="userStore.billingInfo?.payment_methods.length === 0" class="empty-state-small">
-          <p>No payment methods added</p>
-        </div>
-
-        <div v-else class="payment-methods-list">
-          <div
-            v-for="pm in userStore.billingInfo?.payment_methods"
-            :key="pm.id"
-            class="payment-method-item"
-          >
-            <div class="payment-info">
-              <div class="card-icon">💳</div>
-              <div>
-                <strong>{{ pm.brand.toUpperCase() }} •••• {{ pm.last4 }}</strong>
-                <p class="text-muted">Expires {{ pm.exp_month }}/{{ pm.exp_year }}</p>
+            <div v-if="!editingProfile" class="space-y-4">
+              <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                <div class="text-sm text-cream/50 mb-1">Name</div>
+                <div class="font-semibold">{{ authStore.user?.name }}</div>
               </div>
-              <span v-if="pm.is_default" class="badge badge-success">Default</span>
+
+              <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                <div class="text-sm text-cream/50 mb-1">Email</div>
+                <div class="font-semibold">{{ authStore.user?.email }}</div>
+              </div>
+
+              <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                <div class="text-sm text-cream/50 mb-1">Phone</div>
+                <div class="font-semibold">{{ authStore.user?.phone }}</div>
+              </div>
+
+              <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-xl p-4">
+                <div class="text-sm text-cream/50 mb-1">Member Since</div>
+                <div class="font-semibold">{{ formatDate(authStore.user?.created_at) }}</div>
+              </div>
+
+              <button
+                @click="editingProfile = true"
+                class="w-full px-6 py-4 bg-white/5 border-2 border-white/20 rounded-xl font-bold hover:bg-white/10 hover:border-glow/40 transition-all duration-300"
+              >
+                Edit Profile
+              </button>
             </div>
 
-            <div class="payment-actions">
-              <button
-                v-if="!pm.is_default"
-                @click="setDefaultPayment(pm.id)"
-                class="btn btn-secondary btn-sm"
-              >
-                Set Default
-              </button>
-              <button
-                @click="removePayment(pm.id)"
-                class="btn btn-danger btn-sm"
-                :disabled="pm.is_default"
-              >
-                Remove
-              </button>
-            </div>
+            <form v-else @submit.prevent="handleUpdateProfile" class="space-y-4">
+              <div class="space-y-2">
+                <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Name</label>
+                <input
+                  v-model="profileForm.name"
+                  type="text"
+                  class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
+                  required
+                />
+              </div>
+
+              <div class="space-y-2">
+                <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Email</label>
+                <input
+                  v-model="profileForm.email"
+                  type="email"
+                  class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
+                  required
+                />
+              </div>
+
+              <div class="space-y-2">
+                <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Phone</label>
+                <input
+                  v-model="profileForm.phone"
+                  type="tel"
+                  class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
+                  required
+                />
+              </div>
+
+              <div v-if="profileError" class="bg-solar/10 border border-solar/30 rounded-xl p-4">
+                <p class="text-sm text-cream">{{ profileError }}</p>
+              </div>
+
+              <div v-if="profileSuccess" class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+                <p class="text-sm text-cream">Profile updated successfully!</p>
+              </div>
+
+              <div class="flex gap-3">
+                <button
+                  type="button"
+                  @click="cancelEdit"
+                  class="flex-1 px-6 py-4 bg-white/5 border-2 border-white/20 rounded-xl font-bold hover:bg-white/10 transition-all duration-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  class="flex-1 px-6 py-4 bg-gradient-to-r from-glow to-ember rounded-xl text-deep font-bold hover:scale-[1.02] transition-all duration-300 disabled:opacity-50"
+                  :disabled="profileLoading"
+                >
+                  {{ profileLoading ? 'Saving...' : 'Save' }}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
 
-        <button @click="showAddPaymentModal = true" class="btn btn-primary mt-1">
-          + Add Payment Method
-        </button>
+        <!-- Payment Methods Card -->
+        <div class="opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.2s]">
+          <div class="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 h-full">
+            <h2 class="text-2xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
+              <span class="w-2 h-2 bg-ember rounded-full"></span>
+              Payment Methods
+            </h2>
+
+            <div v-if="userStore.billingInfo?.payment_methods.length === 0" class="text-center py-12 text-cream/50">
+              No payment methods added
+            </div>
+
+            <div v-else class="space-y-3 mb-6">
+              <div
+                v-for="pm in userStore.billingInfo?.payment_methods"
+                :key="pm.id"
+                class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-xl p-5"
+              >
+                <div class="flex items-center justify-between mb-3">
+                  <div class="flex items-center gap-3">
+                    <div class="text-3xl">💳</div>
+                    <div>
+                      <div class="font-bold">{{ pm.brand.toUpperCase() }} •••• {{ pm.last4 }}</div>
+                      <div class="text-sm text-cream/50">Expires {{ pm.exp_month }}/{{ pm.exp_year }}</div>
+                    </div>
+                  </div>
+                  <span v-if="pm.is_default" class="px-3 py-1 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs rounded-full font-bold uppercase">
+                    Default
+                  </span>
+                </div>
+
+                <div class="flex gap-2">
+                  <button
+                    v-if="!pm.is_default"
+                    @click="setDefaultPayment(pm.id)"
+                    class="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm font-semibold hover:bg-white/10 hover:border-glow/30 transition-all duration-300"
+                  >
+                    Set Default
+                  </button>
+                  <button
+                    @click="removePayment(pm.id)"
+                    class="px-4 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm font-semibold hover:bg-red-500/20 transition-all duration-300"
+                    :disabled="pm.is_default"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button
+              @click="showAddPaymentModal = true"
+              class="w-full px-6 py-4 bg-gradient-to-r from-ember to-solar rounded-xl text-deep font-bold hover:scale-[1.02] transition-all duration-300"
+            >
+              + Add Payment Method
+            </button>
+          </div>
+        </div>
       </div>
 
-      <!-- Usage Statistics -->
-      <div class="card full-width">
-        <h2 class="card-title">Usage & Billing</h2>
+      <!-- Usage Stats (Full Width) -->
+      <div v-if="userStore.usageStats" class="mt-8 opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.3s]">
+        <div class="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10">
+          <h2 class="text-2xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
+            <span class="w-2 h-2 bg-solar rounded-full"></span>
+            Usage & Billing
+          </h2>
 
-        <div v-if="userStore.usageStats" class="usage-stats">
-          <div class="stats-summary">
-            <div class="stat-box">
-              <div class="stat-number">{{ userStore.usageStats.total_calls }}</div>
-              <div class="stat-label">Total Calls</div>
+          <!-- Stats Summary -->
+          <div class="grid sm:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center">
+              <div class="text-4xl font-[--font-display] font-black text-glow mb-2">{{ userStore.usageStats.total_calls }}</div>
+              <div class="text-sm text-cream/60 uppercase tracking-wider font-bold">Total Calls</div>
             </div>
-            <div class="stat-box">
-              <div class="stat-number">{{ userStore.usageStats.total_minutes }}</div>
-              <div class="stat-label">Total Minutes</div>
+            <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center">
+              <div class="text-4xl font-[--font-display] font-black text-ember mb-2">{{ userStore.usageStats.total_minutes }}</div>
+              <div class="text-sm text-cream/60 uppercase tracking-wider font-bold">Total Minutes</div>
             </div>
-            <div class="stat-box highlight">
-              <div class="stat-number">${{ userStore.usageStats.total_spent.toFixed(2) }}</div>
-              <div class="stat-label">Total Spent</div>
+            <div class="bg-gradient-to-br from-glow/20 to-ember/20 border-2 border-glow/40 rounded-2xl p-6 text-center">
+              <div class="text-4xl font-[--font-display] font-black mb-2">${{ userStore.usageStats.total_spent.toFixed(2) }}</div>
+              <div class="text-sm uppercase tracking-wider font-bold">Total Spent</div>
             </div>
           </div>
 
-          <div class="current-month">
-            <h3>This Month</h3>
-            <div class="month-stats">
+          <!-- This Month -->
+          <div class="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-2xl p-6 mb-8">
+            <h3 class="text-xl font-bold mb-4">This Month</h3>
+            <div class="grid grid-cols-3 gap-6 text-center">
               <div>
-                <strong>{{ userStore.usageStats.current_month.calls }}</strong> calls
+                <div class="text-3xl font-black mb-1">{{ userStore.usageStats.current_month.calls }}</div>
+                <div class="text-sm text-cream/60">calls</div>
               </div>
               <div>
-                <strong>{{ userStore.usageStats.current_month.minutes }}</strong> minutes
+                <div class="text-3xl font-black mb-1">{{ userStore.usageStats.current_month.minutes }}</div>
+                <div class="text-sm text-cream/60">minutes</div>
               </div>
               <div>
-                <strong>${{ userStore.usageStats.current_month.spent.toFixed(2) }}</strong> spent
+                <div class="text-3xl font-black mb-1">${{ userStore.usageStats.current_month.spent.toFixed(2) }}</div>
+                <div class="text-sm text-cream/60">spent</div>
               </div>
             </div>
           </div>
 
-          <div class="monthly-breakdown">
-            <h3>Monthly Breakdown</h3>
-            <div class="breakdown-table">
-              <div class="table-header">
+          <!-- Monthly Breakdown -->
+          <div>
+            <h3 class="text-xl font-bold mb-4">Monthly Breakdown</h3>
+            <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
+              <div class="grid grid-cols-4 gap-4 p-4 bg-white/5 font-bold text-sm uppercase tracking-wider">
                 <div>Month</div>
-                <div>Calls</div>
-                <div>Minutes</div>
-                <div>Spent</div>
+                <div class="text-center">Calls</div>
+                <div class="text-center">Minutes</div>
+                <div class="text-right">Spent</div>
               </div>
               <div
                 v-for="month in userStore.usageStats.monthly_breakdown"
                 :key="month.month"
-                class="table-row"
+                class="grid grid-cols-4 gap-4 p-4 border-t border-white/5 hover:bg-white/[0.02] transition-colors"
               >
-                <div>{{ month.month }}</div>
-                <div>{{ month.calls }}</div>
-                <div>{{ month.minutes }}</div>
-                <div>${{ month.spent.toFixed(2) }}</div>
+                <div class="font-semibold">{{ month.month }}</div>
+                <div class="text-center">{{ month.calls }}</div>
+                <div class="text-center">{{ month.minutes }}</div>
+                <div class="text-right font-semibold text-glow">${{ month.spent.toFixed(2) }}</div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Call History -->
-      <div class="card full-width">
-        <h2 class="card-title">Call History</h2>
+      <!-- Call History (Full Width) -->
+      <div class="mt-8 opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.4s]">
+        <div class="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10">
+          <h2 class="text-2xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
+            <span class="w-2 h-2 bg-glow rounded-full"></span>
+            Call History
+          </h2>
 
-        <div v-if="callsStore.calls.length === 0" class="empty-state-small">
-          <p>No calls yet</p>
-        </div>
-
-        <div v-else class="call-history-table">
-          <div class="table-header">
-            <div>Persona</div>
-            <div>Date</div>
-            <div>Duration</div>
-            <div>Cost</div>
-            <div>Status</div>
+          <div v-if="callsStore.calls.length === 0" class="text-center py-12 text-cream/50">
+            No calls yet
           </div>
-          <div
-            v-for="call in callsStore.calls"
-            :key="call.id"
-            class="table-row"
-          >
-            <div>{{ call.persona_name }}</div>
-            <div>{{ formatDateTime(call.start_time) }}</div>
-            <div>{{ formatDuration(call.duration) }}</div>
-            <div>${{ call.cost.toFixed(2) }}</div>
-            <div>
-              <span
-                class="badge"
-                :class="{
-                  'badge-success': call.status === 'completed',
-                  'badge-danger': call.status === 'failed',
-                  'badge-warning': call.status === 'in-progress'
-                }"
-              >
-                {{ call.status }}
-              </span>
+
+          <div v-else class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
+            <div class="grid grid-cols-5 gap-4 p-4 bg-white/5 font-bold text-sm uppercase tracking-wider">
+              <div>Persona</div>
+              <div>Date</div>
+              <div class="text-center">Duration</div>
+              <div class="text-center">Cost</div>
+              <div class="text-center">Status</div>
+            </div>
+            <div
+              v-for="call in callsStore.calls"
+              :key="call.id"
+              class="grid grid-cols-5 gap-4 p-4 border-t border-white/5 hover:bg-white/[0.02] transition-colors items-center"
+            >
+              <div class="font-semibold">{{ call.persona_name }}</div>
+              <div class="text-sm">{{ formatDateTime(call.start_time) }}</div>
+              <div class="text-center">{{ formatDuration(call.duration) }}</div>
+              <div class="text-center font-semibold text-glow">${{ call.cost.toFixed(2) }}</div>
+              <div class="text-center">
+                <span
+                  class="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase"
+                  :class="{
+                    'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400': call.status === 'completed',
+                    'bg-red-500/20 border border-red-500/30 text-red-400': call.status === 'failed',
+                    'bg-yellow-500/20 border border-yellow-500/30 text-yellow-400': call.status === 'in-progress'
+                  }"
+                >
+                  {{ call.status }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Add Payment Method Modal -->
-    <div v-if="showAddPaymentModal" class="modal-overlay" @click="closePaymentModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h2>Add Payment Method</h2>
-          <button @click="closePaymentModal" class="btn-close">×</button>
+    <!-- Add Payment Modal -->
+    <div v-if="showAddPaymentModal" class="fixed inset-0 z-50 flex items-center justify-center px-6 bg-midnight/80 backdrop-blur-md" @click="closePaymentModal">
+      <div class="relative bg-gradient-to-br from-white/[0.12] to-white/[0.04] backdrop-blur-2xl border-2 border-white/20 rounded-[32px] p-10 max-w-lg w-full shadow-[0_32px_100px_rgba(0,0,0,0.5)]" @click.stop>
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-3xl font-[--font-display] font-bold">Add Payment Method</h2>
+          <button @click="closePaymentModal" class="text-cream/60 hover:text-cream transition-colors">
+            <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        <div class="payment-info-box">
-          <p>In a real implementation, this would integrate with Stripe Elements to securely collect card information.</p>
-          <p><strong>For demo purposes:</strong> Enter any card details below</p>
+        <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 mb-6 text-sm">
+          <p class="mb-2"><strong>Demo Mode:</strong> This is a demo interface. In production, this would integrate with Stripe Elements for secure card processing.</p>
+          <p>Enter any card details below for testing.</p>
         </div>
 
-        <form @submit.prevent="handleAddPayment" class="payment-form">
-          <div class="form-group">
-            <label class="form-label" for="card-number">Card Number</label>
+        <form @submit.prevent="handleAddPayment" class="space-y-4">
+          <div class="space-y-2">
+            <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Card Number</label>
             <input
-              id="card-number"
               v-model="paymentForm.cardNumber"
               type="text"
-              class="form-control"
+              class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
               placeholder="4242 4242 4242 4242"
               required
             />
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label" for="exp-date">Expiry</label>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Expiry</label>
               <input
-                id="exp-date"
                 v-model="paymentForm.expiry"
                 type="text"
-                class="form-control"
+                class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
                 placeholder="MM/YY"
                 required
               />
             </div>
 
-            <div class="form-group">
-              <label class="form-label" for="cvc">CVC</label>
+            <div class="space-y-2">
+              <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">CVC</label>
               <input
-                id="cvc"
                 v-model="paymentForm.cvc"
                 type="text"
-                class="form-control"
+                class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
                 placeholder="123"
                 required
               />
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input v-model="paymentForm.setAsDefault" type="checkbox" />
-              Set as default payment method
-            </label>
+          <label class="flex items-center gap-3 cursor-pointer">
+            <input v-model="paymentForm.setAsDefault" type="checkbox" class="w-5 h-5 rounded" />
+            <span class="text-sm font-semibold">Set as default payment method</span>
+          </label>
+
+          <div v-if="paymentError" class="bg-solar/10 border border-solar/30 rounded-xl p-4">
+            <p class="text-sm text-cream">{{ paymentError }}</p>
           </div>
 
-          <div v-if="paymentError" class="error-message">
-            {{ paymentError }}
-          </div>
-
-          <div class="modal-actions">
-            <button type="button" @click="closePaymentModal" class="btn btn-secondary">
+          <div class="flex gap-3 pt-2">
+            <button
+              type="button"
+              @click="closePaymentModal"
+              class="flex-1 px-6 py-4 bg-white/5 border-2 border-white/20 rounded-xl font-bold hover:bg-white/10 transition-all duration-300"
+            >
               Cancel
             </button>
-            <button type="submit" class="btn btn-primary" :disabled="paymentLoading">
+            <button
+              type="submit"
+              class="flex-1 px-6 py-4 bg-gradient-to-r from-glow to-ember rounded-xl text-deep font-bold hover:scale-[1.02] transition-all duration-300 disabled:opacity-50"
+              :disabled="paymentLoading"
+            >
               {{ paymentLoading ? 'Adding...' : 'Add Card' }}
             </button>
           </div>
@@ -377,7 +446,6 @@ const handleUpdateProfile = async () => {
   try {
     await userStore.updateProfile(profileForm.value)
 
-    // Update auth store user
     authStore.user = {
       ...authStore.user,
       ...profileForm.value
@@ -400,18 +468,8 @@ const handleAddPayment = async () => {
   paymentError.value = ''
 
   try {
-    /**
-     * In a real implementation, you would:
-     * 1. Use Stripe Elements to securely tokenize the card
-     * 2. Send the token to your backend
-     * 3. Backend creates PaymentMethod and attaches to customer
-     *
-     * For now, we'll just mock it
-     */
     const mockPaymentMethodId = 'pm_' + Math.random().toString(36).substr(2, 9)
-
     await userStore.addPaymentMethod(mockPaymentMethodId, paymentForm.value.setAsDefault)
-
     closePaymentModal()
   } catch (err) {
     paymentError.value = err.message || 'Failed to add payment method'
@@ -450,7 +508,6 @@ const closePaymentModal = () => {
 }
 
 onMounted(async () => {
-  // Initialize profile form
   if (authStore.user) {
     profileForm.value = {
       name: authStore.user.name,
@@ -466,318 +523,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.profile-page {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-title {
-  font-size: 2.5rem;
-  color: white;
-  margin-bottom: 2rem;
-  text-align: center;
-  font-weight: 700;
-}
-
-.profile-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 1.5rem;
-}
-
-.card.full-width {
-  grid-column: 1 / -1;
-}
-
-.card-title {
-  font-size: 1.5rem;
-  margin-bottom: 1.5rem;
-  color: #333;
-}
-
-/* Profile Section */
-.profile-display {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.info-item {
-  padding: 0.75rem;
-  background: #f8f9fa;
-  border-radius: 6px;
-}
-
-.profile-display .btn {
-  margin-top: 1rem;
-  align-self: flex-start;
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1rem;
-}
-
-/* Payment Methods */
-.payment-methods-list {
-  margin-bottom: 1.5rem;
-}
-
-.payment-method-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-}
-
-.payment-info {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex: 1;
-}
-
-.card-icon {
-  font-size: 2rem;
-}
-
-.payment-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.btn-sm {
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-}
-
-/* Usage Stats */
-.usage-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-}
-
-.stats-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1.5rem;
-}
-
-.stat-box {
-  text-align: center;
-  padding: 1.5rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-}
-
-.stat-box.highlight {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.stat-number {
-  font-size: 2rem;
-  font-weight: 700;
-  margin-bottom: 0.5rem;
-}
-
-.stat-label {
-  font-size: 0.9rem;
-  opacity: 0.8;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.current-month {
-  padding: 1.5rem;
-  background: #e7f3ff;
-  border-radius: 8px;
-}
-
-.current-month h3 {
-  margin: 0 0 1rem 0;
-  color: #0c5460;
-}
-
-.month-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 1rem;
-}
-
-.monthly-breakdown h3 {
-  margin-bottom: 1rem;
-  color: #333;
-}
-
-/* Tables */
-.breakdown-table,
-.call-history-table {
-  overflow-x: auto;
-}
-
-.table-header,
-.table-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  padding: 0.75rem;
-  align-items: center;
-}
-
-.call-history-table .table-header,
-.call-history-table .table-row {
-  grid-template-columns: 1.5fr 1.5fr 1fr 1fr 1fr;
-}
-
-.table-header {
-  font-weight: 600;
-  background: #f8f9fa;
-  border-radius: 6px;
-}
-
-.table-row {
-  border-bottom: 1px solid #e9ecef;
-}
-
-.table-row:last-child {
-  border-bottom: none;
-}
-
-.empty-state-small {
-  text-align: center;
-  padding: 2rem;
-  color: #6c757d;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  max-width: 500px;
-  width: 100%;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  color: #333;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  font-size: 2rem;
-  cursor: pointer;
-  color: #6c757d;
-  line-height: 1;
-  padding: 0;
-}
-
-.payment-info-box {
-  background: #fff3cd;
-  padding: 1rem;
-  border-radius: 6px;
-  margin-bottom: 1.5rem;
-  color: #856404;
-  font-size: 0.9rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 1rem;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-}
-
-.checkbox-label input[type="checkbox"] {
-  width: auto;
-  cursor: pointer;
-}
-
-.modal-actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 1.5rem;
-  justify-content: flex-end;
-}
-
-.error-message {
-  background: #f8d7da;
-  color: #721c24;
-  padding: 0.75rem;
-  border-radius: 6px;
-  margin-bottom: 1rem;
-}
-
-.success-message {
-  background: #d4edda;
-  color: #155724;
-  padding: 0.75rem;
-  border-radius: 6px;
-  margin-bottom: 1rem;
-}
-
-@media (max-width: 768px) {
-  .profile-container {
-    grid-template-columns: 1fr;
-  }
-
-  .payment-method-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-
-  .payment-actions {
-    width: 100%;
-  }
-
-  .payment-actions .btn {
-    flex: 1;
-  }
-
-  .table-header,
-  .table-row {
-    font-size: 0.85rem;
-    gap: 0.5rem;
-  }
-
-  .form-row {
-    grid-template-columns: 1fr;
-  }
+.grain-overlay {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='4' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
 }
 </style>

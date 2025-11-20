@@ -22,7 +22,8 @@ tar -czf log-query-service.tar.gz \
   collectors/ \
   trackers/ \
   routes/ \
-  utils/
+  utils/ \
+  middleware/
 
 # Copy to Vultr
 echo "📤 Uploading to Vultr..."

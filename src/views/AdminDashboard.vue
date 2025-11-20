@@ -92,7 +92,7 @@
                 </svg>
               </div>
               <div class="text-5xl font-[--font-display] font-black mb-2 font-mono bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">
-                {{ formatNumber(dashboardData.summary?.total_calls || 0) }}
+                {{ formatNumber(dashboardData.summary?.totalCalls || 0) }}
               </div>
               <div class="text-xs text-cream/40 font-medium">Since launch</div>
             </div>
@@ -109,7 +109,7 @@
                 </svg>
               </div>
               <div class="text-5xl font-[--font-display] font-black mb-2 font-mono text-emerald-400">
-                ${{ formatCurrency(dashboardData.summary?.total_revenue || 0) }}
+                ${{ formatCurrency(dashboardData.financials?.revenue || 0) }}
               </div>
               <div class="text-xs text-cream/40 font-medium">Total earnings</div>
             </div>
@@ -126,7 +126,7 @@
                 </svg>
               </div>
               <div class="text-5xl font-[--font-display] font-black mb-2 font-mono text-ember">
-                ${{ formatCurrency(dashboardData.summary?.total_cost || 0) }}
+                ${{ formatCurrency(dashboardData.financials?.totalCost || 0) }}
               </div>
               <div class="text-xs text-cream/40 font-medium">Total expenses</div>
             </div>
@@ -143,11 +143,65 @@
                 </svg>
               </div>
               <div class="text-5xl font-[--font-display] font-black mb-2 font-mono bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">
-                ${{ formatCurrency((dashboardData.summary?.total_revenue || 0) - (dashboardData.summary?.total_cost || 0)) }}
+                ${{ formatCurrency((dashboardData.financials?.revenue || 0) - (dashboardData.financials?.totalCost || 0)) }}
               </div>
               <div class="text-xs font-medium" :class="profitMargin >= 70 ? 'text-emerald-400' : profitMargin >= 50 ? 'text-glow' : 'text-ember'">
                 {{ profitMargin }}% margin
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Call Status & Failed Call Costs -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Failed Call Costs -->
+          <div class="group relative bg-gradient-to-br from-red-500/10 to-red-500/5 backdrop-blur-xl border border-red-500/30 rounded-2xl p-8 transition-all duration-500 hover:bg-red-500/15 hover:border-red-500/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(239,68,68,0.2)] overflow-hidden">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <div class="relative z-10">
+              <div class="flex items-center justify-between mb-4">
+                <div class="text-sm font-bold uppercase tracking-[0.15em] text-cream/50">Failed Costs</div>
+                <svg class="w-6 h-6 text-red-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div class="text-4xl font-[--font-display] font-black mb-2 font-mono text-red-400">
+                ${{ formatCurrency(dashboardData.financials?.failedCallCosts || 0) }}
+              </div>
+              <div class="text-xs text-cream/40 font-medium">{{ dashboardData.summary?.failedCalls || 0 }} failed calls</div>
+            </div>
+          </div>
+
+          <!-- In-Progress Calls -->
+          <div class="group relative bg-gradient-to-br from-blue-500/10 to-blue-500/5 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-8 transition-all duration-500 hover:bg-blue-500/15 hover:border-blue-500/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(59,130,246,0.2)] overflow-hidden">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <div class="relative z-10">
+              <div class="flex items-center justify-between mb-4">
+                <div class="text-sm font-bold uppercase tracking-[0.15em] text-cream/50">In Progress</div>
+                <svg class="w-6 h-6 text-blue-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div class="text-4xl font-[--font-display] font-black mb-2 font-mono text-blue-400">
+                {{ formatNumber(dashboardData.summary?.inProgressCalls || 0) }}
+              </div>
+              <div class="text-xs text-cream/40 font-medium">{{ dashboardData.callStatusBreakdown?.inProgressPercent || '0%' }}</div>
+            </div>
+          </div>
+
+          <!-- Completed Call Costs -->
+          <div class="group relative bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 backdrop-blur-xl border border-emerald-500/30 rounded-2xl p-8 transition-all duration-500 hover:bg-emerald-500/15 hover:border-emerald-500/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(16,185,129,0.2)] overflow-hidden">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+            <div class="relative z-10">
+              <div class="flex items-center justify-between mb-4">
+                <div class="text-sm font-bold uppercase tracking-[0.15em] text-cream/50">Completed Costs</div>
+                <svg class="w-6 h-6 text-emerald-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div class="text-4xl font-[--font-display] font-black mb-2 font-mono text-emerald-400">
+                ${{ formatCurrency(dashboardData.financials?.completedCallCosts || 0) }}
+              </div>
+              <div class="text-xs text-cream/40 font-medium">{{ dashboardData.summary?.completedCalls || 0 }} completed</div>
             </div>
           </div>
         </div>
@@ -162,7 +216,7 @@
             </h2>
             <div class="space-y-4">
               <div
-                v-for="service in dashboardData.cost_breakdown"
+                v-for="service in dashboardData.costByService"
                 :key="service.service"
                 class="group flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-glow/30 rounded-xl transition-all duration-300"
               >
@@ -192,7 +246,7 @@
             </h2>
             <div class="space-y-4">
               <div
-                v-for="(persona, index) in dashboardData.top_personas"
+                v-for="(persona, index) in dashboardData.topPersonas"
                 :key="persona.persona_id"
                 class="group flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-glow/30 rounded-xl transition-all duration-300"
               >
@@ -315,8 +369,8 @@ const periodOptions = [
 
 // Computed
 const profitMargin = computed(() => {
-  const revenue = dashboardData.value.summary?.total_revenue || 0;
-  const cost = dashboardData.value.summary?.total_cost || 0;
+  const revenue = parseFloat(dashboardData.value.financials?.revenue || 0);
+  const cost = parseFloat(dashboardData.value.financials?.totalCost || 0);
   if (revenue === 0) return 0;
   return Math.round(((revenue - cost) / revenue) * 100);
 });
@@ -333,8 +387,9 @@ const fetchDashboardData = async () => {
       return;
     }
 
-    const API_URL = import.meta.env.VITE_API_URL;
-    const response = await fetch(`${API_URL}/api/admin/dashboard?period=${selectedPeriod.value}`, {
+    // Call log-query-service directly (bypasses Cloudflare Workers fetch limitation)
+    const LOG_QUERY_URL = 'https://logs.ai-tools-marketplace.io';
+    const response = await fetch(`${LOG_QUERY_URL}/api/admin/dashboard?period=${selectedPeriod.value}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'

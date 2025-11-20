@@ -1,0 +1,32 @@
+# Caddy configuration for log-query-service
+# Add this to /etc/caddy/Caddyfile on Vultr server
+
+logs.ai-tools-marketplace.io {
+    # Reverse proxy to local service
+    reverse_proxy localhost:3001
+
+    # Enable CORS for Raindrop API Gateway
+    header {
+        Access-Control-Allow-Origin *
+        Access-Control-Allow-Methods "GET, POST, OPTIONS"
+        Access-Control-Allow-Headers "Authorization, Content-Type"
+    }
+
+    # Gzip compression
+    encode gzip
+
+    # Logging
+    log {
+        output file /var/log/caddy/logs-service.log
+        format json
+    }
+
+    # Optional: Rate limiting (requires caddy-ratelimit plugin)
+    # rate_limit {
+    #     zone logs_zone {
+    #         key {remote_host}
+    #         events 100
+    #         window 1m
+    #     }
+    # }
+}

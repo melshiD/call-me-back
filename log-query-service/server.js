@@ -88,10 +88,12 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Bind to localhost only for security (internal service, not public)
+// Bind to localhost only - accessed via Caddy reverse proxy (SECURE PATTERN)
+// External access: https://logs.ai-tools-marketplace.io → Caddy → localhost:3001
 app.listen(PORT, '127.0.0.1', () => {
   logger.info(`Log Query Service listening on localhost:${PORT} (internal only)`);
+  logger.info(`External access: https://logs.ai-tools-marketplace.io (via Caddy proxy)`);
   logger.info(`Health check: http://localhost:${PORT}/health`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-  logger.info(`Security: Bound to localhost - accessible only from Vultr server`);
+  logger.info(`Security: SECURE - Bound to localhost, proxied via Caddy with SSL`);
 });

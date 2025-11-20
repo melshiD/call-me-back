@@ -1,235 +1,246 @@
 <template>
-  <div class="schedule-page">
-    <h1 class="page-title">Schedule a Call</h1>
+  <div class="min-h-screen bg-midnight text-cream overflow-x-hidden font-[--font-body] pt-24 pb-16 px-6">
+    <!-- Ambient Background -->
+    <div class="fixed inset-0 -z-10 bg-midnight">
+      <div class="grain-overlay absolute inset-0 pointer-events-none mix-blend-overlay opacity-50"></div>
+      <div class="absolute w-[600px] h-[600px] top-[15%] right-[5%] opacity-12 pointer-events-none blur-[120px] animate-[float_20s_ease-in-out_infinite] bg-gradient-radial from-glow via-ember to-transparent"></div>
+      <div class="absolute w-[500px] h-[500px] bottom-[10%] -left-[150px] opacity-15 pointer-events-none blur-[120px] animate-[float_25s_ease-in-out_infinite_reverse] bg-gradient-radial from-solar to-transparent"></div>
+    </div>
 
-    <div class="schedule-container">
-      <!-- Quick Call Section -->
-      <div class="card">
-        <h2 class="card-title">Quick Call Now</h2>
-        <p class="text-muted mb-1">Get an immediate call from your chosen persona</p>
-
-        <form @submit.prevent="handleQuickCall" class="schedule-form">
-          <div class="form-group">
-            <label class="form-label" for="quick-phone">Phone Number</label>
-            <input
-              id="quick-phone"
-              v-model="quickCall.phoneNumber"
-              type="tel"
-              class="form-control"
-              placeholder="+1234567890"
-              required
-            />
-            <small class="form-hint">E.164 format (e.g., +1234567890)</small>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="quick-persona">Choose Persona</label>
-            <select
-              id="quick-persona"
-              v-model="quickCall.personaId"
-              class="form-control"
-              required
-            >
-              <option value="">Select a persona...</option>
-              <option
-                v-for="contact in personasStore.userContacts"
-                :key="contact.id"
-                :value="contact.id"
-              >
-                {{ contact.name }} - {{ contact.description }}
-              </option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="quick-duration">Estimated Duration (minutes)</label>
-            <input
-              id="quick-duration"
-              v-model.number="quickCall.estimatedDuration"
-              type="number"
-              min="1"
-              max="30"
-              class="form-control"
-              required
-            />
-          </div>
-
-          <!-- NEW: Call Scenario Section -->
-          <div class="form-group scenario-section">
-            <label class="form-label">
-              Call Scenario (Optional)
-              <span class="scenario-badge">🎭</span>
-            </label>
-            <p class="form-hint">
-              Set the context for this call - what should the persona know about this specific situation?
-            </p>
-
-            <!-- Template Quick-Select -->
-            <div v-if="scenarioTemplates.length > 0" class="template-chips">
-              <button
-                v-for="template in scenarioTemplates"
-                :key="template.id"
-                type="button"
-                class="template-chip"
-                @click="useTemplate(template)"
-                :class="{ 'template-chip-active': quickCall.selectedTemplate === template.id }"
-              >
-                {{ template.icon }} {{ template.name }}
-              </button>
-            </div>
-
-            <!-- Custom Scenario Text -->
-            <textarea
-              id="quick-scenario"
-              v-model="quickCall.scenario"
-              class="form-control scenario-textarea"
-              placeholder="Example: 'Call to save me from a potentially lame date. Talk about movies and your mother to give me an excuse to leave.'"
-              rows="3"
-            />
-
-            <div v-if="quickCall.scenario" class="scenario-meta">
-              <small class="scenario-tokens">
-                ~{{ estimateTokens(quickCall.scenario) }} tokens
-                {{ estimateTokens(quickCall.scenario) > 500 ? '⚠️ Long scenario may increase cost' : '' }}
-              </small>
-            </div>
-
-            <!-- Save as Template -->
-            <label v-if="quickCall.scenario && quickCall.scenario.length > 20" class="save-template-checkbox">
-              <input
-                type="checkbox"
-                v-model="quickCall.saveAsTemplate"
-              />
-              Save this scenario as a reusable template
-            </label>
-          </div>
-
-          <div v-if="quickCall.cost" class="cost-estimate">
-            <strong>Estimated Cost:</strong> ${{ quickCall.cost.toFixed(2) }}
-            <br />
-            <small>(Connection fee: $0.25 + $0.40/min{{ quickCall.scenario ? ' + scenario context' : '' }})</small>
-          </div>
-
-          <div v-if="quickCallError" class="error-message">
-            {{ quickCallError }}
-          </div>
-
-          <div v-if="quickCallSuccess" class="success-message">
-            Call initiated! You should receive a call shortly.
-          </div>
-
-          <button
-            type="submit"
-            class="btn btn-primary btn-block"
-            :disabled="quickCallLoading"
-          >
-            {{ quickCallLoading ? 'Initiating Call...' : 'Call Me Now' }}
-          </button>
-        </form>
+    <div class="max-w-7xl mx-auto">
+      <!-- Header -->
+      <div class="mb-12 text-center opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards]">
+        <h1 class="text-5xl lg:text-6xl font-[--font-display] font-black mb-4 tracking-tight">
+          <span class="bg-gradient-to-r from-glow via-ember to-solar bg-clip-text text-transparent">Schedule a Call</span>
+        </h1>
+        <p class="text-lg text-cream/70">Instant or scheduled - your AI companions are ready</p>
       </div>
 
-      <!-- Schedule Future Call Section -->
-      <div class="card">
-        <h2 class="card-title">Schedule Future Call</h2>
-        <p class="text-muted mb-1">Schedule a call for a specific time</p>
+      <div class="grid lg:grid-cols-2 gap-8 mb-12">
+        <!-- Quick Call Section -->
+        <div class="opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.1s]">
+          <div class="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/30 overflow-hidden">
+            <div class="absolute top-0 right-0 w-40 h-40 bg-glow/10 -mr-20 -mt-20 rounded-full blur-3xl"></div>
 
-        <form @submit.prevent="handleScheduleCall" class="schedule-form">
-          <div class="form-group">
-            <label class="form-label" for="schedule-phone">Phone Number</label>
-            <input
-              id="schedule-phone"
-              v-model="scheduledCall.phoneNumber"
-              type="tel"
-              class="form-control"
-              placeholder="+1234567890"
-              required
-            />
+            <div class="relative z-10">
+              <div class="flex items-center gap-3 mb-6">
+                <div class="text-4xl">⚡</div>
+                <h2 class="text-3xl font-[--font-display] font-bold">Quick Call Now</h2>
+              </div>
+              <p class="text-cream/60 mb-8">Get an immediate call from your chosen persona</p>
+
+              <form @submit.prevent="handleQuickCall" class="space-y-6">
+                <div class="space-y-2">
+                  <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Phone Number</label>
+                  <input
+                    v-model="quickCall.phoneNumber"
+                    type="tel"
+                    class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
+                    placeholder="+1234567890"
+                    required
+                  />
+                  <p class="text-xs text-cream/40 pl-1">E.164 format (e.g., +1234567890)</p>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Choose Persona</label>
+                  <select
+                    v-model="quickCall.personaId"
+                    class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
+                    required
+                  >
+                    <option value="">Select a persona...</option>
+                    <option
+                      v-for="contact in personasStore.userContacts"
+                      :key="contact.id"
+                      :value="contact.id"
+                    >
+                      {{ contact.name }} - {{ contact.description }}
+                    </option>
+                  </select>
+                </div>
+
+                <div class="space-y-2">
+                  <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Duration (minutes)</label>
+                  <input
+                    v-model.number="quickCall.estimatedDuration"
+                    type="number"
+                    min="1"
+                    max="30"
+                    class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
+                    required
+                  />
+                </div>
+
+                <!-- Call Scenario Section -->
+                <div class="space-y-3 bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+                  <label class="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.1em] text-cream/80">
+                    <span class="text-2xl">🎭</span>
+                    Call Scenario (Optional)
+                  </label>
+                  <p class="text-sm text-cream/50">Set the context - what should your persona know about this call?</p>
+
+                  <div v-if="scenarioTemplates.length > 0" class="flex flex-wrap gap-2">
+                    <button
+                      v-for="template in scenarioTemplates"
+                      :key="template.id"
+                      type="button"
+                      class="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-semibold hover:bg-glow/20 hover:border-glow/40 transition-all duration-300"
+                      :class="{ 'bg-glow/20 border-glow/40': quickCall.selectedTemplate === template.id }"
+                      @click="useTemplate(template)"
+                    >
+                      {{ template.icon }} {{ template.name }}
+                    </button>
+                  </div>
+
+                  <textarea
+                    v-model="quickCall.scenario"
+                    class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300 resize-vertical"
+                    placeholder="Example: 'Call to save me from a bad date. Talk about an urgent work matter...'"
+                    rows="3"
+                  />
+
+                  <div v-if="quickCall.scenario" class="flex items-center justify-between text-xs">
+                    <span class="text-cream/40">~{{ estimateTokens(quickCall.scenario) }} tokens</span>
+                    <label class="flex items-center gap-2 cursor-pointer text-cream/60 hover:text-cream transition-colors">
+                      <input type="checkbox" v-model="quickCall.saveAsTemplate" class="rounded" />
+                      <span>Save as template</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div v-if="quickCall.cost" class="bg-glow/10 border border-glow/20 rounded-xl p-4">
+                  <div class="text-lg font-bold mb-1">Estimated Cost: <span class="text-glow">${{ quickCall.cost.toFixed(2) }}</span></div>
+                  <p class="text-xs text-cream/60">Connection fee: $0.25 + $0.40/min{{ quickCall.scenario ? ' + scenario context' : '' }}</p>
+                </div>
+
+                <div v-if="quickCallError" class="bg-solar/10 border border-solar/30 rounded-xl p-4">
+                  <p class="text-sm text-cream font-medium">{{ quickCallError }}</p>
+                </div>
+
+                <div v-if="quickCallSuccess" class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+                  <p class="text-sm text-cream font-medium">Call initiated! You should receive a call shortly.</p>
+                </div>
+
+                <button
+                  type="submit"
+                  class="w-full px-8 py-5 bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-xl text-deep text-lg font-black uppercase tracking-wider hover:bg-[position:100%_0] transition-all duration-500 hover:scale-[1.02] shadow-[0_0_0_1px_rgba(251,191,36,0.5),0_16px_50px_rgba(251,191,36,0.4)] disabled:opacity-50"
+                  :disabled="quickCallLoading"
+                >
+                  {{ quickCallLoading ? 'Initiating Call...' : 'Call Me Now ⚡' }}
+                </button>
+              </form>
+            </div>
           </div>
+        </div>
 
-          <div class="form-group">
-            <label class="form-label" for="schedule-persona">Choose Persona</label>
-            <select
-              id="schedule-persona"
-              v-model="scheduledCall.personaId"
-              class="form-control"
-              required
-            >
-              <option value="">Select a persona...</option>
-              <option
-                v-for="contact in personasStore.userContacts"
-                :key="contact.id"
-                :value="contact.id"
-              >
-                {{ contact.name }}
-              </option>
-            </select>
+        <!-- Schedule Future Call Section -->
+        <div class="opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.2s]">
+          <div class="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-ember/30 overflow-hidden">
+            <div class="absolute top-0 right-0 w-40 h-40 bg-ember/10 -mr-20 -mt-20 rounded-full blur-3xl"></div>
+
+            <div class="relative z-10">
+              <div class="flex items-center gap-3 mb-6">
+                <div class="text-4xl">📅</div>
+                <h2 class="text-3xl font-[--font-display] font-bold">Schedule Future Call</h2>
+              </div>
+              <p class="text-cream/60 mb-8">Plan ahead for a specific time</p>
+
+              <form @submit.prevent="handleScheduleCall" class="space-y-6">
+                <div class="space-y-2">
+                  <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Phone Number</label>
+                  <input
+                    v-model="scheduledCall.phoneNumber"
+                    type="tel"
+                    class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-ember/50 focus:bg-white/10 transition-all duration-300"
+                    placeholder="+1234567890"
+                    required
+                  />
+                </div>
+
+                <div class="space-y-2">
+                  <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Choose Persona</label>
+                  <select
+                    v-model="scheduledCall.personaId"
+                    class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream focus:outline-none focus:border-ember/50 focus:bg-white/10 transition-all duration-300"
+                    required
+                  >
+                    <option value="">Select a persona...</option>
+                    <option
+                      v-for="contact in personasStore.userContacts"
+                      :key="contact.id"
+                      :value="contact.id"
+                    >
+                      {{ contact.name }}
+                    </option>
+                  </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                  <div class="space-y-2">
+                    <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Date</label>
+                    <input
+                      v-model="scheduledCall.date"
+                      type="date"
+                      class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream focus:outline-none focus:border-ember/50 focus:bg-white/10 transition-all duration-300"
+                      :min="minDate"
+                      required
+                    />
+                  </div>
+
+                  <div class="space-y-2">
+                    <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Time</label>
+                    <input
+                      v-model="scheduledCall.time"
+                      type="time"
+                      class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream focus:outline-none focus:border-ember/50 focus:bg-white/10 transition-all duration-300"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div v-if="scheduleError" class="bg-solar/10 border border-solar/30 rounded-xl p-4">
+                  <p class="text-sm text-cream font-medium">{{ scheduleError }}</p>
+                </div>
+
+                <div v-if="scheduleSuccess" class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+                  <p class="text-sm text-cream font-medium">Call scheduled successfully!</p>
+                </div>
+
+                <button
+                  type="submit"
+                  class="w-full px-8 py-5 bg-gradient-to-r from-ember to-solar rounded-xl text-deep text-lg font-black uppercase tracking-wider hover:scale-[1.02] transition-all duration-300 shadow-[0_8px_32px_rgba(255,140,66,0.4)] disabled:opacity-50"
+                  :disabled="scheduleLoading"
+                >
+                  {{ scheduleLoading ? 'Scheduling...' : 'Schedule Call 📅' }}
+                </button>
+              </form>
+            </div>
           </div>
-
-          <div class="form-group">
-            <label class="form-label" for="schedule-date">Date</label>
-            <input
-              id="schedule-date"
-              v-model="scheduledCall.date"
-              type="date"
-              class="form-control"
-              :min="minDate"
-              required
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="schedule-time">Time</label>
-            <input
-              id="schedule-time"
-              v-model="scheduledCall.time"
-              type="time"
-              class="form-control"
-              required
-            />
-          </div>
-
-          <div v-if="scheduleError" class="error-message">
-            {{ scheduleError }}
-          </div>
-
-          <div v-if="scheduleSuccess" class="success-message">
-            Call scheduled successfully!
-          </div>
-
-          <button
-            type="submit"
-            class="btn btn-success btn-block"
-            :disabled="scheduleLoading"
-          >
-            {{ scheduleLoading ? 'Scheduling...' : 'Schedule Call' }}
-          </button>
-        </form>
+        </div>
       </div>
 
       <!-- Scheduled Calls List -->
-      <div class="card">
-        <h2 class="card-title">Upcoming Scheduled Calls</h2>
+      <div v-if="callsStore.scheduledCalls.length > 0" class="opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.3s]">
+        <h2 class="text-3xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
+          <span class="w-2 h-2 bg-solar rounded-full"></span>
+          Upcoming Scheduled Calls
+        </h2>
 
-        <div v-if="callsStore.scheduledCalls.length === 0" class="empty-state">
-          <p>No scheduled calls</p>
-        </div>
-
-        <div v-else class="scheduled-calls-list">
+        <div class="space-y-4">
           <div
             v-for="call in callsStore.scheduledCalls"
             :key="call.id"
-            class="scheduled-call-item"
+            class="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-6 flex items-center justify-between hover:border-solar/30 transition-all duration-300"
           >
-            <div class="call-info">
-              <h3>{{ getPersonaName(call.persona_id) }}</h3>
-              <p class="text-muted">
-                {{ formatScheduledTime(call.scheduled_time) }}
-              </p>
-              <p class="text-muted">To: {{ call.phone_number }}</p>
+            <div>
+              <h3 class="text-xl font-bold mb-2">{{ getPersonaName(call.persona_id) }}</h3>
+              <p class="text-cream/60 mb-1">{{ formatScheduledTime(call.scheduled_time) }}</p>
+              <p class="text-sm text-cream/40">To: {{ call.phone_number }}</p>
             </div>
             <button
               @click="cancelCall(call.id)"
-              class="btn btn-danger"
+              class="px-6 py-3 bg-red-500/20 border-2 border-red-500/30 rounded-xl text-red-400 font-bold hover:bg-red-500/30 transition-all duration-300"
               :disabled="cancelLoading[call.id]"
             >
               {{ cancelLoading[call.id] ? 'Cancelling...' : 'Cancel' }}
@@ -268,7 +279,6 @@ const quickCallSuccess = ref(false)
 
 // Scenario templates
 const scenarioTemplates = ref([
-  // Default templates (can be loaded from API later)
   {
     id: 'default-1',
     name: 'Save Me From Bad Date',
@@ -307,12 +317,11 @@ const cancelLoading = ref({})
 watch(() => quickCall.value.estimatedDuration, (duration) => {
   const baseCost = 0.25 + (duration * 0.40)
   const scenarioTokens = quickCall.value.scenario ? estimateTokens(quickCall.value.scenario) : 0
-  const scenarioCost = (scenarioTokens / 1000000) * 0.10 * (duration * 4) // Rough estimate
+  const scenarioCost = (scenarioTokens / 1000000) * 0.10 * (duration * 4)
   quickCall.value.cost = baseCost + scenarioCost
 })
 
 watch(() => quickCall.value.scenario, () => {
-  // Recalculate cost when scenario changes
   const duration = quickCall.value.estimatedDuration
   const baseCost = 0.25 + (duration * 0.40)
   const scenarioTokens = quickCall.value.scenario ? estimateTokens(quickCall.value.scenario) : 0
@@ -320,20 +329,16 @@ watch(() => quickCall.value.scenario, () => {
   quickCall.value.cost = baseCost + scenarioCost
 })
 
-// Helper function to estimate token count
 const estimateTokens = (text) => {
   if (!text) return 0
   return Math.ceil(text.length / 4)
 }
 
-// Use a scenario template
 const useTemplate = (template) => {
   quickCall.value.scenario = template.scenario_text
   quickCall.value.selectedTemplate = template.id
-  // TODO: Increment template use count via API when integrated
 }
 
-// Minimum date for scheduling (today)
 const minDate = computed(() => {
   const today = new Date()
   return today.toISOString().split('T')[0]
@@ -345,30 +350,24 @@ const handleQuickCall = async () => {
   quickCallSuccess.value = false
 
   try {
-    // Save scenario as template if requested
     if (quickCall.value.saveAsTemplate && quickCall.value.scenario) {
       const templateName = prompt('Enter a name for this scenario template:')
       if (templateName) {
-        // TODO: API call to save template when backend is integrated
-        // await callsStore.saveScenarioTemplate(templateName, quickCall.value.scenario)
         console.log('Would save template:', templateName, quickCall.value.scenario)
       }
     }
 
-    // First, create payment intent
     const paymentIntent = await userStore.createPaymentIntent(quickCall.value.estimatedDuration)
 
-    // Then trigger the call with scenario
     await callsStore.triggerCall(
       quickCall.value.phoneNumber,
       quickCall.value.personaId,
       paymentIntent.payment_intent_id,
-      quickCall.value.scenario || null  // Include scenario
+      quickCall.value.scenario || null
     )
 
     quickCallSuccess.value = true
 
-    // Reset form
     setTimeout(() => {
       quickCall.value = {
         phoneNumber: '',
@@ -394,20 +393,16 @@ const handleScheduleCall = async () => {
   scheduleSuccess.value = false
 
   try {
-    // Combine date and time
     const scheduledTime = new Date(`${scheduledCall.value.date}T${scheduledCall.value.time}`)
 
-    // Validate future time
     if (scheduledTime <= new Date()) {
       scheduleError.value = 'Scheduled time must be in the future'
       scheduleLoading.value = false
       return
     }
 
-    // Create payment intent
     const paymentIntent = await userStore.createPaymentIntent(5)
 
-    // Schedule the call
     await callsStore.scheduleCall(
       scheduledCall.value.phoneNumber,
       scheduledCall.value.personaId,
@@ -417,7 +412,6 @@ const handleScheduleCall = async () => {
 
     scheduleSuccess.value = true
 
-    // Reset form
     setTimeout(() => {
       scheduledCall.value = {
         phoneNumber: '',
@@ -472,207 +466,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.schedule-page {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.page-title {
-  font-size: 2rem;
-  color: white;
-  margin-bottom: 2rem;
-  text-align: center;
-}
-
-.schedule-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 2rem;
-}
-
-.card-title {
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
-  color: #333;
-}
-
-.schedule-form {
-  margin-top: 1.5rem;
-}
-
-.form-hint {
-  display: block;
-  margin-top: 0.25rem;
-  color: #6c757d;
-  font-size: 0.875rem;
-}
-
-.cost-estimate {
-  background: #e7f3ff;
-  padding: 1rem;
-  border-radius: 6px;
-  margin: 1rem 0;
-  color: #0c5460;
-}
-
-.error-message {
-  background: #f8d7da;
-  color: #721c24;
-  padding: 0.75rem;
-  border-radius: 6px;
-  margin-bottom: 1rem;
-}
-
-.success-message {
-  background: #d4edda;
-  color: #155724;
-  padding: 0.75rem;
-  border-radius: 6px;
-  margin-bottom: 1rem;
-}
-
-.btn-block {
-  width: 100%;
-  margin-top: 1rem;
-}
-
-.scheduled-calls-list {
-  margin-top: 1rem;
-}
-
-.scheduled-call-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-}
-
-.call-info h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.1rem;
-  color: #333;
-}
-
-.call-info p {
-  margin: 0.25rem 0;
-  font-size: 0.9rem;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 2rem;
-  color: #6c757d;
-}
-
-/* Scenario Section Styles */
-.scenario-section {
-  background: #f8f9fa;
-  padding: 1.25rem;
-  border-radius: 8px;
-  border: 2px dashed #dee2e6;
-  transition: border-color 0.3s;
-}
-
-.scenario-section:focus-within {
-  border-color: #007bff;
-  background: #fff;
-}
-
-.scenario-badge {
-  font-size: 1.2em;
-  margin-left: 0.5rem;
-}
-
-.template-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0.75rem 0;
-}
-
-.template-chip {
-  background: white;
-  border: 2px solid #dee2e6;
-  border-radius: 20px;
-  padding: 0.5rem 1rem;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s;
-  color: #495057;
-}
-
-.template-chip:hover {
-  border-color: #007bff;
-  background: #e7f3ff;
-  transform: translateY(-2px);
-}
-
-.template-chip-active {
-  border-color: #007bff;
-  background: #007bff;
-  color: white;
-}
-
-.scenario-textarea {
-  margin-top: 0.75rem;
-  font-family: inherit;
-  resize: vertical;
-  min-height: 80px;
-}
-
-.scenario-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 0.5rem;
-}
-
-.scenario-tokens {
-  color: #6c757d;
-  font-size: 0.85rem;
-}
-
-.save-template-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-  font-size: 0.9rem;
-  color: #495057;
-  cursor: pointer;
-}
-
-.save-template-checkbox input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-
-@media (max-width: 768px) {
-  .schedule-container {
-    grid-template-columns: 1fr;
-  }
-
-  .scheduled-call-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-
-  .scheduled-call-item .btn {
-    width: 100%;
-  }
-
-  .template-chips {
-    flex-direction: column;
-  }
-
-  .template-chip {
-    width: 100%;
-    text-align: left;
-  }
+.grain-overlay {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='4' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
 }
 </style>

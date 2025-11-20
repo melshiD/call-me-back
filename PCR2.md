@@ -9,7 +9,7 @@
 ## CRITICAL: Read These First
 1. **CRITICAL_RAINDROP_RULES.md** - Deployment commands and common mistakes
 2. **This document (PCR2.md)** - Complete consolidated project context
-3. **MCP_DEBUGGING_SESSION_2025-11-19.md** - Latest debugging session (MCP blocked)
+<!-- 3. **MCP_DEBUGGING_SESSION_2025-11-19.md** - Latest debugging session (MCP blocked) -->
 4. **Additional docs indexed at bottom** - For specific deep-dives
 
 **SECURITY NOTE:** NEVER expose environment variables or secrets in logs, console output, or tracked files.
@@ -1879,6 +1879,7 @@ call-me-back-logs: ... - ✗ Failed to connect
 ### Database
 - **FINAL_DATABASE_STRATEGY.md** - Why Vultr PostgreSQL, not SmartSQL
 - **LOG_ANALYSIS_GUIDE.md** - How to analyze Raindrop logs
+*- also read SECURE_REVERSE_PROXY_PATTERN.md and TROUBLESHOOTING_VULTR_CONNECTIVITY.md if you've having issues with or buidling for the services running on Vultr*
 
 ### Authentication
 - **WORKOS_INTEGRATION_PLAN.md** ⭐ - Step-by-step WorkOS integration

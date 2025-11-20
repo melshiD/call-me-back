@@ -140,7 +140,7 @@
 
                 <!-- Brad Card - The No-Excuses Coach -->
                 <div class="persona-card-wrapper flex-shrink-0 snap-start">
-                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-glow rounded-[24px] shadow-[0_24px_80px_rgba(251,191,36,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(251,191,36,0.6)]">
+                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-glow rounded-[24px] shadow-[0_24px_80px_rgba(251,191,36,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:shadow-[0_32px_100px_rgba(251,191,36,0.6)]">
                     <!-- Dynamic diagonal stripes background -->
                     <div class="absolute inset-0 opacity-10" style="background: repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(251,191,36,0.3) 20px, rgba(251,191,36,0.3) 40px);"></div>
 
@@ -202,7 +202,7 @@
 
                 <!-- Sarah Card - The Always-There Friend -->
                 <div class="persona-card-wrapper flex-shrink-0 snap-start">
-                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-cyan-400 rounded-[24px] shadow-[0_24px_80px_rgba(34,211,238,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(34,211,238,0.6)]">
+                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-cyan-400 rounded-[24px] shadow-[0_24px_80px_rgba(34,211,238,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:shadow-[0_32px_100px_rgba(34,211,238,0.6)]">
                     <!-- Dynamic pattern background -->
                     <div class="absolute inset-0 opacity-8" style="background-image: radial-gradient(circle, rgba(34,211,238,0.4) 1px, transparent 1px); background-size: 20px 20px;"></div>
 
@@ -264,7 +264,7 @@
 
                 <!-- Alex Card - The Level-Up Challenger -->
                 <div class="persona-card-wrapper flex-shrink-0 snap-start">
-                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-solar rounded-[24px] shadow-[0_24px_80px_rgba(255,107,53,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(255,107,53,0.6)]">
+                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-solar rounded-[24px] shadow-[0_24px_80px_rgba(255,107,53,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:shadow-[0_32px_100px_rgba(255,107,53,0.6)]">
                     <!-- Geometric pattern background -->
                     <div class="absolute inset-0 opacity-10" style="background: repeating-linear-gradient(-45deg, transparent, transparent 15px, rgba(255,107,53,0.3) 15px, rgba(255,107,53,0.3) 30px);"></div>
 
@@ -326,7 +326,7 @@
 
                 <!-- Marcus Card - The Deal Closer -->
                 <div class="persona-card-wrapper flex-shrink-0 snap-start">
-                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-purple-500 rounded-[24px] shadow-[0_24px_80px_rgba(168,85,247,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(168,85,247,0.6)]">
+                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-purple-500 rounded-[24px] shadow-[0_24px_80px_rgba(168,85,247,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:shadow-[0_32px_100px_rgba(168,85,247,0.6)]">
                     <!-- Hexagon pattern background -->
                     <div class="absolute inset-0 opacity-10" style="background-image: repeating-linear-gradient(0deg, transparent, transparent 25px, rgba(168,85,247,0.3) 25px, rgba(168,85,247,0.3) 27px), repeating-linear-gradient(90deg, transparent, transparent 25px, rgba(168,85,247,0.3) 25px, rgba(168,85,247,0.3) 27px);"></div>
 
@@ -381,7 +381,7 @@
 
                 <!-- Jamie Card - The Adventure Buddy -->
                 <div class="persona-card-wrapper flex-shrink-0 snap-start">
-                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-lime-400 rounded-[24px] shadow-[0_24px_80px_rgba(163,230,53,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_32px_100px_rgba(163,230,53,0.6)]">
+                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-lime-400 rounded-[24px] shadow-[0_24px_80px_rgba(163,230,53,0.4)] h-[420px] overflow-hidden relative group transition-all duration-500 hover:shadow-[0_32px_100px_rgba(163,230,53,0.6)]">
                     <!-- Wave pattern background -->
                     <div class="absolute inset-0 opacity-10" style="background: repeating-radial-gradient(circle at 0 0, transparent 0, rgba(163,230,53,0.3) 25px, transparent 50px);"></div>
 
@@ -475,7 +475,7 @@
 
         <div class="grid md:grid-cols-3 gap-6 lg:gap-8">
           <!-- Step 1 - Enhanced with diagonal accent -->
-          <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:100ms] group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-12 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/50 hover:-translate-y-3 hover:shadow-[0_32px_100px_rgba(251,191,36,0.2)] magnetic-hover holographic overflow-hidden">
+          <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:100ms] group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-12 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/50 hover:shadow-[0_32px_100px_rgba(251,191,36,0.2)] holographic overflow-hidden">
             <!-- Diagonal accent strip -->
             <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-glow/20 to-transparent -mr-16 -mt-16 rotate-45 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             <div class="absolute -top-5 -left-5 w-[70px] h-[70px] bg-gradient-to-br from-glow to-ember text-deep rounded-[18px] flex items-center justify-center text-[2rem] font-black font-[--font-display] shadow-[0_12px_40px_rgba(251,191,36,0.5)] group-hover:scale-110 transition-transform duration-300">
@@ -488,7 +488,7 @@
           </div>
 
           <!-- Step 2 - Enhanced with diagonal accent -->
-          <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:200ms] group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-12 transition-all duration-500 hover:bg-white/[0.12] hover:border-ember/50 hover:-translate-y-3 hover:shadow-[0_32px_100px_rgba(255,140,66,0.2)] magnetic-hover holographic overflow-hidden">
+          <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:200ms] group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-12 transition-all duration-500 hover:bg-white/[0.12] hover:border-ember/50 hover:shadow-[0_32px_100px_rgba(255,140,66,0.2)] holographic overflow-hidden">
             <!-- Diagonal accent strip -->
             <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-ember/20 to-transparent -mr-16 -mt-16 rotate-45 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             <div class="absolute -top-5 -left-5 w-[70px] h-[70px] bg-gradient-to-br from-ember to-solar text-deep rounded-[18px] flex items-center justify-center text-[2rem] font-black font-[--font-display] shadow-[0_12px_40px_rgba(255,140,66,0.5)] group-hover:scale-110 transition-transform duration-300">
@@ -501,7 +501,7 @@
           </div>
 
           <!-- Step 3 - Enhanced with diagonal accent -->
-          <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:300ms] group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-12 transition-all duration-500 hover:bg-white/[0.12] hover:border-solar/50 hover:-translate-y-3 hover:shadow-[0_32px_100px_rgba(255,107,53,0.2)] magnetic-hover holographic overflow-hidden">
+          <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:300ms] group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-12 transition-all duration-500 hover:bg-white/[0.12] hover:border-solar/50 hover:shadow-[0_32px_100px_rgba(255,107,53,0.2)] holographic overflow-hidden">
             <!-- Diagonal accent strip -->
             <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-solar/20 to-transparent -mr-16 -mt-16 rotate-45 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
             <div class="absolute -top-5 -left-5 w-[70px] h-[70px] bg-gradient-to-br from-solar to-plasma text-deep rounded-[18px] flex items-center justify-center text-[2rem] font-black font-[--font-display] shadow-[0_12px_40px_rgba(255,107,53,0.5)] group-hover:scale-110 transition-transform duration-300">
@@ -530,7 +530,7 @@
 
         <div class="grid md:grid-cols-3 gap-8">
           <!-- Brad -->
-          <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:100ms] relative bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-[32px] p-12 transition-all duration-500 hover:bg-white/[0.06] hover:border-glow/30 hover:-translate-y-3 hover:scale-[1.02] overflow-hidden group">
+          <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:100ms] relative bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-[32px] p-12 transition-all duration-500 hover:bg-white/[0.06] hover:border-glow/30 overflow-hidden group">
             <div class="absolute w-[200px] h-[200px] bg-glow rounded-full -top-[100px] -right-[100px] blur-[60px] opacity-0 group-hover:opacity-30 transition-opacity duration-500 pointer-events-none"></div>
             <h3 class="text-3xl font-[--font-display] font-bold mb-2 relative z-10">Brad</h3>
             <p class="text-sm text-glow font-semibold mb-6 uppercase tracking-[0.15em] relative z-10">The Motivating Coach</p>
@@ -546,7 +546,7 @@
           </div>
 
           <!-- Sarah -->
-          <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:200ms] relative bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-[32px] p-12 transition-all duration-500 hover:bg-white/[0.06] hover:border-glow/30 hover:-translate-y-3 hover:scale-[1.02] overflow-hidden group">
+          <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:200ms] relative bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-[32px] p-12 transition-all duration-500 hover:bg-white/[0.06] hover:border-glow/30 overflow-hidden group">
             <div class="absolute w-[200px] h-[200px] bg-cyan-500 rounded-full -top-[100px] -right-[100px] blur-[60px] opacity-0 group-hover:opacity-30 transition-opacity duration-500 pointer-events-none"></div>
             <h3 class="text-3xl font-[--font-display] font-bold mb-2 relative z-10">Sarah</h3>
             <p class="text-sm text-cyan-400 font-semibold mb-6 uppercase tracking-[0.15em] relative z-10">The Empathetic Friend</p>
@@ -562,7 +562,7 @@
           </div>
 
           <!-- Alex -->
-          <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:300ms] relative bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-[32px] p-12 transition-all duration-500 hover:bg-white/[0.06] hover:border-glow/30 hover:-translate-y-3 hover:scale-[1.02] overflow-hidden group">
+          <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:300ms] relative bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-[32px] p-12 transition-all duration-500 hover:bg-white/[0.06] hover:border-glow/30 overflow-hidden group">
             <div class="absolute w-[200px] h-[200px] bg-purple-500 rounded-full -top-[100px] -right-[100px] blur-[60px] opacity-0 group-hover:opacity-30 transition-opacity duration-500 pointer-events-none"></div>
             <h3 class="text-3xl font-[--font-display] font-bold mb-2 relative z-10">Alex</h3>
             <p class="text-sm text-purple-400 font-semibold mb-6 uppercase tracking-[0.15em] relative z-10">The Creative Challenger</p>
@@ -693,7 +693,7 @@
       </div>
     </section>
 
-    <!-- Pricing -->
+    <!-- Pricing CTA -->
     <section class="py-32 relative overflow-hidden">
       <!-- Accent gradient -->
       <div class="absolute inset-0 bg-gradient-to-b from-transparent via-glow/5 to-transparent"></div>
@@ -702,45 +702,121 @@
         <h2 class="text-6xl lg:text-7xl font-[--font-display] font-extrabold mb-6 tracking-tight">
           Simple, <span class="italic font-[--font-accent] bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">Transparent</span> Pricing
         </h2>
-        <p class="text-2xl text-cream/70 mb-24">
-          Pay only for what you use
+        <p class="text-2xl text-cream/70 mb-16">
+          Pay per call or subscribe for unlimited access
         </p>
 
-        <div class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-2xl border-2 border-glow/30 rounded-[40px] p-14 lg:p-20 shadow-[0_0_0_1px_rgba(251,191,36,0.1),0_32px_100px_rgba(251,191,36,0.15)] hover:border-glow/50 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.2),0_40px_120px_rgba(251,191,36,0.25)] transition-all duration-500 holographic">
-          <!-- Decorative corner accents -->
-          <div class="absolute top-6 left-6 w-16 h-16 border-t-2 border-l-2 border-glow/40 rounded-tl-3xl"></div>
-          <div class="absolute bottom-6 right-6 w-16 h-16 border-b-2 border-r-2 border-glow/40 rounded-br-3xl"></div>
-
-          <div class="flex flex-col sm:flex-row justify-center items-center gap-12 lg:gap-20 mb-16">
-            <div class="text-center group/price hover:scale-110 transition-transform duration-300">
-              <div class="text-7xl lg:text-8xl font-black mb-4 bg-gradient-to-r from-glow via-ember to-glow bg-clip-text text-transparent">
-                $0.25
-              </div>
-              <div class="text-lg text-cream/70 uppercase tracking-[0.2em] font-semibold">Connection Fee</div>
+        <div class="grid md:grid-cols-3 gap-8 mb-16">
+          <!-- Pay As You Go -->
+          <div class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/50 hover:shadow-[0_24px_80px_rgba(251,191,36,0.2)] holographic">
+            <h3 class="text-2xl font-[--font-display] font-bold mb-2">Pay As You Go</h3>
+            <div class="flex items-baseline justify-center gap-2 mb-6">
+              <span class="text-5xl font-black bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">$4.99</span>
+              <span class="text-cream/60 text-lg">/ call</span>
             </div>
-            <div class="text-6xl text-glow/40 font-light">+</div>
-            <div class="text-center group/price hover:scale-110 transition-transform duration-300">
-              <div class="text-7xl lg:text-8xl font-black mb-4 bg-gradient-to-r from-glow via-ember to-glow bg-clip-text text-transparent">
-                $0.40<span class="text-4xl text-cream/60">/min</span>
-              </div>
-              <div class="text-lg text-cream/70 uppercase tracking-[0.2em] font-semibold">Per Minute</div>
-            </div>
+            <p class="text-sm text-cream/60 mb-4">Perfect for trying us out</p>
+            <ul class="text-sm text-cream/70 space-y-2 text-left">
+              <li class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Up to 5 minutes
+              </li>
+              <li class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                All AI personas
+              </li>
+              <li class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                No commitment
+              </li>
+            </ul>
           </div>
 
-          <div class="inline-flex items-center gap-3 bg-gradient-to-r from-glow/15 to-ember/15 border-2 border-glow/40 rounded-2xl px-10 py-6 mb-10 shadow-[0_8px_32px_rgba(251,191,36,0.2)]">
-            <svg class="w-6 h-6 text-glow" fill="currentColor" viewBox="0 0 20 20">
+          <!-- Standard Plan (Popular) -->
+          <div class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border-2 border-glow/50 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/70 hover:shadow-[0_32px_100px_rgba(251,191,36,0.3)] holographic">
+            <div class="absolute -top-4 left-1/2 -translate-x-1/2 px-6 py-2 bg-gradient-to-r from-glow via-ember to-solar rounded-full text-deep text-xs font-black uppercase tracking-wider shadow-[0_8px_32px_rgba(251,191,36,0.4)]">
+              Most Popular
+            </div>
+            <h3 class="text-2xl font-[--font-display] font-bold mb-2 mt-4">Standard</h3>
+            <div class="flex items-baseline justify-center gap-2 mb-6">
+              <span class="text-5xl font-black bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">$29.99</span>
+              <span class="text-cream/60 text-lg">/ month</span>
+            </div>
+            <p class="text-sm text-cream/60 mb-4">Up to 10 calls per month</p>
+            <ul class="text-sm text-cream/70 space-y-2 text-left">
+              <li class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                5 minutes per call
+              </li>
+              <li class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Advanced memory
+              </li>
+              <li class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Priority support
+              </li>
+            </ul>
+          </div>
+
+          <!-- Power User -->
+          <div class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-solar/50 hover:shadow-[0_24px_80px_rgba(255,107,53,0.2)] holographic">
+            <h3 class="text-2xl font-[--font-display] font-bold mb-2">Power User</h3>
+            <div class="flex items-baseline justify-center gap-2 mb-6">
+              <span class="text-5xl font-black bg-gradient-to-r from-solar to-ember bg-clip-text text-transparent">$49.99</span>
+              <span class="text-cream/60 text-lg">/ month</span>
+            </div>
+            <p class="text-sm text-cream/60 mb-4">Up to 25 calls per month</p>
+            <ul class="text-sm text-cream/70 space-y-2 text-left">
+              <li class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-solar flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                10 minutes per call
+              </li>
+              <li class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-solar flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Custom personas
+              </li>
+              <li class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-solar flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                </svg>
+                Deep memory
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-6">
+          <router-link
+            to="/pricing"
+            class="inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-glow via-ember to-solar rounded-xl text-deep font-black text-lg hover:scale-105 transition-transform duration-300 shadow-[0_12px_40px_rgba(251,191,36,0.4)]"
+          >
+            View All Plans
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </router-link>
+
+          <div class="inline-flex items-center gap-3 bg-gradient-to-r from-glow/15 to-ember/15 border-2 border-glow/40 rounded-xl px-6 py-3 backdrop-blur-sm">
+            <svg class="w-5 h-5 text-glow" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
             </svg>
-            <p class="text-cream text-xl font-semibold">
-              Your first emergency call is on us - no credit card required
-            </p>
-          </div>
-
-          <div class="inline-block bg-gradient-to-r from-white/5 to-white/10 border border-white/20 rounded-2xl px-8 py-5 backdrop-blur-sm">
-            <p class="text-cream/90 text-lg">
-              <span class="font-bold text-glow">Average call: 5 minutes = $2.25 total.</span><br/>
-              One good negotiation pays for a year of calls.
-            </p>
+            <span class="text-cream text-sm font-semibold">First call FREE - No credit card</span>
           </div>
         </div>
       </div>
