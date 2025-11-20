@@ -23,7 +23,7 @@
 ### Technical Architecture Overview
 
 **Multi-Cloud Deployment Model:**
-- **Vercel:** Vue.js frontend SPA (chosen for simplicity, considering Netlify migration for hackathon partner benefits)
+- **Vercel:** Vue.js frontend SPA with Tailwind CSS v4 (chosen for simplicity, considering Netlify migration for hackathon partner benefits)
 - **Raindrop (Cloudflare Workers):** 7 microservices (API Gateway, Auth Manager, Database Proxy, Persona Manager, Call Orchestrator, Payment Processor, Webhook Handler)
 - **Vultr VPS (144.202.15.249):** Voice Pipeline (Node.js/PM2), PostgreSQL database, Database Proxy HTTP API
 
@@ -72,6 +72,7 @@
 
 **Deployment Infrastructure:**
 - ✅ Frontend deployed to Vercel (https://call-me-back-nugbql1rx-david-melsheimers-projects.vercel.app)
+- ✅ Tailwind CSS v4 installed and configured for UI redesign (2025-11-19)
 - ✅ Backend services deployed to Raindrop main branch (@01ka41s1...)
 - ✅ Voice pipeline running on Vultr via PM2 with Caddy SSL termination
 - ✅ API Gateway accessible (https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run)
@@ -1567,6 +1568,26 @@ src/
 ├── router/         # Vue Router config
 ├── services/       # API clients (auth.js, personas.js, calls.js)
 └── assets/         # Static files (CSS, images)
+```
+
+**Frontend Styling (Updated 2025-11-19):**
+- **Tailwind CSS v4** installed and configured
+- Uses new `@import "tailwindcss"` syntax (v4 migration)
+- PostCSS plugin: `@tailwindcss/postcss`
+- Config: `postcss.config.js` (no `tailwind.config.js` needed in v4)
+- Custom theme colors defined in `src/assets/styles/main.css` with `@theme` directive
+- Existing custom utility classes preserved and will be gradually replaced during UI redesign
+- Build tested and working ✅
+
+**Dependencies:**
+```json
+{
+  "devDependencies": {
+    "tailwindcss": "^4.x",
+    "@tailwindcss/postcss": "^4.x",
+    "autoprefixer": "^10.x"
+  }
+}
 ```
 
 ### Vultr VPS Deployments

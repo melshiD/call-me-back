@@ -28,10 +28,20 @@ const usageCallRoute = require('./routes/usage/call');
 const usageCalculateRoute = require('./routes/usage/calculate');
 const logsTranscriptsRoute = require('./routes/logs/transcripts');
 
+// Import admin routes
+const adminDashboardRoute = require('./routes/admin/dashboard');
+const adminLogsRoute = require('./routes/admin/logs');
+const adminUsersRoute = require('./routes/admin/users');
+
 // Mount routes
 app.use('/api/usage/call', usageCallRoute);
 app.use('/api/usage/calculate', usageCalculateRoute);
 app.use('/api/logs/transcripts', logsTranscriptsRoute);
+
+// Mount admin routes
+app.use('/api/admin/dashboard', adminDashboardRoute);
+app.use('/api/admin/logs', adminLogsRoute);
+app.use('/api/admin/users', adminUsersRoute);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -57,6 +67,11 @@ app.get('/', (req, res) => {
       logs: {
         transcripts: '/api/logs/transcripts?limit=3&sort=longest&since=7d',
         transcript: '/api/logs/transcripts/:callId'
+      },
+      admin: {
+        dashboard: '/api/admin/dashboard?period=30d',
+        logs: '/api/admin/logs?service=all&since=1h&query=error&limit=100',
+        topUsers: '/api/admin/users/top?limit=10&period=30d'
       }
     }
   });
@@ -73,8 +88,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  logger.info(`Log Query Service listening on port ${PORT}`);
+// Bind to localhost only for security (internal service, not public)
+app.listen(PORT, '127.0.0.1', () => {
+  logger.info(`Log Query Service listening on localhost:${PORT} (internal only)`);
   logger.info(`Health check: http://localhost:${PORT}/health`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`Security: Bound to localhost - accessible only from Vultr server`);
 });

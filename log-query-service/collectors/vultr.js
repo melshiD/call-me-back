@@ -7,8 +7,8 @@ const execAsync = util.promisify(exec);
 class VultrCollector {
   constructor() {
     // PRIMARY LOG SOURCE: voice-pipeline logs contain Deepgram/Cerebras/ElevenLabs data
-    this.voiceLogPath = process.env.VULTR_VOICE_LOG_PATH || '/var/log/pm2/voice-pipeline-out.log';
-    this.dbLogPath = process.env.VULTR_DB_LOG_PATH || '/var/log/pm2/db-proxy-out.log';
+    this.voiceLogPath = process.env.VULTR_VOICE_LOG_PATH || '/root/.pm2/logs/voice-pipeline-out.log';
+    this.dbLogPath = process.env.VULTR_DB_LOG_PATH || '/root/.pm2/logs/db-proxy-out.log';
   }
 
   async search({ query, since = '1h', limit = 100 }) {

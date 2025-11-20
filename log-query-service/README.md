@@ -212,10 +212,39 @@ Based on 2025-01 pricing:
 
 ---
 
+## Security (Updated 2025-11-19)
+
+**✅ SECURE: Localhost-only binding**
+
+This service is bound to `localhost:3001` and is **NOT accessible from the internet**. It can only be accessed from:
+- The Vultr server itself (localhost)
+- Other services running on the same Vultr server
+- The `cost-analytics` Raindrop service (server-to-server via internal URL)
+
+**Architecture:**
+```
+User → Frontend (Vercel) → API Gateway (Raindrop) → cost-analytics (Raindrop)
+                                                          ↓
+                                            log-query-service (Vultr localhost:3001)
+```
+
+**Why this is secure:**
+- No public network exposure
+- No authentication needed (localhost-only access)
+- Cannot be reached from external networks
+- Protected by Vultr firewall
+
+**For production:**
+- Consider moving behind VPN for multi-server setups
+- Add HTTPS if exposing beyond localhost
+- Implement proper authentication if making public
+
+---
+
 ## Environment Variables
 
 ```bash
-PORT=3001                              # Service port
+PORT=3001                              # Service port (bound to localhost only)
 NODE_ENV=production                     # Environment
 VULTR_VOICE_LOG_PATH=/var/log/pm2/...  # Voice pipeline logs
 TWILIO_ACCOUNT_SID=...                  # Twilio API
