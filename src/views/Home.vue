@@ -91,37 +91,197 @@
             </div>
           </div>
 
-          <!-- Right: Enhanced Floating Personas -->
-          <div class="lg:col-span-5 relative h-[500px] hidden lg:block opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.3s]">
-            <div class="absolute inset-0 flex items-center justify-center">
-              <div class="relative w-full h-full">
-                <!-- Brad - Enhanced -->
-                <div class="absolute top-[10%] left-[10%] animate-[floatPersona_6s_ease-in-out_infinite] group cursor-pointer">
-                  <div class="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-glow/30 rounded-[28px] p-9 text-center shadow-[0_8px_32px_rgba(251,191,36,0.15)] transition-all duration-500 hover:scale-110 hover:shadow-[0_20px_60px_rgba(251,191,36,0.3)] hover:border-glow/60 holographic">
-                    <div class="absolute -inset-[1px] bg-gradient-to-br from-glow/20 to-transparent rounded-[28px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10 blur-sm"></div>
-                    <div class="text-6xl mb-3 group-hover:scale-110 transition-transform duration-300">🎯</div>
-                    <div class="text-lg font-bold text-glow">Brad</div>
-                    <div class="text-xs text-cream/70 font-medium uppercase tracking-wider">Coach</div>
+          <!-- Right: 3D Rotating Carousel -->
+          <div class="lg:col-span-5 relative h-[600px] hidden lg:flex items-center justify-center opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.3s]">
+            <div class="carousel-container" style="perspective: 1200px; perspective-origin: 50% 50%;">
+              <div class="carousel-track animate-[carouselSpin_20s_linear_infinite] hover:[animation-play-state:paused]" style="transform-style: preserve-3d; width: 300px; height: 450px; position: relative;">
+
+                <!-- Brad Card - The No-Excuses Coach -->
+                <div class="carousel-card" style="transform: rotateY(0deg) translateZ(380px);">
+                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-glow rounded-[24px] shadow-[0_24px_80px_rgba(251,191,36,0.4)] h-full overflow-hidden relative group">
+                    <!-- Dynamic diagonal stripes background -->
+                    <div class="absolute inset-0 opacity-10" style="background: repeating-linear-gradient(45deg, transparent, transparent 20px, rgba(251,191,36,0.3) 20px, rgba(251,191,36,0.3) 40px);"></div>
+
+                    <!-- Bold yellow accent block -->
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-glow -mr-8 -mt-8 rotate-12 opacity-90"></div>
+                    <div class="absolute bottom-0 left-0 w-24 h-24 bg-ember -ml-6 -mb-6 -rotate-12 opacity-80"></div>
+
+                    <!-- Portrait placeholder - Replace with actual image -->
+                    <div class="relative z-10 w-36 h-36 mx-auto mt-6 mb-4 rounded-2xl overflow-hidden border-4 border-glow shadow-[0_12px_40px_rgba(251,191,36,0.6)] bg-gradient-to-br from-glow/30 to-ember/30 flex items-center justify-center">
+                      <!-- Placeholder - Add actual portrait image here -->
+                      <div class="text-6xl font-black text-glow/60 select-none">B</div>
+                      <div class="absolute top-2 right-2 bg-deep text-glow text-xs font-black px-2 py-1 rounded-md uppercase tracking-wider">Coach</div>
+                    </div>
+
+                    <!-- Magazine-style text overlays -->
+                    <div class="relative z-20 px-6">
+                      <!-- Main name -->
+                      <h3 class="text-5xl font-[--font-display] font-black text-glow mb-1 tracking-tight uppercase" style="text-shadow: 3px 3px 0px rgba(0,0,0,0.8), -1px -1px 0px rgba(251,191,36,0.3);">Brad</h3>
+
+                      <!-- Punchy tagline -->
+                      <div class="bg-glow text-deep px-3 py-1.5 inline-block font-black text-base uppercase tracking-wider mb-3 -rotate-1 shadow-lg">
+                        NO EXCUSES
+                      </div>
+
+                      <!-- Badge cluster -->
+                      <div class="flex flex-wrap gap-2 mb-3">
+                        <div class="bg-deep border-2 border-glow text-glow px-3 py-1 text-xs font-bold uppercase rounded-lg">6:30AM DAILY</div>
+                        <div class="bg-glow text-deep px-3 py-1 text-xs font-black uppercase rounded-lg">47 DAY STREAK</div>
+                        <div class="bg-white/10 backdrop-blur text-cream px-3 py-1 text-xs font-bold uppercase rounded-lg">100% ACCOUNTABILITY</div>
+                      </div>
+
+                      <!-- Description with bold overlay -->
+                      <div class="bg-glow/20 backdrop-blur border-l-4 border-glow p-3 mb-2">
+                        <p class="text-sm text-cream font-semibold leading-tight">
+                          Wake up to REAL motivation. Remembers your goals. Tracks progress. Zero tolerance for BS.
+                        </p>
+                      </div>
+
+                      <!-- Stats callout -->
+                      <div class="flex justify-between items-center bg-deep/80 rounded-xl p-2 border-2 border-glow/40">
+                        <div class="text-center flex-1">
+                          <div class="text-xl font-black text-glow">∞</div>
+                          <div class="text-[9px] text-glow/70 uppercase font-bold">Motivation</div>
+                        </div>
+                        <div class="w-px h-8 bg-glow/30"></div>
+                        <div class="text-center flex-1">
+                          <div class="text-xl font-black text-glow">RISE</div>
+                          <div class="text-[9px] text-glow/70 uppercase font-bold">& Grind</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Corner badge -->
+                    <div class="absolute bottom-3 right-3 bg-glow text-deep w-12 h-12 rounded-full flex items-center justify-center font-black text-xl rotate-12 shadow-xl border-2 border-deep">
+                      💪
+                    </div>
                   </div>
                 </div>
-                <!-- Sarah - Enhanced -->
-                <div class="absolute top-1/2 right-[5%] animate-[floatPersona_6s_ease-in-out_infinite] [animation-delay:2s] group cursor-pointer">
-                  <div class="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-cyan-400/30 rounded-[28px] p-9 text-center shadow-[0_8px_32px_rgba(34,211,238,0.15)] transition-all duration-500 hover:scale-110 hover:shadow-[0_20px_60px_rgba(34,211,238,0.3)] hover:border-cyan-400/60 holographic">
-                    <div class="absolute -inset-[1px] bg-gradient-to-br from-cyan-400/20 to-transparent rounded-[28px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10 blur-sm"></div>
-                    <div class="text-6xl mb-3 group-hover:scale-110 transition-transform duration-300">💫</div>
-                    <div class="text-lg font-bold text-cyan-400">Sarah</div>
-                    <div class="text-xs text-cream/70 font-medium uppercase tracking-wider">Friend</div>
+
+                <!-- Sarah Card - The Always-There Friend -->
+                <div class="carousel-card" style="transform: rotateY(120deg) translateZ(380px);">
+                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-cyan-400 rounded-[24px] shadow-[0_24px_80px_rgba(34,211,238,0.4)] h-full overflow-hidden relative group">
+                    <!-- Dynamic pattern background -->
+                    <div class="absolute inset-0 opacity-8" style="background-image: radial-gradient(circle, rgba(34,211,238,0.4) 1px, transparent 1px); background-size: 20px 20px;"></div>
+
+                    <!-- Accent blocks -->
+                    <div class="absolute top-0 left-0 w-28 h-28 bg-cyan-400 -ml-8 -mt-8 -rotate-12 opacity-90"></div>
+                    <div class="absolute bottom-0 right-0 w-20 h-20 bg-cyan-500 -mr-4 -mb-4 rotate-12 opacity-80"></div>
+
+                    <!-- Portrait placeholder -->
+                    <div class="relative z-10 w-36 h-36 mx-auto mt-6 mb-4 rounded-2xl overflow-hidden border-4 border-cyan-400 shadow-[0_12px_40px_rgba(34,211,238,0.6)] bg-gradient-to-br from-cyan-400/30 to-cyan-500/30 flex items-center justify-center">
+                      <!-- Placeholder - Add actual portrait image here -->
+                      <div class="text-6xl font-black text-cyan-400/60 select-none">S</div>
+                      <div class="absolute top-2 right-2 bg-deep text-cyan-400 text-xs font-black px-2 py-1 rounded-md uppercase tracking-wider">Friend</div>
+                    </div>
+
+                    <!-- Magazine-style text overlays -->
+                    <div class="relative z-20 px-6">
+                      <!-- Main name -->
+                      <h3 class="text-5xl font-[--font-display] font-black text-cyan-400 mb-1 tracking-tight uppercase" style="text-shadow: 3px 3px 0px rgba(0,0,0,0.8), -1px -1px 0px rgba(34,211,238,0.3);">Sarah</h3>
+
+                      <!-- Punchy tagline -->
+                      <div class="bg-cyan-400 text-deep px-3 py-1.5 inline-block font-black text-base uppercase tracking-wider mb-3 rotate-1 shadow-lg">
+                        ALWAYS THERE
+                      </div>
+
+                      <!-- Badge cluster -->
+                      <div class="flex flex-wrap gap-2 mb-3">
+                        <div class="bg-deep border-2 border-cyan-400 text-cyan-400 px-3 py-1 text-xs font-bold uppercase rounded-lg">24/7 SOS</div>
+                        <div class="bg-cyan-400 text-deep px-3 py-1 text-xs font-black uppercase rounded-lg">INSTANT ESCAPE</div>
+                        <div class="bg-white/10 backdrop-blur text-cream px-3 py-1 text-xs font-bold uppercase rounded-lg">YOUR LIFELINE</div>
+                      </div>
+
+                      <!-- Description -->
+                      <div class="bg-cyan-400/20 backdrop-blur border-l-4 border-cyan-400 p-3 mb-2">
+                        <p class="text-sm text-cream font-semibold leading-tight">
+                          Emergency contact. Social escape artist. Knows your story. Gets you out gracefully.
+                        </p>
+                      </div>
+
+                      <!-- Stats callout -->
+                      <div class="flex justify-between items-center bg-deep/80 rounded-xl p-2 border-2 border-cyan-400/40">
+                        <div class="text-center flex-1">
+                          <div class="text-xl font-black text-cyan-400">911</div>
+                          <div class="text-[9px] text-cyan-400/70 uppercase font-bold">Response</div>
+                        </div>
+                        <div class="w-px h-8 bg-cyan-400/30"></div>
+                        <div class="text-center flex-1">
+                          <div class="text-xl font-black text-cyan-400">∞</div>
+                          <div class="text-[9px] text-cyan-400/70 uppercase font-bold">Empathy</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Corner badge -->
+                    <div class="absolute bottom-3 right-3 bg-cyan-400 text-deep w-12 h-12 rounded-full flex items-center justify-center font-black text-xl -rotate-12 shadow-xl border-2 border-deep">
+                      🛟
+                    </div>
                   </div>
                 </div>
-                <!-- Alex - Enhanced -->
-                <div class="absolute bottom-[15%] left-1/4 animate-[floatPersona_6s_ease-in-out_infinite] [animation-delay:4s] group cursor-pointer">
-                  <div class="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl border border-plasma/30 rounded-[28px] p-9 text-center shadow-[0_8px_32px_rgba(247,37,133,0.15)] transition-all duration-500 hover:scale-110 hover:shadow-[0_20px_60px_rgba(247,37,133,0.3)] hover:border-plasma/60 holographic">
-                    <div class="absolute -inset-[1px] bg-gradient-to-br from-plasma/20 to-transparent rounded-[28px] opacity-0 group-hover:opacity-100 transition-opacity duration-500 -z-10 blur-sm"></div>
-                    <div class="text-6xl mb-3 group-hover:scale-110 transition-transform duration-300">⚡</div>
-                    <div class="text-lg font-bold text-plasma">Alex</div>
-                    <div class="text-xs text-cream/70 font-medium uppercase tracking-wider">Challenger</div>
+
+                <!-- Alex Card - The Level-Up Challenger -->
+                <div class="carousel-card" style="transform: rotateY(240deg) translateZ(380px);">
+                  <div class="persona-card bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-4 border-solar rounded-[24px] shadow-[0_24px_80px_rgba(255,107,53,0.4)] h-full overflow-hidden relative group">
+                    <!-- Geometric pattern background -->
+                    <div class="absolute inset-0 opacity-10" style="background: repeating-linear-gradient(-45deg, transparent, transparent 15px, rgba(255,107,53,0.3) 15px, rgba(255,107,53,0.3) 30px);"></div>
+
+                    <!-- Accent blocks -->
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-solar -mr-10 -mt-10 rotate-45 opacity-90"></div>
+                    <div class="absolute bottom-0 left-0 w-24 h-24 bg-ember -ml-8 -mb-8 rotate-12 opacity-80"></div>
+
+                    <!-- Portrait placeholder -->
+                    <div class="relative z-10 w-36 h-36 mx-auto mt-6 mb-4 rounded-2xl overflow-hidden border-4 border-solar shadow-[0_12px_40px_rgba(255,107,53,0.6)] bg-gradient-to-br from-solar/30 to-ember/30 flex items-center justify-center">
+                      <!-- Placeholder - Add actual portrait image here -->
+                      <div class="text-6xl font-black text-solar/60 select-none">A</div>
+                      <div class="absolute top-2 right-2 bg-deep text-solar text-xs font-black px-2 py-1 rounded-md uppercase tracking-wider">Pro</div>
+                    </div>
+
+                    <!-- Magazine-style text overlays -->
+                    <div class="relative z-20 px-6">
+                      <!-- Main name -->
+                      <h3 class="text-5xl font-[--font-display] font-black text-solar mb-1 tracking-tight uppercase" style="text-shadow: 3px 3px 0px rgba(0,0,0,0.8), -1px -1px 0px rgba(255,107,53,0.3);">Alex</h3>
+
+                      <!-- Punchy tagline -->
+                      <div class="bg-solar text-deep px-3 py-1.5 inline-block font-black text-base uppercase tracking-wider mb-3 -rotate-2 shadow-lg">
+                        LEVEL UP
+                      </div>
+
+                      <!-- Badge cluster -->
+                      <div class="flex flex-wrap gap-2 mb-3">
+                        <div class="bg-deep border-2 border-solar text-solar px-3 py-1 text-xs font-bold uppercase rounded-lg">INTERVIEW PREP</div>
+                        <div class="bg-solar text-deep px-3 py-1 text-xs font-black uppercase rounded-lg">CHALLENGE MODE</div>
+                        <div class="bg-white/10 backdrop-blur text-cream px-3 py-1 text-xs font-bold uppercase rounded-lg">GROWTH HACKER</div>
+                      </div>
+
+                      <!-- Description -->
+                      <div class="bg-solar/20 backdrop-blur border-l-4 border-solar p-3 mb-2">
+                        <p class="text-sm text-cream font-semibold leading-tight">
+                          Practice hard conversations. Nail interviews. Push limits. Competitive growth mindset.
+                        </p>
+                      </div>
+
+                      <!-- Stats callout -->
+                      <div class="flex justify-between items-center bg-deep/80 rounded-xl p-2 border-2 border-solar/40">
+                        <div class="text-center flex-1">
+                          <div class="text-xl font-black text-solar">↗</div>
+                          <div class="text-[9px] text-solar/70 uppercase font-bold">Next Level</div>
+                        </div>
+                        <div class="w-px h-8 bg-solar/30"></div>
+                        <div class="text-center flex-1">
+                          <div class="text-xl font-black text-solar">TOP 1%</div>
+                          <div class="text-[9px] text-solar/70 uppercase font-bold">Mindset</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Corner badge -->
+                    <div class="absolute bottom-3 right-3 bg-solar text-deep w-12 h-12 rounded-full flex items-center justify-center font-black text-xl rotate-12 shadow-xl border-2 border-deep">
+                      ⚡
+                    </div>
                   </div>
                 </div>
+
               </div>
             </div>
           </div>
