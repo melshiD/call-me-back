@@ -3,6 +3,7 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { readFileSync } from 'fs';
 import WebSocket from 'ws';
+import { RealTimeVAD } from 'avr-vad';
 
 // Load environment variables from .env file
 const envFile = readFileSync('.env', 'utf8');
@@ -55,6 +56,12 @@ class VoicePipeline {
     this.audioBuffer = [];  // Buffer audio until Deepgram connected
     this.connectionHealthTimer = null; // Periodic connection health check
 
+    // Silero-VAD
+    this.vad = null;
+    this.vadEnabled = true;  // Feature flag
+    this.isUserSpeaking = false;
+    this.audioChunkBuffer = [];  // Buffer for VAD processing
+
     // State
     this.conversationHistory = [];
     this.transcriptSegments = [];
@@ -65,11 +72,11 @@ class VoicePipeline {
     this.silenceTimer = null;
     this.evaluationCount = 0;
 
-    // Turn-taking config
+    // Turn-taking config (reduced thresholds with VAD enabled)
     this.config = {
-      shortSilenceMs: 500,       // Ignore pauses shorter than this
-      llmEvalThresholdMs: 1200,  // Trigger LLM eval after this silence
-      forceResponseMs: 3000,     // Force response after this silence
+      shortSilenceMs: 300,       // Reduced from 500 (VAD handles detection)
+      llmEvalThresholdMs: 800,   // Reduced from 1200 (33% faster)
+      forceResponseMs: 2000,     // Reduced from 3000
       maxEvaluations: 2          // Max LLM evals before forcing
     };
 
@@ -174,12 +181,17 @@ class VoicePipeline {
       // STEP 3: Connect to ElevenLabs TTS (using persona's voiceId)
       await this.connectElevenLabs();
 
+      // STEP 4: Initialize Silero-VAD
+      if (this.vadEnabled) {
+        await this.initializeVAD();
+      }
+
       console.log(`[VoicePipeline ${this.callId}] All services connected`);
 
-      // STEP 4: Start connection health monitoring
+      // STEP 5: Start connection health monitoring
       this.startConnectionHealthMonitoring();
 
-      // STEP 5: Wait for user to speak first (no auto-greeting)
+      // STEP 6: Wait for user to speak first (no auto-greeting)
 
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Failed to start:`, error);
@@ -293,7 +305,7 @@ class VoicePipeline {
     return new Promise((resolve, reject) => {
       console.log(`[VoicePipeline ${this.callId}] Connecting to ElevenLabs with voice: ${this.voiceId}...`);
 
-      const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}/stream-input?model_id=eleven_turbo_v2_5&output_format=ulaw_8000`;
+      const wsUrl = `wss://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}/stream-input?model_id=eleven_flash_v2_5&optimize_streaming_latency=4&output_format=ulaw_8000`;
 
       this.elevenLabsWs = new WebSocket(wsUrl, {
         headers: {
@@ -315,12 +327,15 @@ class VoicePipeline {
             use_speaker_boost: true
           },
           generation_config: {
-            chunk_length_schedule: [120, 160, 250, 290]
+            chunk_length_schedule: [50, 120, 160, 290]
           }
         }));
 
         resolve();
       });
+
+      // Track audio chunks for debugging
+      let audioChunkCount = 0;
 
       this.elevenLabsWs.on('message', (data) => {
         try {
@@ -332,12 +347,20 @@ class VoicePipeline {
           }
 
           if (message.audio) {
+            audioChunkCount++;
             const audioBuffer = Buffer.from(message.audio, 'base64');
+
+            // Log first and every 10th chunk for debugging
+            if (audioChunkCount === 1 || audioChunkCount % 10 === 0) {
+              console.log(`[VoicePipeline ${this.callId}] 🔊 Audio chunk #${audioChunkCount}, size: ${audioBuffer.length} bytes`);
+            }
+
             this.sendAudioToTwilio(audioBuffer);
           }
 
           if (message.isFinal) {
-            console.log(`[VoicePipeline ${this.callId}] ElevenLabs finished speaking`);
+            console.log(`[VoicePipeline ${this.callId}] ElevenLabs finished speaking (received ${audioChunkCount} audio chunks total)`);
+            audioChunkCount = 0; // Reset for next response
             this.finishSpeaking();
           }
 
@@ -347,6 +370,10 @@ class VoicePipeline {
           }
         } catch (error) {
           // Binary audio data
+          audioChunkCount++;
+          if (audioChunkCount === 1 || audioChunkCount % 10 === 0) {
+            console.log(`[VoicePipeline ${this.callId}] 🔊 Binary audio chunk #${audioChunkCount}, size: ${data.length} bytes`);
+          }
           this.sendAudioToTwilio(data);
         }
       });
@@ -365,13 +392,96 @@ class VoicePipeline {
   }
 
   /**
+   * Initialize Silero-VAD for real-time speech detection
+   */
+  async initializeVAD() {
+    try {
+      console.log(`[VoicePipeline ${this.callId}] Initializing Silero-VAD...`);
+
+      this.vad = await RealTimeVAD.new({
+        model: 'v5',                      // Use latest Silero v5 model
+        positiveSpeechThreshold: 0.5,    // Detect speech when probability > 50%
+        negativeSpeechThreshold: 0.35,   // End speech when probability < 35%
+        preSpeechPadFrames: 1,           // Capture audio before speech starts
+        redemptionFrames: 10,            // Allow 300ms pauses (10 × 30ms frames)
+        minSpeechFrames: 3,              // Require 3 consecutive frames to confirm speech
+        frameSamples: 1536,              // Frame size for 16kHz audio
+
+        // Callbacks
+        onSpeechStart: (audio) => {
+          if (!this.isSpeaking) {  // Only track user speech, not AI
+            console.log(`[VoicePipeline ${this.callId}] 🎤 VAD: User started speaking`);
+            this.isUserSpeaking = true;
+            this.lastSpeechTime = Date.now();
+          }
+        },
+
+        onSpeechEnd: (audio) => {
+          if (!this.isSpeaking && this.isUserSpeaking) {  // User finished speaking
+            console.log(`[VoicePipeline ${this.callId}] 🔇 VAD: User stopped speaking`);
+            this.isUserSpeaking = false;
+            this.onVADSpeechEnd();
+          }
+        }
+      });
+
+      console.log(`[VoicePipeline ${this.callId}] ✅ Silero-VAD initialized (model: v5, local inference)`);
+    } catch (error) {
+      console.error(`[VoicePipeline ${this.callId}] ❌ Failed to initialize VAD:`, error);
+      console.error(`[VoicePipeline ${this.callId}] Disabling VAD, falling back to timer-based detection`);
+      this.vadEnabled = false;
+    }
+  }
+
+  /**
+   * Handle VAD speech end event - user has stopped speaking
+   */
+  async onVADSpeechEnd() {
+    const transcript = this.getPartialTranscript();
+    const silenceDuration = Date.now() - this.lastSpeechTime;
+
+    console.log(`[VoicePipeline ${this.callId}] VAD detected speech end (${silenceDuration}ms silence, transcript: "${transcript}")`);
+
+    // If very short utterance or pause, verify with heuristic
+    if (silenceDuration < 400 || transcript.length < 8) {
+      console.log(`[VoicePipeline ${this.callId}] Short utterance detected, using heuristic check...`);
+
+      const heuristic = this.heuristicTurnEvaluation(transcript);
+
+      if (heuristic === 'RESPOND') {
+        // Heuristic confirms it's complete
+        this.triggerResponse('vad_plus_heuristic');
+      } else {
+        // Likely false alarm, wait for more speech
+        console.log(`[VoicePipeline ${this.callId}] Heuristic says WAIT, continuing to listen...`);
+      }
+    } else {
+      // Clear speech boundary - respond immediately!
+      this.triggerResponse('vad_confident');
+    }
+  }
+
+  /**
    * Handle incoming transcript segment from Deepgram
    */
   handleTranscriptSegment(transcript) {
     // If AI was speaking and user interrupted
     if (this.isSpeaking) {
       console.log(`[VoicePipeline ${this.callId}] User interrupted!`);
-      // TODO: Stop TTS playback
+
+      // Stop TTS playback by sending flush message
+      if (this.elevenLabsWs && this.elevenLabsWs.readyState === WebSocket.OPEN) {
+        try {
+          this.elevenLabsWs.send(JSON.stringify({
+            text: '',
+            flush: true  // Force immediate completion of current audio
+          }));
+          console.log(`[VoicePipeline ${this.callId}] Sent flush to stop TTS`);
+        } catch (error) {
+          console.error(`[VoicePipeline ${this.callId}] Failed to flush TTS:`, error);
+        }
+      }
+
       this.isSpeaking = false;
       this.transcriptSegments = [];
       this.evaluationCount = 0;
@@ -451,6 +561,10 @@ class VoicePipeline {
     if (decision === 'RESPOND') {
       // User has finished speaking - NOW we can send the full transcript to AI for response generation
       this.triggerResponse('turn_complete');
+    } else if (this.evaluationCount >= this.config.maxEvaluations) {
+      // Reached max evaluations - force response now
+      console.log(`[VoicePipeline ${this.callId}] Max evaluations reached, forcing response`);
+      this.triggerResponse('max_evaluations');
     } else {
       // WAIT - user is still speaking, schedule next check
       this.silenceTimer = setTimeout(() => {
@@ -766,9 +880,14 @@ Answer:`;
         flush: true
       }));
 
+      // Send empty string to signal end of input (prevents 20s timeout)
+      this.elevenLabsWs.send(JSON.stringify({
+        text: ''
+      }));
+
       // Log ElevenLabs usage for cost tracking
       console.log(`[VoicePipeline ${this.callId}] ElevenLabs TTS: characters: ${text.length} voice_id: ${this.voiceId} model: eleven_turbo_v2_5`);
-      console.log(`[VoicePipeline ${this.callId}] Sent text with flush=true to ElevenLabs`);
+      console.log(`[VoicePipeline ${this.callId}] Sent text with end-of-input signal to ElevenLabs`);
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Failed to speak:`, error);
 
@@ -792,8 +911,9 @@ Answer:`;
    * Mark AI as done speaking, ready for next turn
    */
   finishSpeaking() {
-    console.log(`[VoicePipeline ${this.callId}] Finished speaking, ready for user input`);
+    console.log(`[VoicePipeline ${this.callId}] ✅ Finished speaking (sent ${this.sentAudioChunks || 0} chunks to Twilio), ready for user input`);
     this.isSpeaking = false;
+    this.sentAudioChunks = 0; // Reset counter for next response
   }
 
   /**
@@ -801,11 +921,20 @@ Answer:`;
    */
   sendAudioToTwilio(audioBuffer) {
     if (!this.streamSid) {
-      console.warn(`[VoicePipeline ${this.callId}] No streamSid yet, skipping audio`);
+      console.warn(`[VoicePipeline ${this.callId}] ⚠️  No streamSid yet, skipping audio`);
       return;
     }
 
+    // Track sent audio chunks
+    if (!this.sentAudioChunks) this.sentAudioChunks = 0;
+    this.sentAudioChunks++;
+
     const payload = audioBuffer.toString('base64');
+
+    // Log first and every 10th sent chunk
+    if (this.sentAudioChunks === 1 || this.sentAudioChunks % 10 === 0) {
+      console.log(`[VoicePipeline ${this.callId}] 📤 Sent audio chunk #${this.sentAudioChunks} to Twilio (${audioBuffer.length} bytes → ${payload.length} base64 chars)`);
+    }
 
     this.twilioWs.send(JSON.stringify({
       event: 'media',
@@ -859,6 +988,16 @@ Answer:`;
       this.elevenLabsWs.close();
       this.elevenLabsWs = null;
       this.elevenLabsReady = false;
+    }
+
+    if (this.vad) {
+      try {
+        this.vad.destroy();
+        console.log(`[VoicePipeline ${this.callId}] VAD destroyed`);
+      } catch (error) {
+        console.error(`[VoicePipeline ${this.callId}] Error destroying VAD:`, error);
+      }
+      this.vad = null;
     }
   }
 }
