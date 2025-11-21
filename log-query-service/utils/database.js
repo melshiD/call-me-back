@@ -1,14 +1,17 @@
 const { Pool } = require('pg');
 
+// Shared pool for all database access
+const pool = new Pool({
+  host: process.env.POSTGRES_HOST,
+  port: process.env.POSTGRES_PORT,
+  database: process.env.POSTGRES_DB,
+  user: process.env.POSTGRES_USER,
+  password: process.env.POSTGRES_PASSWORD
+});
+
 class Database {
   constructor() {
-    this.pool = new Pool({
-      host: process.env.POSTGRES_HOST,
-      port: process.env.POSTGRES_PORT,
-      database: process.env.POSTGRES_DB,
-      user: process.env.POSTGRES_USER,
-      password: process.env.POSTGRES_PASSWORD
-    });
+    this.pool = pool;
   }
 
   async writeCallCostEvents(callId, userId, costBreakdown) {
@@ -112,3 +115,4 @@ class Database {
 }
 
 module.exports = Database;
+module.exports.pool = pool;

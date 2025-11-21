@@ -32,6 +32,9 @@ const logsTranscriptsRoute = require('./routes/logs/transcripts');
 const adminDashboardRoute = require('./routes/admin/dashboard');
 const adminLogsRoute = require('./routes/admin/logs');
 const adminUsersRoute = require('./routes/admin/users');
+const adminAuthRoute = require('./routes/admin/auth');
+const adminPersonasRoute = require('./routes/admin/personas');
+const adminChatRoute = require('./routes/admin/chat');
 
 // Mount routes
 app.use('/api/usage/call', usageCallRoute);
@@ -39,9 +42,12 @@ app.use('/api/usage/calculate', usageCalculateRoute);
 app.use('/api/logs/transcripts', logsTranscriptsRoute);
 
 // Mount admin routes
+app.use('/api/admin/auth', adminAuthRoute);  // Auth routes (no middleware)
 app.use('/api/admin/dashboard', adminDashboardRoute);
 app.use('/api/admin/logs', adminLogsRoute);
 app.use('/api/admin/users', adminUsersRoute);
+app.use('/api/admin/personas', adminPersonasRoute);
+app.use('/api/admin/chat', adminChatRoute);
 
 // Health check
 app.get('/health', (req, res) => {

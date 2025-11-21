@@ -33,17 +33,32 @@
         <!-- Form -->
         <form @submit.prevent="handleLogin" class="space-y-6">
           <div>
-            <label for="token" class="block text-sm font-bold uppercase tracking-wider text-cream/70 mb-3">
-              Security Token
+            <label for="email" class="block text-sm font-bold uppercase tracking-wider text-cream/70 mb-3">
+              Email
             </label>
             <input
-              id="token"
-              v-model="token"
-              type="password"
-              class="w-full px-5 py-4 bg-white/5 border-2 border-white/20 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300 font-mono text-lg"
-              placeholder="Enter admin token"
+              id="email"
+              v-model="email"
+              type="email"
+              class="w-full px-5 py-4 bg-white/5 border-2 border-white/20 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300 text-lg"
+              placeholder="admin@example.com"
               required
-              autocomplete="off"
+              autocomplete="email"
+            />
+          </div>
+
+          <div>
+            <label for="password" class="block text-sm font-bold uppercase tracking-wider text-cream/70 mb-3">
+              Password
+            </label>
+            <input
+              id="password"
+              v-model="password"
+              type="password"
+              class="w-full px-5 py-4 bg-white/5 border-2 border-white/20 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300 text-lg"
+              placeholder="Enter password"
+              required
+              autocomplete="current-password"
             />
           </div>
 
@@ -96,7 +111,7 @@
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
         </svg>
-        <span>Secured with 256-bit token authentication</span>
+        <span>Secured with JWT authentication</span>
       </div>
     </div>
   </div>
@@ -114,30 +129,35 @@ import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-const token = ref('');
+const email = ref('');
+const password = ref('');
 const error = ref('');
 const loading = ref(false);
+
+const API_URL = import.meta.env.VITE_ADMIN_API_URL || import.meta.env.VITE_API_URL;
 
 const handleLogin = async () => {
   error.value = '';
   loading.value = true;
 
   try {
-    // Test the token by calling the dashboard endpoint
-    const apiUrl = import.meta.env.VITE_API_URL;
-    const response = await fetch(`${apiUrl}/api/admin/dashboard?period=7d`, {
-      headers: {
-        'Authorization': `Bearer ${token.value}`
-      }
+    const response = await fetch(`${API_URL}/api/admin/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: email.value,
+        password: password.value
+      })
     });
 
+    const data = await response.json();
+
     if (response.ok) {
-      // Token is valid, store it
-      localStorage.setItem('adminToken', token.value);
-      // Redirect to dashboard
+      localStorage.setItem('adminToken', data.token);
+      localStorage.setItem('adminUser', JSON.stringify(data.admin));
       router.push('/admin/dashboard');
     } else {
-      error.value = 'Invalid token. Please check and try again.';
+      error.value = data.error || 'Invalid email or password.';
     }
   } catch (err) {
     error.value = 'Failed to connect to server. Please try again.';
