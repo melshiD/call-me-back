@@ -2,8 +2,81 @@ import express from 'express';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { readFileSync } from 'fs';
+import { randomUUID } from 'crypto';
 import WebSocket from 'ws';
 import { RealTimeVAD } from 'avr-vad';
+
+/**
+ * Mulaw decoding table - converts 8-bit mulaw to 16-bit PCM
+ */
+const MULAW_DECODE_TABLE = new Int16Array([
+  -32124,-31100,-30076,-29052,-28028,-27004,-25980,-24956,
+  -23932,-22908,-21884,-20860,-19836,-18812,-17788,-16764,
+  -15996,-15484,-14972,-14460,-13948,-13436,-12924,-12412,
+  -11900,-11388,-10876,-10364,-9852,-9340,-8828,-8316,
+  -7932,-7676,-7420,-7164,-6908,-6652,-6396,-6140,
+  -5884,-5628,-5372,-5116,-4860,-4604,-4348,-4092,
+  -3900,-3772,-3644,-3516,-3388,-3260,-3132,-3004,
+  -2876,-2748,-2620,-2492,-2364,-2236,-2108,-1980,
+  -1884,-1820,-1756,-1692,-1628,-1564,-1500,-1436,
+  -1372,-1308,-1244,-1180,-1116,-1052,-988,-924,
+  -876,-844,-812,-780,-748,-716,-684,-652,
+  -620,-588,-556,-524,-492,-460,-428,-396,
+  -372,-356,-340,-324,-308,-292,-276,-260,
+  -244,-228,-212,-196,-180,-164,-148,-132,
+  -120,-112,-104,-96,-88,-80,-72,-64,
+  -56,-48,-40,-32,-24,-16,-8,0,
+  32124,31100,30076,29052,28028,27004,25980,24956,
+  23932,22908,21884,20860,19836,18812,17788,16764,
+  15996,15484,14972,14460,13948,13436,12924,12412,
+  11900,11388,10876,10364,9852,9340,8828,8316,
+  7932,7676,7420,7164,6908,6652,6396,6140,
+  5884,5628,5372,5116,4860,4604,4348,4092,
+  3900,3772,3644,3516,3388,3260,3132,3004,
+  2876,2748,2620,2492,2364,2236,2108,1980,
+  1884,1820,1756,1692,1628,1564,1500,1436,
+  1372,1308,1244,1180,1116,1052,988,924,
+  876,844,812,780,748,716,684,652,
+  620,588,556,524,492,460,428,396,
+  372,356,340,324,308,292,276,260,
+  244,228,212,196,180,164,148,132,
+  120,112,104,96,88,80,72,64,
+  56,48,40,32,24,16,8,0
+]);
+
+/**
+ * Decode mulaw buffer to 16-bit PCM
+ * @param {Buffer} mulawBuffer - Input mulaw audio (8-bit samples)
+ * @returns {Int16Array} - Output PCM audio (16-bit samples)
+ */
+function decodeMulaw(mulawBuffer) {
+  const pcm = new Int16Array(mulawBuffer.length);
+  for (let i = 0; i < mulawBuffer.length; i++) {
+    pcm[i] = MULAW_DECODE_TABLE[mulawBuffer[i]];
+  }
+  return pcm;
+}
+
+/**
+ * Upsample PCM from 8kHz to 16kHz using linear interpolation
+ * @param {Int16Array} samples8k - 8kHz PCM samples
+ * @returns {Float32Array} - 16kHz PCM samples normalized to [-1, 1]
+ */
+function upsample8kTo16k(samples8k) {
+  const samples16k = new Float32Array(samples8k.length * 2);
+  for (let i = 0; i < samples8k.length; i++) {
+    const normalized = samples8k[i] / 32768.0; // Normalize to [-1, 1]
+    samples16k[i * 2] = normalized;
+    // Interpolate next sample (linear interpolation)
+    if (i < samples8k.length - 1) {
+      const nextNormalized = samples8k[i + 1] / 32768.0;
+      samples16k[i * 2 + 1] = (normalized + nextNormalized) / 2;
+    } else {
+      samples16k[i * 2 + 1] = normalized;
+    }
+  }
+  return samples16k;
+}
 
 // Load environment variables from .env file
 const envFile = readFileSync('.env', 'utf8');
@@ -15,7 +88,11 @@ envFile.split('\n').forEach(line => {
 
 const app = express();
 const server = createServer(app);
+// Twilio stream handler
 const wss = new WebSocketServer({ server, path: '/stream' });
+
+// Browser stream handler for admin debugger
+const browserWss = new WebSocketServer({ server, path: '/browser-stream' });
 
 const PORT = env.PORT || 8001;
 
@@ -955,10 +1032,27 @@ Answer:`;
       return;
     }
 
+    const audioBuffer = Buffer.from(audioPayload, 'base64');
+
     // Forward to Deepgram only when not speaking
     if (this.deepgramWs && !this.isSpeaking) {
-      const audioBuffer = Buffer.from(audioPayload, 'base64');
       this.deepgramWs.send(audioBuffer);
+    }
+
+    // Feed audio to VAD (decode mulaw → PCM, upsample 8kHz → 16kHz)
+    if (this.vad && this.vadEnabled && !this.isSpeaking) {
+      try {
+        // Twilio sends 8kHz mulaw, VAD needs 16kHz float32
+        const pcm8k = decodeMulaw(audioBuffer);
+        const pcm16k = upsample8kTo16k(pcm8k);
+        this.vad.processAudio(pcm16k);
+      } catch (err) {
+        // Log once, don't spam
+        if (!this.vadErrorLogged) {
+          console.error(`[VoicePipeline ${this.callId}] VAD processing error:`, err.message);
+          this.vadErrorLogged = true;
+        }
+      }
     }
   }
 
@@ -1059,8 +1153,282 @@ wss.on('connection', async (twilioWs, req) => {
   });
 });
 
+/**
+ * Browser Voice Pipeline - for admin debugger
+ * Handles 16kHz PCM audio from browser microphone
+ */
+class BrowserVoicePipeline {
+  constructor(browserWs, params) {
+    this.browserWs = browserWs;
+    this.sessionId = params.sessionId;
+    this.personaId = params.personaId;
+    this.adminId = params.adminId;
+    this.overrides = params.overrides || {};
+
+    // Persona metadata
+    this.personaName = null;
+    this.voiceId = null;
+    this.systemPrompt = null;
+    this.maxTokens = 100;
+    this.temperature = 0.7;
+
+    // Service connections
+    this.deepgramWs = null;
+    this.elevenLabsWs = null;
+    this.deepgramReady = false;
+    this.elevenLabsReady = false;
+
+    // State
+    this.conversationHistory = [];
+    this.transcriptSegments = [];
+    this.lastSpeechTime = 0;
+    this.isSpeaking = false;
+    this.silenceTimer = null;
+
+    console.log(`[BrowserPipeline ${this.sessionId}] Initialized`);
+  }
+
+  async fetchPersonaMetadata() {
+    try {
+      const response = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+        },
+        body: JSON.stringify({
+          sql: `SELECT name, core_system_prompt, default_voice_id, max_tokens, temperature FROM personas WHERE id = $1`,
+          params: [this.personaId]
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.rows?.length > 0) {
+          const row = result.rows[0];
+          this.personaName = this.overrides.name || row.name;
+          this.voiceId = this.overrides.default_voice_id || row.default_voice_id;
+          this.systemPrompt = this.overrides.core_system_prompt || row.core_system_prompt;
+          this.maxTokens = this.overrides.max_tokens ?? row.max_tokens ?? 100;
+          this.temperature = this.overrides.temperature ?? row.temperature ?? 0.7;
+        }
+      }
+    } catch (error) {
+      console.error(`[BrowserPipeline ${this.sessionId}] Failed to fetch persona:`, error);
+    }
+
+    // Defaults
+    if (!this.personaName) this.personaName = 'Brad';
+    if (!this.voiceId) this.voiceId = 'pNInz6obpgDQGcFmaJgB';
+    if (!this.systemPrompt) this.systemPrompt = 'You are Brad, a supportive friend.';
+  }
+
+  async start() {
+    await this.fetchPersonaMetadata();
+    await this.connectDeepgram();
+    await this.connectElevenLabs();
+
+    this.send({ type: 'session_start', session_id: this.sessionId, persona: { id: this.personaId, name: this.personaName } });
+  }
+
+  async connectDeepgram() {
+    return new Promise((resolve, reject) => {
+      // Browser sends 16kHz PCM (linear16)
+      const url = 'wss://api.deepgram.com/v1/listen?model=nova-3&encoding=linear16&sample_rate=16000';
+      this.deepgramWs = new WebSocket(url, { headers: { 'Authorization': `Token ${env.DEEPGRAM_API_KEY}` } });
+
+      this.deepgramWs.on('open', () => {
+        this.deepgramReady = true;
+        resolve();
+      });
+
+      this.deepgramWs.on('message', (data) => {
+        try {
+          const response = JSON.parse(data.toString());
+          const transcript = response.channel?.alternatives?.[0]?.transcript;
+          if (transcript?.trim()) {
+            this.send({ type: 'transcript', text: transcript, is_final: response.is_final });
+            this.handleTranscript(transcript);
+          }
+        } catch (e) {}
+      });
+
+      this.deepgramWs.on('error', reject);
+      setTimeout(() => reject(new Error('Deepgram timeout')), 5000);
+    });
+  }
+
+  async connectElevenLabs() {
+    return new Promise((resolve, reject) => {
+      // Use mp3_44100 for browser playback (easier to decode)
+      const url = `wss://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}/stream-input?model_id=eleven_flash_v2_5&output_format=mp3_44100_128`;
+      this.elevenLabsWs = new WebSocket(url, { headers: { 'xi-api-key': env.ELEVENLABS_API_KEY } });
+
+      this.elevenLabsWs.on('open', () => {
+        this.elevenLabsReady = true;
+        this.elevenLabsWs.send(JSON.stringify({
+          text: ' ',
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+        }));
+        resolve();
+      });
+
+      this.elevenLabsWs.on('message', (data) => {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.audio) {
+            this.send({ type: 'audio', audio: msg.audio, format: 'mp3' });
+          }
+          if (msg.isFinal) {
+            this.isSpeaking = false;
+            this.send({ type: 'speaking_done' });
+          }
+        } catch (e) {
+          // Binary audio
+          this.send({ type: 'audio', audio: data.toString('base64'), format: 'mp3' });
+        }
+      });
+
+      this.elevenLabsWs.on('error', reject);
+      setTimeout(() => reject(new Error('ElevenLabs timeout')), 5000);
+    });
+  }
+
+  handleAudio(pcmBuffer) {
+    if (this.deepgramReady && !this.isSpeaking) {
+      this.deepgramWs.send(pcmBuffer);
+    }
+  }
+
+  handleTranscript(text) {
+    if (this.isSpeaking) {
+      // User interrupted
+      this.isSpeaking = false;
+      this.transcriptSegments = [];
+    }
+
+    this.transcriptSegments.push(text);
+    this.lastSpeechTime = Date.now();
+
+    clearTimeout(this.silenceTimer);
+    this.silenceTimer = setTimeout(() => this.onSilence(), 1200);
+  }
+
+  async onSilence() {
+    const userMessage = this.transcriptSegments.join(' ').trim();
+    if (!userMessage) return;
+
+    this.conversationHistory.push({ role: 'user', content: userMessage });
+    this.transcriptSegments = [];
+    this.send({ type: 'user_turn_complete', text: userMessage });
+
+    await this.generateResponse();
+  }
+
+  async generateResponse() {
+    try {
+      const messages = [
+        { role: 'system', content: this.systemPrompt + '\n\nKeep responses brief (1-2 sentences).' },
+        ...this.conversationHistory.slice(-10)
+      ];
+
+      const startTime = Date.now();
+      const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.CEREBRAS_API_KEY}` },
+        body: JSON.stringify({ model: 'llama3.1-8b', messages, max_tokens: this.maxTokens, temperature: this.temperature })
+      });
+
+      const data = await response.json();
+      const aiResponse = data.choices?.[0]?.message?.content;
+      const latencyMs = Date.now() - startTime;
+
+      if (aiResponse) {
+        this.conversationHistory.push({ role: 'assistant', content: aiResponse });
+        this.send({ type: 'response_text', text: aiResponse, latency_ms: latencyMs });
+        await this.speak(aiResponse);
+      }
+    } catch (error) {
+      console.error(`[BrowserPipeline ${this.sessionId}] Response error:`, error);
+    }
+  }
+
+  async speak(text) {
+    if (!this.elevenLabsWs || this.elevenLabsWs.readyState !== WebSocket.OPEN) {
+      await this.connectElevenLabs();
+    }
+
+    this.isSpeaking = true;
+    this.send({ type: 'speaking_start' });
+    this.elevenLabsWs.send(JSON.stringify({ text, flush: true }));
+    this.elevenLabsWs.send(JSON.stringify({ text: '' }));
+  }
+
+  send(msg) {
+    if (this.browserWs.readyState === WebSocket.OPEN) {
+      this.browserWs.send(JSON.stringify(msg));
+    }
+  }
+
+  cleanup() {
+    clearTimeout(this.silenceTimer);
+    this.deepgramWs?.close();
+    this.elevenLabsWs?.close();
+    console.log(`[BrowserPipeline ${this.sessionId}] Cleaned up`);
+  }
+}
+
+// Browser WebSocket handler
+browserWss.on('connection', async (ws) => {
+  console.log('[Browser Pipeline] New connection');
+  let pipeline = null;
+
+  ws.on('message', async (data) => {
+    // Check if binary audio or JSON
+    if (Buffer.isBuffer(data) && data[0] !== 123) {
+      // Binary PCM audio
+      if (pipeline) pipeline.handleAudio(data);
+      return;
+    }
+
+    try {
+      const msg = JSON.parse(data.toString());
+
+      if (msg.type === 'init') {
+        // Validate JWT (simple check - full validation would verify with log-query-service)
+        if (!msg.token) {
+          ws.send(JSON.stringify({ type: 'error', message: 'Token required' }));
+          ws.close();
+          return;
+        }
+
+        const sessionId = randomUUID();
+        pipeline = new BrowserVoicePipeline(ws, {
+          sessionId,
+          personaId: msg.persona_id || 'brad_001',
+          adminId: msg.admin_id || 'unknown',
+          overrides: msg.overrides || {}
+        });
+
+        await pipeline.start();
+      }
+    } catch (error) {
+      console.error('[Browser Pipeline] Error:', error);
+    }
+  });
+
+  ws.on('close', () => {
+    if (pipeline) pipeline.cleanup();
+  });
+
+  ws.on('error', (error) => {
+    console.error('[Browser Pipeline] WebSocket error:', error);
+  });
+});
+
 server.listen(PORT, () => {
   console.log(`✅ Voice Pipeline running on port ${PORT}`);
-  console.log(`   WebSocket: ws://localhost:${PORT}/stream`);
+  console.log(`   Twilio WebSocket: ws://localhost:${PORT}/stream`);
+  console.log(`   Browser WebSocket: ws://localhost:${PORT}/browser-stream`);
   console.log(`   Health: http://localhost:${PORT}/health`);
 });
