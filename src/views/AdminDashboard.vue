@@ -35,6 +35,17 @@
               </button>
             </div>
 
+            <!-- Persona Designer Link -->
+            <router-link
+              to="/admin/personas/designer"
+              class="px-6 py-2.5 bg-gradient-to-r from-glow/10 to-ember/10 hover:from-glow/20 hover:to-ember/20 border border-glow/30 hover:border-glow/50 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 group"
+            >
+              <svg class="w-4 h-4 text-glow group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+              </svg>
+              <span class="bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">Persona Designer</span>
+            </router-link>
+
             <!-- Logout Button -->
             <button
               @click="handleLogout"

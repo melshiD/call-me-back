@@ -1,4 +1,8 @@
 // Admin authentication middleware
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || process.env.ADMIN_SECRET_TOKEN;
+
 const authMiddleware = (req, res, next) => {
   const authHeader = req.headers.authorization;
 
@@ -7,18 +11,25 @@ const authMiddleware = (req, res, next) => {
   }
 
   const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-  const adminToken = process.env.ADMIN_SECRET_TOKEN;
 
-  if (!adminToken) {
-    console.error('ADMIN_SECRET_TOKEN not set in environment');
+  if (!JWT_SECRET) {
+    console.error('JWT_SECRET not set in environment');
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
-  if (token !== adminToken) {
-    return res.status(401).json({ error: 'Unauthorized - Invalid token' });
+  try {
+    // Verify JWT token from WorkOS auth flow
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.admin = decoded; // Attach admin info to request
+    next();
+  } catch (err) {
+    // Fallback: check if it's the static admin token (for backwards compatibility)
+    if (token === process.env.ADMIN_SECRET_TOKEN) {
+      next();
+    } else {
+      return res.status(401).json({ error: 'Unauthorized - Invalid or expired token' });
+    }
   }
-
-  next();
 };
 
 module.exports = authMiddleware;

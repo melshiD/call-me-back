@@ -151,4 +151,79 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
+// GET /api/admin/dashboard/recent-calls
+// Returns recent calls with cost breakdown for the Persona Designer widget
+router.get('/recent-calls', authMiddleware, async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+
+    const callsQuery = await db.pool.query(`
+      SELECT
+        c.id,
+        c.twilio_call_sid,
+        c.persona_id,
+        p.name as persona_name,
+        c.status,
+        c.duration_seconds,
+        c.actual_cost_cents,
+        c.estimated_cost_cents,
+        c.created_at,
+        c.ended_at
+      FROM calls c
+      LEFT JOIN personas p ON c.persona_id = p.id
+      ORDER BY c.created_at DESC
+      LIMIT $1
+    `, [parseInt(limit)]);
+
+    // Get cost breakdown per call
+    const callIds = callsQuery.rows.map(c => c.id);
+    let costBreakdowns = {};
+
+    if (callIds.length > 0) {
+      const costsQuery = await db.pool.query(`
+        SELECT
+          call_id,
+          service,
+          SUM(calculated_cost_cents) / 100.0 as cost_usd,
+          SUM(usage_amount) as total_usage,
+          usage_unit
+        FROM call_cost_events
+        WHERE call_id = ANY($1)
+        GROUP BY call_id, service, usage_unit
+      `, [callIds]);
+
+      costsQuery.rows.forEach(row => {
+        if (!costBreakdowns[row.call_id]) {
+          costBreakdowns[row.call_id] = [];
+        }
+        costBreakdowns[row.call_id].push({
+          service: row.service,
+          cost: parseFloat(row.cost_usd).toFixed(4),
+          usage: parseFloat(row.total_usage).toFixed(2),
+          unit: row.usage_unit
+        });
+      });
+    }
+
+    const recentCalls = callsQuery.rows.map(call => ({
+      id: call.id,
+      callSid: call.twilio_call_sid,
+      personaId: call.persona_id,
+      personaName: call.persona_name || 'Unknown',
+      status: call.status,
+      durationSeconds: call.duration_seconds || 0,
+      costCents: call.actual_cost_cents || call.estimated_cost_cents || 0,
+      costUsd: ((call.actual_cost_cents || call.estimated_cost_cents || 0) / 100).toFixed(4),
+      createdAt: call.created_at,
+      endedAt: call.ended_at,
+      costBreakdown: costBreakdowns[call.id] || []
+    }));
+
+    res.json({ calls: recentCalls });
+  } catch (error) {
+    console.error('Error fetching recent calls:', error);
+    res.status(500).json({ error: 'Failed to fetch recent calls', message: error.message });
+  }
+});
+
 module.exports = router;

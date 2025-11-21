@@ -30,70 +30,40 @@
           Mission Control
         </p>
 
-        <!-- Form -->
-        <form @submit.prevent="handleLogin" class="space-y-6">
-          <div>
-            <label for="email" class="block text-sm font-bold uppercase tracking-wider text-cream/70 mb-3">
-              Email
-            </label>
-            <input
-              id="email"
-              v-model="email"
-              type="email"
-              class="w-full px-5 py-4 bg-white/5 border-2 border-white/20 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300 text-lg"
-              placeholder="admin@example.com"
-              required
-              autocomplete="email"
-            />
+        <!-- Error Message -->
+        <div v-if="error" class="p-4 bg-red-500/10 border-2 border-red-500/30 rounded-xl backdrop-blur-xl mb-6">
+          <div class="flex items-center gap-3">
+            <svg class="w-5 h-5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-red-400 text-sm font-semibold">{{ errorMessage }}</p>
           </div>
+        </div>
 
-          <div>
-            <label for="password" class="block text-sm font-bold uppercase tracking-wider text-cream/70 mb-3">
-              Password
-            </label>
-            <input
-              id="password"
-              v-model="password"
-              type="password"
-              class="w-full px-5 py-4 bg-white/5 border-2 border-white/20 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300 text-lg"
-              placeholder="Enter password"
-              required
-              autocomplete="current-password"
-            />
-          </div>
+        <!-- Sign in with Google Button -->
+        <a
+          :href="loginUrl"
+          class="group relative w-full px-8 py-5 text-lg font-black text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-xl overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:bg-[position:100%_0] shadow-[0_0_0_1px_rgba(251,191,36,0.5),0_12px_40px_rgba(251,191,36,0.4)] hover:shadow-[0_0_0_1px_rgba(251,191,36,0.8),0_16px_50px_rgba(251,191,36,0.5)] flex items-center justify-center gap-3"
+        >
+          <!-- Google Icon -->
+          <svg class="w-6 h-6" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+            <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Sign in with Google
+        </a>
 
-          <!-- Error Message -->
-          <div v-if="error" class="p-4 bg-red-500/10 border-2 border-red-500/30 rounded-xl backdrop-blur-xl">
-            <div class="flex items-center gap-3">
-              <svg class="w-5 h-5 text-red-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p class="text-red-400 text-sm font-semibold">{{ error }}</p>
-            </div>
-          </div>
-
-          <!-- Submit Button -->
-          <button
-            type="submit"
-            class="group relative w-full px-8 py-5 text-lg font-black text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-xl overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:bg-[position:100%_0] shadow-[0_0_0_1px_rgba(251,191,36,0.5),0_12px_40px_rgba(251,191,36,0.4)] hover:shadow-[0_0_0_1px_rgba(251,191,36,0.8),0_16px_50px_rgba(251,191,36,0.5)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-            :disabled="loading"
-          >
-            <span class="relative z-10 flex items-center justify-center gap-3">
-              <svg v-if="loading" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              {{ loading ? 'Verifying Access...' : 'Enter Dashboard' }}
-              <svg v-if="!loading" class="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
-            </span>
-            <div class="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl"></div>
-          </button>
-        </form>
+        <!-- Divider -->
+        <div class="flex items-center gap-4 my-8">
+          <div class="flex-1 h-px bg-white/10"></div>
+          <span class="text-cream/40 text-xs uppercase tracking-wider">Powered by WorkOS</span>
+          <div class="flex-1 h-px bg-white/10"></div>
+        </div>
 
         <!-- Back to Home Link -->
-        <div class="mt-8 text-center">
+        <div class="text-center">
           <router-link
             to="/"
             class="text-sm text-cream/50 hover:text-glow transition-colors duration-300 font-medium inline-flex items-center gap-2 group"
@@ -111,7 +81,7 @@
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
         </svg>
-        <span>Secured with JWT authentication</span>
+        <span>Secured with WorkOS AuthKit</span>
       </div>
     </div>
   </div>
@@ -125,45 +95,35 @@
 </style>
 
 <script setup>
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, computed, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 
-const router = useRouter();
-const email = ref('');
-const password = ref('');
-const error = ref('');
-const loading = ref(false);
+const route = useRoute();
+const error = ref(false);
 
-const API_URL = import.meta.env.VITE_ADMIN_API_URL || import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_ADMIN_API_URL || 'https://logs.ai-tools-marketplace.io';
+const loginUrl = `${API_URL}/api/admin/auth/login`;
 
-const handleLogin = async () => {
-  error.value = '';
-  loading.value = true;
+const errorMessage = computed(() => {
+  const errorCode = route.query.error;
+  const messages = {
+    'unauthorized': 'Your account is not authorized for admin access.',
+    'auth_failed': 'Authentication failed. Please try again.',
+    'no_code': 'Authentication was cancelled.',
+  };
+  return messages[errorCode] || 'An error occurred during sign in.';
+});
 
-  try {
-    const response = await fetch(`${API_URL}/api/admin/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: email.value,
-        password: password.value
-      })
-    });
-
-    const data = await response.json();
-
-    if (response.ok) {
-      localStorage.setItem('adminToken', data.token);
-      localStorage.setItem('adminUser', JSON.stringify(data.admin));
-      router.push('/admin/dashboard');
-    } else {
-      error.value = data.error || 'Invalid email or password.';
-    }
-  } catch (err) {
-    error.value = 'Failed to connect to server. Please try again.';
-    console.error('Login error:', err);
-  } finally {
-    loading.value = false;
+onMounted(() => {
+  // Check for error in URL
+  if (route.query.error) {
+    error.value = true;
   }
-};
+
+  // If already logged in, redirect
+  const token = localStorage.getItem('adminToken');
+  if (token) {
+    window.location.href = '/admin/dashboard';
+  }
+});
 </script>

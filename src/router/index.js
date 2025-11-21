@@ -72,9 +72,20 @@ const routes = [
     meta: { requiresAdminGuest: true }
   },
   {
+    path: '/admin/login/callback',
+    name: 'AdminLoginCallback',
+    component: () => import('../views/AdminLoginCallback.vue')
+  },
+  {
     path: '/admin/dashboard',
     name: 'AdminDashboard',
     component: () => import('../views/AdminDashboard.vue'),
+    meta: { requiresAdminAuth: true }
+  },
+  {
+    path: '/admin/personas/designer',
+    name: 'PersonaDesigner',
+    component: () => import('../views/PersonaDesigner.vue'),
     meta: { requiresAdminAuth: true }
   }
 ]
