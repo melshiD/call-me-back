@@ -355,6 +355,26 @@
                   </option>
                 </select>
               </div>
+
+              <!-- Max Call Duration -->
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <label class="font-mono text-xs uppercase tracking-wider text-[#888]">Max Call Duration</label>
+                  <span class="font-mono text-sm text-amber-400">{{ maxCallDuration }} min</span>
+                </div>
+                <input
+                  type="number"
+                  v-model.number="maxCallDuration"
+                  min="1"
+                  max="60"
+                  step="1"
+                  class="w-full bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg px-4 py-2 font-mono text-sm text-[#ccc] focus:border-amber-500/50 focus:outline-none transition-colors"
+                  :disabled="!selectedPersona"
+                />
+                <div class="mt-2 text-[10px] text-[#555] font-mono">
+                  Warnings at 66%, 86%, and 96% of duration
+                </div>
+              </div>
             </div>
           </div>
 
@@ -686,6 +706,7 @@ const saving = ref(false);
 const editedPrompt = ref('');
 const temperature = ref(0.7);
 const maxTokens = ref(150);
+const maxCallDuration = ref(15); // Maximum call duration in minutes
 const voiceId = ref('');
 const adminPhone = ref('');
 const savedPhoneNumbers = ref([]);
@@ -725,6 +746,8 @@ let voiceWebSocket = null;
 let audioContext = null;
 let mediaStream = null;
 let audioWorklet = null;
+let isAISpeaking = false; // Track when AI is generating/playing audio
+let currentAudio = null; // Track currently playing audio element
 let sessionStartTimeout = null;
 
 // Voice IDs
@@ -743,6 +766,7 @@ const hasChanges = computed(() => {
     editedPrompt.value !== selectedPersona.value.core_system_prompt ||
     temperature.value !== parseFloat(selectedPersona.value.temperature || 0.7) ||
     maxTokens.value !== parseInt(selectedPersona.value.max_tokens || 150) ||
+    maxCallDuration.value !== parseInt(selectedPersona.value.max_call_duration || 15) ||
     voiceId.value !== (selectedPersona.value.default_voice_id || '')
   );
 });
@@ -770,6 +794,7 @@ const selectPersona = (persona) => {
   editedPrompt.value = persona.core_system_prompt || '';
   temperature.value = parseFloat(persona.temperature || 0.7);
   maxTokens.value = parseInt(persona.max_tokens || 150);
+  maxCallDuration.value = parseInt(persona.max_call_duration || 15);
   voiceId.value = persona.default_voice_id || '';
 };
 
@@ -788,6 +813,7 @@ const savePersona = async () => {
         core_system_prompt: editedPrompt.value,
         temperature: temperature.value,
         max_tokens: maxTokens.value,
+        max_call_duration: maxCallDuration.value,
         default_voice_id: voiceId.value
       })
     });
@@ -797,6 +823,7 @@ const savePersona = async () => {
     selectedPersona.value.core_system_prompt = editedPrompt.value;
     selectedPersona.value.temperature = temperature.value;
     selectedPersona.value.max_tokens = maxTokens.value;
+    selectedPersona.value.max_call_duration = maxCallDuration.value;
     selectedPersona.value.default_voice_id = voiceId.value;
 
     // Update in personas array
@@ -930,6 +957,7 @@ const startBrowserVoice = async () => {
           core_system_prompt: editedPrompt.value,
           temperature: temperature.value,
           max_tokens: maxTokens.value,
+          max_call_duration: maxCallDuration.value,
           default_voice_id: voiceId.value
         }
       };
@@ -1045,9 +1073,7 @@ const stopBrowserVoice = () => {
     voiceWebSocket = null;
   }
   stopAudioCapture();
-  // Clear audio queue
-  audioQueue = [];
-  isPlayingAudio = false;
+  stopAudioPlayback(); // Clean up Web Audio API
   connectionStatus.value = 'idle';
   isBrowserVoiceActive.value = false;
   console.log('[Browser Voice] stopBrowserVoice complete');
@@ -1080,17 +1106,48 @@ const startAudioCapture = async () => {
     // Use inline Blob URL to avoid deployment path issues
     const workletCode = `
       class AudioProcessor extends AudioWorkletProcessor {
+        constructor() {
+          super();
+          this.silenceFrames = 0;
+          this.voiceDetected = false;
+        }
+
         process(inputs, outputs, parameters) {
           const input = inputs[0];
           if (input && input.length > 0) {
             const channelData = input[0];
             if (channelData && channelData.length > 0) {
+              // Convert to PCM16
               const pcm16 = new Int16Array(channelData.length);
+              let sumSquares = 0;
+
               for (let i = 0; i < channelData.length; i++) {
                 const sample = Math.max(-1, Math.min(1, channelData[i]));
                 pcm16[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+                sumSquares += sample * sample;
               }
-              this.port.postMessage(pcm16.buffer);
+
+              // Calculate RMS energy for voice detection
+              const rms = Math.sqrt(sumSquares / channelData.length);
+              const VOICE_THRESHOLD = 0.01; // Adjust based on testing
+
+              // Detect voice activity
+              if (rms > VOICE_THRESHOLD) {
+                if (!this.voiceDetected) {
+                  this.voiceDetected = true;
+                  this.port.postMessage({ type: 'voice_detected' });
+                }
+                this.silenceFrames = 0;
+              } else {
+                this.silenceFrames++;
+                // Reset after 500ms of silence (assuming 128 samples @ 16kHz = ~8ms per frame)
+                if (this.silenceFrames > 60 && this.voiceDetected) {
+                  this.voiceDetected = false;
+                }
+              }
+
+              // Send PCM data
+              this.port.postMessage({ type: 'audio', data: pcm16.buffer });
             }
           }
           return true;
@@ -1110,8 +1167,26 @@ const startAudioCapture = async () => {
 
     // Listen for processed audio data from the worklet
     workletNode.port.onmessage = (event) => {
-      if (voiceWebSocket?.readyState === WebSocket.OPEN) {
-        voiceWebSocket.send(event.data); // event.data is the PCM16 ArrayBuffer
+      const message = event.data;
+
+      // Handle voice detection event
+      if (message.type === 'voice_detected') {
+        // If user speaks while AI is speaking, trigger interruption
+        if (isAISpeaking) {
+          console.log('[Browser Voice] User interrupted AI speech');
+          stopAudioPlayback();
+
+          // Send interrupt message to backend
+          if (voiceWebSocket?.readyState === WebSocket.OPEN) {
+            voiceWebSocket.send(JSON.stringify({ type: 'interrupt' }));
+          }
+        }
+      }
+      // Handle audio data
+      else if (message.type === 'audio' && message.data) {
+        if (voiceWebSocket?.readyState === WebSocket.OPEN) {
+          voiceWebSocket.send(message.data); // Send PCM16 ArrayBuffer
+        }
       }
     };
 
@@ -1151,9 +1226,12 @@ const stopAudioCapture = () => {
   console.log('[Browser Voice] Audio capture stopped');
 };
 
-// Audio playback queue to prevent overlapping
-let audioQueue = [];
-let isPlayingAudio = false;
+// Web Audio API for seamless playback (no gaps)
+let playbackAudioContext = null;
+let nextStartTime = 0;
+let scheduledSources = [];
+let lastScheduledEndTime = 0;
+let playbackCheckInterval = null;
 
 const playAudioResponse = async (audioData) => {
   try {
@@ -1164,63 +1242,94 @@ const playAudioResponse = async (audioData) => {
       return;
     }
 
-    // Add to queue
-    audioQueue.push(audioData);
+    // Initialize AudioContext on first chunk
+    if (!playbackAudioContext) {
+      playbackAudioContext = new AudioContext();
+      nextStartTime = playbackAudioContext.currentTime;
+      isAISpeaking = true;
+      console.log('[Browser Voice] AudioContext initialized for playback');
 
-    // Start processing if not already playing
-    if (!isPlayingAudio) {
-      processAudioQueue();
+      // Start monitoring playback state
+      playbackCheckInterval = setInterval(() => {
+        if (playbackAudioContext && playbackAudioContext.currentTime >= lastScheduledEndTime) {
+          // All scheduled audio has finished
+          if (scheduledSources.length === 0) {
+            isAISpeaking = false;
+            console.log('[Browser Voice] All audio playback complete');
+          }
+        }
+      }, 100);
     }
-  } catch (err) {
-    console.error('[Browser Voice] Audio queueing error:', err);
-  }
-};
 
-const processAudioQueue = async () => {
-  if (audioQueue.length === 0) {
-    isPlayingAudio = false;
-    return;
-  }
-
-  isPlayingAudio = true;
-  const audioData = audioQueue.shift();
-
-  try {
-    // Decode base64 MP3 from ElevenLabs
+    // Decode base64 MP3 to ArrayBuffer
     const binaryString = atob(audioData);
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
-    const blob = new Blob([bytes], { type: 'audio/mpeg' });
-    const url = URL.createObjectURL(blob);
 
-    // Play audio
-    const audio = new Audio(url);
+    // Decode MP3 to PCM audio buffer
+    const audioBuffer = await playbackAudioContext.decodeAudioData(bytes.buffer);
 
-    // Wait for audio to finish
-    await new Promise((resolve, reject) => {
-      audio.onended = () => {
-        URL.revokeObjectURL(url);
-        console.log('[Browser Voice] Audio chunk finished playing');
-        resolve();
-      };
-      audio.onerror = (err) => {
-        URL.revokeObjectURL(url);
-        console.error('[Browser Voice] Audio playback error:', err);
-        reject(err);
-      };
+    // Create buffer source
+    const source = playbackAudioContext.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(playbackAudioContext.destination);
 
-      audio.play().catch(reject);
-    });
+    // Schedule playback at precise time (seamless continuation)
+    const scheduledTime = Math.max(nextStartTime, playbackAudioContext.currentTime);
+    source.start(scheduledTime);
 
-    // Process next in queue
-    processAudioQueue();
+    // Track for interruption
+    scheduledSources.push(source);
+    source.onended = () => {
+      const index = scheduledSources.indexOf(source);
+      if (index > -1) scheduledSources.splice(index, 1);
+    };
+
+    // Update next start time for seamless playback
+    nextStartTime = scheduledTime + audioBuffer.duration;
+    lastScheduledEndTime = nextStartTime;
+
+    console.log(`[Browser Voice] Scheduled chunk at ${scheduledTime.toFixed(3)}s, duration ${audioBuffer.duration.toFixed(3)}s, next at ${nextStartTime.toFixed(3)}s`);
+
   } catch (err) {
     console.error('[Browser Voice] Audio decode/playback error:', err);
-    // Continue with next audio chunk despite error
-    processAudioQueue();
   }
+};
+
+// Stop AI audio playback immediately (for interruptions)
+const stopAudioPlayback = () => {
+  console.log('[Browser Voice] Interrupt detected, stopping audio...');
+
+  // Stop all scheduled sources
+  scheduledSources.forEach(source => {
+    try {
+      source.stop();
+    } catch (e) {
+      // Source may have already stopped
+    }
+  });
+  scheduledSources = [];
+
+  // Clear playback interval
+  if (playbackCheckInterval) {
+    clearInterval(playbackCheckInterval);
+    playbackCheckInterval = null;
+  }
+
+  // Close AudioContext
+  if (playbackAudioContext) {
+    playbackAudioContext.close();
+    playbackAudioContext = null;
+  }
+
+  // Reset timing
+  nextStartTime = 0;
+  lastScheduledEndTime = 0;
+  isAISpeaking = false;
+
+  console.log('[Browser Voice] Audio playback stopped');
 };
 
 // Twilio Call
