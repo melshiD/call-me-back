@@ -46,15 +46,28 @@
               <span class="bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">Persona Designer</span>
             </router-link>
 
+            <!-- Audio Settings Button -->
+            <button
+              @click="showSettingsModal = true"
+              class="px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/20 hover:border-glow/50 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 group"
+              title="Audio Settings"
+            >
+              <svg class="w-5 h-5 text-cream/60 group-hover:text-glow transition-all duration-300 group-hover:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span class="text-sm">Settings</span>
+            </button>
+
             <!-- Logout Button -->
             <button
               @click="handleLogout"
               class="px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/20 hover:border-ember/50 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 group"
             >
-              <svg class="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <svg class="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
-              Logout
+              <span class="text-sm">Logout</span>
             </button>
           </div>
         </div>
@@ -351,6 +364,110 @@
         </div>
       </div>
     </main>
+
+    <!-- Audio Settings Modal -->
+    <div v-if="showSettingsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" @click.self="showSettingsModal = false">
+      <div class="bg-deep border border-white/10 rounded-2xl max-w-2xl w-full mx-4 overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between px-6 py-5 bg-white/5 border-b border-white/10">
+          <div class="flex items-center gap-3">
+            <div class="w-2 h-2 bg-glow rounded-full animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.6)]"></div>
+            <h2 class="text-lg font-[--font-display] font-bold bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">Audio Settings</h2>
+          </div>
+          <button @click="showSettingsModal = false" class="text-cream/50 hover:text-glow transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="p-6 space-y-6">
+          <!-- Audio Input Device -->
+          <div>
+            <label class="text-sm font-bold uppercase tracking-wider text-cream/70 block mb-3">Microphone</label>
+            <select
+              v-model="selectedAudioInput"
+              @change="handleAudioInputChange"
+              class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-cream focus:border-glow/50 focus:outline-none transition-colors"
+            >
+              <option value="">Default Microphone</option>
+              <option v-for="device in audioInputDevices" :key="device.deviceId" :value="device.deviceId">
+                {{ device.label || `Microphone ${device.deviceId.slice(0, 8)}...` }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Audio Output Device -->
+          <div>
+            <label class="text-sm font-bold uppercase tracking-wider text-cream/70 block mb-3">Speaker</label>
+            <select
+              v-model="selectedAudioOutput"
+              @change="handleAudioOutputChange"
+              class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-cream focus:border-glow/50 focus:outline-none transition-colors"
+            >
+              <option value="">Default Speaker</option>
+              <option v-for="device in audioOutputDevices" :key="device.deviceId" :value="device.deviceId">
+                {{ device.label || `Speaker ${device.deviceId.slice(0, 8)}...` }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Audio Configuration Info -->
+          <div class="bg-white/5 border border-white/10 rounded-xl p-4 backdrop-blur-xl">
+            <div class="text-xs font-bold uppercase tracking-wider text-cream/50 mb-3">Current Configuration</div>
+            <div class="space-y-2 text-sm text-cream/70">
+              <div class="flex justify-between">
+                <span>Sample Rate:</span>
+                <span class="text-glow font-semibold">16000 Hz</span>
+              </div>
+              <div class="flex justify-between">
+                <span>Channels:</span>
+                <span class="text-glow font-semibold">1 (Mono)</span>
+              </div>
+              <div class="flex justify-between">
+                <span>Echo Cancellation:</span>
+                <span class="text-emerald-400 font-semibold">Enabled</span>
+              </div>
+              <div class="flex justify-between">
+                <span>Noise Suppression:</span>
+                <span class="text-emerald-400 font-semibold">Enabled</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Permissions Status -->
+          <div class="bg-white/5 border border-white/10 rounded-xl p-4 backdrop-blur-xl">
+            <div class="text-xs font-bold uppercase tracking-wider text-cream/50 mb-3">Permissions</div>
+            <div class="space-y-2">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full" :class="micPermission === 'granted' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : micPermission === 'denied' ? 'bg-red-500' : 'bg-amber-500'"></div>
+                <span class="text-sm text-cream/70">Microphone: <span class="font-semibold text-cream">{{ micPermission }}</span></span>
+              </div>
+              <button
+                v-if="micPermission !== 'granted'"
+                @click="requestMicPermission"
+                class="text-sm font-semibold text-glow hover:text-ember transition-colors"
+              >
+                → Request Microphone Access
+              </button>
+            </div>
+          </div>
+
+          <!-- Test Audio Button -->
+          <button
+            @click="testAudio"
+            :disabled="testingAudio"
+            class="w-full py-3 rounded-xl font-semibold uppercase tracking-wider transition-all duration-300 border"
+            :class="testingAudio
+              ? 'bg-glow/20 border-glow/50 text-glow cursor-wait'
+              : 'bg-white/5 border-white/20 text-cream hover:border-glow/50 hover:bg-white/10'"
+          >
+            {{ testingAudio ? 'Testing...' : 'Test Microphone' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -370,6 +487,15 @@ const dashboardData = ref({
   top_personas: [],
   top_users: []
 });
+
+// Audio Settings State
+const showSettingsModal = ref(false);
+const audioInputDevices = ref([]);
+const audioOutputDevices = ref([]);
+const selectedAudioInput = ref('');
+const selectedAudioOutput = ref('');
+const micPermission = ref('prompt');
+const testingAudio = ref(false);
 
 // Period options
 const periodOptions = [
@@ -459,9 +585,104 @@ const getServiceColor = (service) => {
   return colors[service?.toLowerCase()] || 'from-white/20 to-white/30 text-cream';
 };
 
+// Audio Settings Methods
+const enumerateAudioDevices = async () => {
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    audioInputDevices.value = devices.filter(d => d.kind === 'audioinput');
+    audioOutputDevices.value = devices.filter(d => d.kind === 'audiooutput');
+
+    selectedAudioInput.value = localStorage.getItem('preferredAudioInput') || '';
+    selectedAudioOutput.value = localStorage.getItem('preferredAudioOutput') || '';
+
+    const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+    micPermission.value = permissionStatus.state;
+    permissionStatus.onchange = () => {
+      micPermission.value = permissionStatus.state;
+    };
+  } catch (err) {
+    console.error('Error enumerating audio devices:', err);
+    micPermission.value = 'denied';
+  }
+};
+
+const handleAudioInputChange = () => {
+  localStorage.setItem('preferredAudioInput', selectedAudioInput.value);
+};
+
+const handleAudioOutputChange = () => {
+  localStorage.setItem('preferredAudioOutput', selectedAudioOutput.value);
+};
+
+const requestMicPermission = async () => {
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+    await enumerateAudioDevices();
+  } catch (err) {
+    console.error('Microphone permission denied:', err);
+    alert('Microphone permission denied. Please enable it in your browser settings.');
+  }
+};
+
+const testAudio = async () => {
+  testingAudio.value = true;
+  try {
+    const constraints = {
+      audio: {
+        deviceId: selectedAudioInput.value ? { exact: selectedAudioInput.value } : undefined,
+        sampleRate: 16000,
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true
+      }
+    };
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+
+    analyser.fftSize = 256;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    let maxLevel = 0;
+    const startTime = Date.now();
+    const checkLevel = () => {
+      analyser.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+      maxLevel = Math.max(maxLevel, average);
+
+      if (Date.now() - startTime < 2000) {
+        requestAnimationFrame(checkLevel);
+      } else {
+        stream.getTracks().forEach(t => t.stop());
+        audioContext.close();
+
+        if (maxLevel > 10) {
+          alert(`✅ Microphone working! Detected audio level: ${Math.round(maxLevel)}/255`);
+        } else {
+          alert('⚠️ No audio detected. Check if your microphone is muted or speak louder.');
+        }
+        testingAudio.value = false;
+      }
+    };
+
+    alert('🎤 Testing microphone... Please speak for 2 seconds.');
+    checkLevel();
+  } catch (err) {
+    console.error('Error testing audio:', err);
+    alert('Failed to test microphone: ' + err.message);
+    testingAudio.value = false;
+  }
+};
+
 // Lifecycle
 onMounted(() => {
   fetchDashboardData();
+  enumerateAudioDevices();
 });
 </script>
 

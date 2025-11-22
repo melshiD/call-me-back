@@ -94,13 +94,15 @@
 
         <!-- CONTROL HUD - The Big Buttons -->
         <div class="flex items-center justify-center gap-8 mb-8">
-          <!-- Browser Voice Button - Large Realistic 3D Button -->
-          <button
-            @click="toggleBrowserVoice"
-            :disabled="!selectedPersona"
-            class="call-button-hud group relative"
-            :class="{ 'active': isBrowserVoiceActive, 'disabled': !selectedPersona }"
-          >
+          <!-- Browser Voice Button Group -->
+          <div class="relative flex items-center gap-3">
+            <!-- Browser Voice Button - Large Realistic 3D Button -->
+            <button
+              @click="toggleBrowserVoice"
+              :disabled="!selectedPersona"
+              class="call-button-hud group relative"
+              :class="{ 'active': isBrowserVoiceActive, 'disabled': !selectedPersona }"
+            >
             <!-- Outer Ring / Bezel -->
             <div class="absolute inset-0 rounded-full bg-gradient-to-b from-[#3a3a3e] to-[#1a1a1e] p-[3px] shadow-[0_4px_20px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.05)]">
               <div class="w-full h-full rounded-full bg-gradient-to-b from-[#2a2a2e] to-[#1a1a1e]"></div>
@@ -124,6 +126,21 @@
             <div v-if="isBrowserVoiceActive" class="absolute inset-[-4px] rounded-full border-2 border-emerald-500/50 animate-ping"></div>
           </button>
 
+            <!-- Small Hang Up Button (Browser) -->
+            <button
+              v-if="isBrowserVoiceActive"
+              @click="stopBrowserVoice"
+              class="w-10 h-10 rounded-full bg-red-500/10 border-2 border-red-500/30 hover:bg-red-500/20 hover:border-red-500/50 hover:scale-110 transition-all duration-300 flex items-center justify-center group shadow-[0_2px_12px_rgba(239,68,68,0.2)]"
+              title="Hang Up Browser Call"
+            >
+              <svg class="w-5 h-5 text-red-400 group-hover:text-red-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Twilio Call Button Group -->
+          <div class="relative flex items-center gap-3">
           <!-- Twilio Call Button -->
           <button
             @click="triggerTwilioCall"
@@ -153,6 +170,19 @@
             <!-- LED Indicator Ring -->
             <div v-if="isTwilioCallActive" class="absolute inset-[-4px] rounded-full border-2 border-amber-500/50 animate-ping"></div>
           </button>
+
+            <!-- Small Hang Up Button (Twilio) -->
+            <button
+              v-if="isTwilioCallActive"
+              @click="hangUpActiveCall"
+              class="w-10 h-10 rounded-full bg-red-500/10 border-2 border-red-500/30 hover:bg-red-500/20 hover:border-red-500/50 hover:scale-110 transition-all duration-300 flex items-center justify-center group shadow-[0_2px_12px_rgba(239,68,68,0.2)]"
+              title="Hang Up Twilio Call"
+            >
+              <svg class="w-5 h-5 text-red-400 group-hover:text-red-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <!-- Phone Number Input (compact, below buttons) -->

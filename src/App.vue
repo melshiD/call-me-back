@@ -1,7 +1,7 @@
 <template>
   <div id="app" :class="{ 'logged-in': authStore.isAuthenticated }" class="min-h-screen bg-midnight text-cream">
-    <!-- Floating Navigation -->
-    <nav class="nav-container">
+    <!-- Floating Navigation (hidden on admin routes) -->
+    <nav v-if="!isAdminRoute" class="nav-container">
       <div class="nav-wrapper">
         <!-- Logo / Brand -->
         <router-link
@@ -152,13 +152,19 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useAuthStore } from './stores/auth'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 const mobileMenuOpen = ref(false)
+
+// Hide main nav on admin routes
+const isAdminRoute = computed(() => {
+  return route.path.startsWith('/admin')
+})
 
 const handleLogout = () => {
   authStore.logout()
