@@ -361,15 +361,17 @@
           <!-- Save Button -->
           <button
             @click="savePersona"
-            :disabled="!selectedPersona || saving"
+            :disabled="!selectedPersona || saving || isBrowserVoiceActive || isTwilioCallActive"
             class="w-full py-4 rounded-xl font-mono text-sm uppercase tracking-wider transition-all duration-300 border"
             :class="saving
               ? 'bg-amber-500/20 border-amber-500/50 text-amber-400 cursor-wait'
+              : (isBrowserVoiceActive || isTwilioCallActive)
+                ? 'bg-red-500/10 border-red-500/30 text-red-400/50 cursor-not-allowed'
               : hasChanges
                 ? 'bg-amber-500 border-amber-500 text-[#0d0d0f] hover:bg-amber-400 hover:shadow-[0_0_30px_rgba(245,158,11,0.3)]'
                 : 'bg-[#1a1a1e] border-[#2a2a2e] text-[#555] cursor-not-allowed'"
           >
-            {{ saving ? 'Saving...' : hasChanges ? 'Save Changes' : 'No Changes' }}
+            {{ saving ? 'Saving...' : (isBrowserVoiceActive || isTwilioCallActive) ? 'Hang Up to Save' : hasChanges ? 'Save Changes' : 'No Changes' }}
           </button>
         </div>
 
@@ -723,6 +725,7 @@ let voiceWebSocket = null;
 let audioContext = null;
 let mediaStream = null;
 let audioWorklet = null;
+let sessionStartTimeout = null;
 
 // Voice IDs
 const availableVoices = [
@@ -890,6 +893,8 @@ const startBrowserVoice = async () => {
 
   try {
     connectionStatus.value = 'connecting';
+    // Clear transcript from previous session
+    transcript.value = [];
 
     // Get microphone access
     mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -910,12 +915,13 @@ const startBrowserVoice = async () => {
     const token = localStorage.getItem('adminToken');
     voiceWebSocket = new WebSocket(`${VOICE_WS_URL}/browser-stream`);
 
-    voiceWebSocket.onopen = () => {
-      connectionStatus.value = 'connected';
+    voiceWebSocket.onopen = async () => {
+      console.log('[Browser Voice] WebSocket connected');
+      connectionStatus.value = 'connecting';
       isBrowserVoiceActive.value = true;
 
       // Send init message with token (required by browser-stream handler)
-      voiceWebSocket.send(JSON.stringify({
+      const initMsg = {
         type: 'init',
         token: localStorage.getItem('adminToken'),
         persona_id: selectedPersona.value.id,
@@ -926,35 +932,96 @@ const startBrowserVoice = async () => {
           max_tokens: maxTokens.value,
           default_voice_id: voiceId.value
         }
-      }));
+      };
+      console.log('[Browser Voice] Sending init message:', initMsg);
+      voiceWebSocket.send(JSON.stringify(initMsg));
 
-      // Start sending audio
-      startAudioCapture();
+      // Set timeout - if no session_start in 10 seconds, show error
+      sessionStartTimeout = setTimeout(() => {
+        if (connectionStatus.value === 'connecting') {
+          console.error('[Browser Voice] Session start timeout - pipeline failed to initialize');
+          connectionStatus.value = 'error';
+          alert('Voice pipeline timeout. The service may be down or experiencing issues. Please check the server logs and try again.');
+          stopBrowserVoice();
+        }
+      }, 10000);
+
+      // DON'T start audio capture yet - wait for session_start message
+      console.log('[Browser Voice] Waiting for session_start before capturing audio...');
     };
 
     voiceWebSocket.onmessage = (event) => {
+      // Check if this is binary data or text/JSON
+      if (event.data instanceof Blob || event.data instanceof ArrayBuffer) {
+        // Binary audio data - ignore for now (we use JSON audio messages)
+        console.log('[Browser Voice] Received binary data (unexpected)');
+        return;
+      }
+
+      // Try to parse as JSON
       try {
         const msg = JSON.parse(event.data);
-        if (msg.type === 'transcript') {
-          transcript.value.push({ role: msg.role, text: msg.text });
+
+        if (msg.type === 'session_start') {
+          // Pipeline is ready! Clear timeout
+          if (sessionStartTimeout) {
+            clearTimeout(sessionStartTimeout);
+            sessionStartTimeout = null;
+          }
+          connectionStatus.value = 'connected';
+          console.log('[Browser Voice] Session started:', msg.session_id);
+          console.log('[Browser Voice] isBrowserVoiceActive is:', isBrowserVoiceActive.value);
+          console.log('[Browser Voice] Transcript panel should be visible:', isBrowserVoiceActive.value || isTwilioCallActive.value);
+
+          // NOW start audio capture (backend is ready)
+          console.log('[Browser Voice] Starting audio capture now that pipeline is ready...');
+          startAudioCapture().catch(err => {
+            console.error('[Browser Voice] Failed to start audio capture:', err);
+            alert('Failed to start audio capture. Please refresh and try again.');
+            stopBrowserVoice();
+          });
+        } else if (msg.type === 'transcript') {
+          console.log('[Browser Voice] Transcript received:', msg.text);
+          transcript.value.push({ role: 'user', text: msg.text });
+        } else if (msg.type === 'response_text') {
+          console.log('[Browser Voice] AI response:', msg.text);
+          transcript.value.push({ role: 'assistant', text: msg.text });
         } else if (msg.type === 'audio') {
-          // Play audio response
-          playAudioResponse(msg.data);
+          // Play audio response - backend sends base64 MP3 in msg.audio
+          playAudioResponse(msg.audio);
+        } else if (msg.type === 'error') {
+          // Clear timeout on error
+          if (sessionStartTimeout) {
+            clearTimeout(sessionStartTimeout);
+            sessionStartTimeout = null;
+          }
+          console.error('[Browser Voice] Error from server:', msg.message);
+          if (msg.details) {
+            console.error('[Browser Voice] Error details:', msg.details);
+          }
+          connectionStatus.value = 'error';
+          alert(`Voice pipeline error: ${msg.message}`);
+          stopBrowserVoice();
+        } else {
+          console.log('[Browser Voice] Unknown message type:', msg.type, msg);
         }
       } catch (e) {
-        // Binary audio data
-        playAudioResponse(event.data);
+        // JSON parse failed - this shouldn't happen with proper backend
+        console.error('[Browser Voice] Failed to parse message:', e, 'Raw data:', event.data);
       }
     };
 
-    voiceWebSocket.onclose = () => {
+    voiceWebSocket.onclose = (event) => {
+      console.log('[Browser Voice] WebSocket closed. Code:', event.code, 'Reason:', event.reason, 'Was clean:', event.wasClean);
+      console.log('[Browser Voice] isBrowserVoiceActive before close:', isBrowserVoiceActive.value);
       connectionStatus.value = 'idle';
       isBrowserVoiceActive.value = false;
       stopAudioCapture();
+      console.log('[Browser Voice] Cleanup complete after close');
     };
 
     voiceWebSocket.onerror = (err) => {
-      console.error('WebSocket error:', err);
+      console.error('[Browser Voice] WebSocket error:', err);
       connectionStatus.value = 'error';
       stopBrowserVoice();
     };
@@ -967,13 +1034,23 @@ const startBrowserVoice = async () => {
 };
 
 const stopBrowserVoice = () => {
+  console.log('[Browser Voice] stopBrowserVoice called');
+  // Clear session start timeout if still pending
+  if (sessionStartTimeout) {
+    clearTimeout(sessionStartTimeout);
+    sessionStartTimeout = null;
+  }
   if (voiceWebSocket) {
     voiceWebSocket.close();
     voiceWebSocket = null;
   }
   stopAudioCapture();
+  // Clear audio queue
+  audioQueue = [];
+  isPlayingAudio = false;
   connectionStatus.value = 'idle';
   isBrowserVoiceActive.value = false;
+  console.log('[Browser Voice] stopBrowserVoice complete');
 };
 
 const hangUpActiveCall = () => {
@@ -995,32 +1072,72 @@ const handleLogout = () => {
   router.push('/admin/login');
 };
 
-const startAudioCapture = () => {
+const startAudioCapture = async () => {
   if (!audioContext || !mediaStream || !voiceWebSocket) return;
 
-  const source = audioContext.createMediaStreamSource(mediaStream);
-  const processor = audioContext.createScriptProcessor(4096, 1, 1);
-
-  processor.onaudioprocess = (e) => {
-    if (voiceWebSocket?.readyState === WebSocket.OPEN) {
-      const inputData = e.inputBuffer.getChannelData(0);
-      const pcm16 = new Int16Array(inputData.length);
-      for (let i = 0; i < inputData.length; i++) {
-        pcm16[i] = Math.max(-32768, Math.min(32767, inputData[i] * 32768));
+  try {
+    // Load AudioWorklet module (modern replacement for ScriptProcessor)
+    // Use inline Blob URL to avoid deployment path issues
+    const workletCode = `
+      class AudioProcessor extends AudioWorkletProcessor {
+        process(inputs, outputs, parameters) {
+          const input = inputs[0];
+          if (input && input.length > 0) {
+            const channelData = input[0];
+            if (channelData && channelData.length > 0) {
+              const pcm16 = new Int16Array(channelData.length);
+              for (let i = 0; i < channelData.length; i++) {
+                const sample = Math.max(-1, Math.min(1, channelData[i]));
+                pcm16[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+              }
+              this.port.postMessage(pcm16.buffer);
+            }
+          }
+          return true;
+        }
       }
-      voiceWebSocket.send(pcm16.buffer);
-    }
-  };
+      registerProcessor('audio-processor', AudioProcessor);
+    `;
 
-  source.connect(processor);
-  processor.connect(audioContext.destination);
-  audioWorklet = { source, processor };
+    const blob = new Blob([workletCode], { type: 'application/javascript' });
+    const workletUrl = URL.createObjectURL(blob);
+
+    await audioContext.audioWorklet.addModule(workletUrl);
+    URL.revokeObjectURL(workletUrl); // Clean up immediately after loading
+
+    const source = audioContext.createMediaStreamSource(mediaStream);
+    const workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+
+    // Listen for processed audio data from the worklet
+    workletNode.port.onmessage = (event) => {
+      if (voiceWebSocket?.readyState === WebSocket.OPEN) {
+        voiceWebSocket.send(event.data); // event.data is the PCM16 ArrayBuffer
+      }
+    };
+
+    // Connect the audio graph
+    source.connect(workletNode);
+    workletNode.connect(audioContext.destination);
+
+    audioWorklet = { source, workletNode };
+    console.log('[Browser Voice] AudioWorklet started successfully');
+  } catch (err) {
+    console.error('[Browser Voice] Failed to start AudioWorklet:', err);
+    // Fall back to showing error to user
+    alert('Failed to initialize audio processing. Please refresh and try again.');
+    stopBrowserVoice();
+  }
 };
 
 const stopAudioCapture = () => {
   if (audioWorklet) {
-    audioWorklet.source.disconnect();
-    audioWorklet.processor.disconnect();
+    try {
+      audioWorklet.source.disconnect();
+      audioWorklet.workletNode.disconnect();
+      audioWorklet.workletNode.port.close();
+    } catch (err) {
+      console.warn('[Browser Voice] Error disconnecting audio worklet:', err);
+    }
     audioWorklet = null;
   }
   if (mediaStream) {
@@ -1031,11 +1148,79 @@ const stopAudioCapture = () => {
     audioContext.close();
     audioContext = null;
   }
+  console.log('[Browser Voice] Audio capture stopped');
 };
 
-const playAudioResponse = async (data) => {
-  // Placeholder - would need proper audio decoding
-  console.log('Received audio response');
+// Audio playback queue to prevent overlapping
+let audioQueue = [];
+let isPlayingAudio = false;
+
+const playAudioResponse = async (audioData) => {
+  try {
+    console.log('[Browser Voice] Received audio chunk, length:', audioData?.length || 0);
+
+    if (!audioData) {
+      console.error('[Browser Voice] No audio data provided');
+      return;
+    }
+
+    // Add to queue
+    audioQueue.push(audioData);
+
+    // Start processing if not already playing
+    if (!isPlayingAudio) {
+      processAudioQueue();
+    }
+  } catch (err) {
+    console.error('[Browser Voice] Audio queueing error:', err);
+  }
+};
+
+const processAudioQueue = async () => {
+  if (audioQueue.length === 0) {
+    isPlayingAudio = false;
+    return;
+  }
+
+  isPlayingAudio = true;
+  const audioData = audioQueue.shift();
+
+  try {
+    // Decode base64 MP3 from ElevenLabs
+    const binaryString = atob(audioData);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: 'audio/mpeg' });
+    const url = URL.createObjectURL(blob);
+
+    // Play audio
+    const audio = new Audio(url);
+
+    // Wait for audio to finish
+    await new Promise((resolve, reject) => {
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        console.log('[Browser Voice] Audio chunk finished playing');
+        resolve();
+      };
+      audio.onerror = (err) => {
+        URL.revokeObjectURL(url);
+        console.error('[Browser Voice] Audio playback error:', err);
+        reject(err);
+      };
+
+      audio.play().catch(reject);
+    });
+
+    // Process next in queue
+    processAudioQueue();
+  } catch (err) {
+    console.error('[Browser Voice] Audio decode/playback error:', err);
+    // Continue with next audio chunk despite error
+    processAudioQueue();
+  }
 };
 
 // Twilio Call
