@@ -10,31 +10,87 @@
       <div class="absolute w-[600px] h-[500px] bottom-[-200px] -left-[200px] opacity-[0.03] pointer-events-none blur-[150px] bg-gradient-radial from-cyan-500 to-transparent"></div>
     </div>
 
-    <!-- COMMAND HUD - Call Control Panel -->
-    <header class="relative z-50 pt-6 pb-4">
-      <div class="max-w-7xl mx-auto px-6">
-        <!-- Title Bar -->
-        <div class="flex items-center justify-between mb-6">
-          <div class="flex items-center gap-4">
-            <router-link to="/admin/dashboard" class="text-[#666] hover:text-amber-500 transition-colors">
-              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
+    <!-- TACTICAL COMMAND NAV - Sticky Admin Navigation -->
+    <nav class="sticky top-0 z-50 border-b border-[#2a2a2e] backdrop-blur-xl bg-[#0d0d0f]/90">
+      <div class="max-w-7xl mx-auto px-6 py-4">
+        <div class="flex items-center justify-between">
+          <!-- Left: Branding & Navigation -->
+          <div class="flex items-center gap-6">
+            <router-link to="/admin/dashboard" class="group flex items-center gap-3 hover:opacity-100 transition-all duration-300">
+              <div class="relative">
+                <div class="absolute inset-0 bg-amber-500/20 blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                <svg class="w-5 h-5 text-[#666] group-hover:text-amber-500 transition-colors relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+              </div>
+              <span class="font-mono text-xs uppercase tracking-[0.25em] text-[#666] group-hover:text-amber-400 transition-colors">Dashboard</span>
             </router-link>
-            <h1 class="font-['JetBrains_Mono',monospace] text-lg tracking-[0.2em] uppercase text-[#666]">
-              Persona Designer
-            </h1>
+
+            <div class="h-6 w-[1px] bg-[#2a2a2e]"></div>
+
+            <div class="flex items-center gap-3">
+              <div class="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse"></div>
+              <h1 class="font-['JetBrains_Mono',monospace] text-sm tracking-[0.3em] uppercase text-[#999]">
+                Persona Designer
+              </h1>
+            </div>
           </div>
+
+          <!-- Right: Controls & Status -->
           <div class="flex items-center gap-3">
-            <!-- Status LED -->
-            <div class="flex items-center gap-2 bg-[#1a1a1e] px-4 py-2 rounded-lg border border-[#2a2a2e]">
+            <!-- Connection Status -->
+            <div class="flex items-center gap-2 bg-[#1a1a1e] px-3 py-2 rounded-lg border border-[#2a2a2e]">
               <div class="w-2 h-2 rounded-full" :class="connectionStatus === 'connected' ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]' : connectionStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-[#444]'"></div>
-              <span class="font-mono text-xs uppercase tracking-wider" :class="connectionStatus === 'connected' ? 'text-emerald-400' : 'text-[#666]'">
+              <span class="font-mono text-[10px] uppercase tracking-wider" :class="connectionStatus === 'connected' ? 'text-emerald-400' : 'text-[#666]'">
                 {{ connectionStatus }}
               </span>
             </div>
+
+            <!-- Hang Up Button (visible when call active) -->
+            <button
+              v-if="isBrowserVoiceActive || isTwilioCallActive"
+              @click="hangUpActiveCall"
+              class="flex items-center gap-2 bg-red-500/10 border border-red-500/30 hover:bg-red-500/20 hover:border-red-500/50 px-4 py-2 rounded-lg transition-all duration-300 group"
+              title="Hang Up Call"
+            >
+              <svg class="w-4 h-4 text-red-400 group-hover:text-red-300 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.72 11.06l1.38 1.38a1 1 0 010 1.41l-3.4 3.4a1 1 0 01-1.41 0l-1.38-1.38m-5.64-5.64l-1.38-1.38a1 1 0 010-1.41l3.4-3.4a1 1 0 011.41 0l1.38 1.38m0 0l5.64 5.64" />
+              </svg>
+              <span class="font-mono text-xs uppercase tracking-wider text-red-400 group-hover:text-red-300">Hang Up</span>
+            </button>
+
+            <!-- Audio Settings -->
+            <button
+              @click="showSettingsModal = true"
+              class="flex items-center gap-2 bg-[#1a1a1e] px-4 py-2 rounded-lg border border-[#2a2a2e] hover:border-amber-500/50 hover:bg-[#1e1e22] transition-all duration-300 group"
+              title="Audio Settings"
+            >
+              <svg class="w-4 h-4 text-[#666] group-hover:text-amber-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span class="hidden sm:inline font-mono text-xs uppercase tracking-wider text-[#666] group-hover:text-amber-500">Settings</span>
+            </button>
+
+            <!-- Logout -->
+            <button
+              @click="handleLogout"
+              class="flex items-center gap-2 bg-[#1a1a1e] px-4 py-2 rounded-lg border border-[#2a2a2e] hover:border-red-500/50 hover:bg-red-500/5 transition-all duration-300 group"
+              title="Logout"
+            >
+              <svg class="w-4 h-4 text-[#666] group-hover:text-red-400 transition-colors group-hover:rotate-180 duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              <span class="hidden sm:inline font-mono text-xs uppercase tracking-wider text-[#666] group-hover:text-red-400">Logout</span>
+            </button>
           </div>
         </div>
+      </div>
+    </nav>
+
+    <!-- COMMAND HUD - Call Control Panel -->
+    <header class="relative z-40 pt-6 pb-4">
+      <div class="max-w-7xl mx-auto px-6">
 
         <!-- CONTROL HUD - The Big Buttons -->
         <div class="flex items-center justify-center gap-8 mb-8">
@@ -101,7 +157,34 @@
 
         <!-- Phone Number Input (compact, below buttons) -->
         <div class="flex items-center justify-center gap-4">
-          <div class="flex items-center gap-2 bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg px-4 py-2">
+          <!-- Dropdown if saved numbers exist -->
+          <div v-if="savedPhoneNumbers.length > 0" class="flex items-center gap-2">
+            <div class="flex items-center gap-2 bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg px-4 py-2">
+              <svg class="w-4 h-4 text-[#555]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+              </svg>
+              <select
+                v-model="adminPhone"
+                class="bg-transparent border-none outline-none font-mono text-sm text-[#aaa] cursor-pointer appearance-none pr-6"
+                @change="saveAdminPhone"
+                style="background-image: url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 fill=%22none%22 viewBox=%220 0 24 24%22 stroke=%22%23666%22%3E%3Cpath stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%222%22 d=%22M19 9l-7 7-7-7%22%3E%3C/path%3E%3C/svg%3E'); background-repeat: no-repeat; background-position: right 0px center; background-size: 16px;"
+              >
+                <option value="">Select phone...</option>
+                <option v-for="num in savedPhoneNumbers" :key="num" :value="num">{{ num }}</option>
+              </select>
+            </div>
+            <button
+              @click="savedPhoneNumbers = []; localStorage.removeItem('savedPhoneNumbers'); adminPhone = ''"
+              class="text-[#555] hover:text-red-400 transition-colors text-xs"
+              title="Clear saved numbers"
+            >
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <!-- Text input if no saved numbers -->
+          <div v-else class="flex items-center gap-2 bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg px-4 py-2">
             <svg class="w-4 h-4 text-[#555]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
             </svg>
@@ -439,6 +522,114 @@
         </div>
       </div>
     </main>
+
+    <!-- Audio Settings Modal -->
+    <div v-if="showSettingsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" @click.self="showSettingsModal = false">
+      <div class="bg-[#131318] border border-[#2a2a2e] rounded-xl max-w-2xl w-full mx-4 overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.5)]">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between px-6 py-4 bg-[#1a1a1e] border-b border-[#2a2a2e]">
+          <div class="flex items-center gap-3">
+            <div class="led-indicator bg-amber-500"></div>
+            <h2 class="font-mono text-sm uppercase tracking-[0.15em] text-[#ccc]">Audio Settings</h2>
+          </div>
+          <button @click="showSettingsModal = false" class="text-[#666] hover:text-amber-500 transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="p-6 space-y-6">
+          <!-- Audio Input Device -->
+          <div>
+            <label class="font-mono text-xs uppercase tracking-wider text-[#888] block mb-3">Microphone</label>
+            <select
+              v-model="selectedAudioInput"
+              @change="handleAudioInputChange"
+              class="w-full bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg px-4 py-2.5 font-mono text-sm text-[#ccc] focus:border-amber-500/50 focus:outline-none transition-colors"
+            >
+              <option value="">Default Microphone</option>
+              <option v-for="device in audioInputDevices" :key="device.deviceId" :value="device.deviceId">
+                {{ device.label || `Microphone ${device.deviceId.slice(0, 8)}...` }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Audio Output Device -->
+          <div>
+            <label class="font-mono text-xs uppercase tracking-wider text-[#888] block mb-3">Speaker</label>
+            <select
+              v-model="selectedAudioOutput"
+              @change="handleAudioOutputChange"
+              class="w-full bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg px-4 py-2.5 font-mono text-sm text-[#ccc] focus:border-amber-500/50 focus:outline-none transition-colors"
+            >
+              <option value="">Default Speaker</option>
+              <option v-for="device in audioOutputDevices" :key="device.deviceId" :value="device.deviceId">
+                {{ device.label || `Speaker ${device.deviceId.slice(0, 8)}...` }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Audio Configuration Info -->
+          <div class="bg-[#0d0d0f] border border-[#1a1a1e] rounded-lg p-4">
+            <div class="text-[10px] font-mono uppercase tracking-wider text-[#555] mb-3">Current Configuration</div>
+            <div class="space-y-2 text-xs font-mono text-[#888]">
+              <div class="flex justify-between">
+                <span>Sample Rate:</span>
+                <span class="text-amber-400">{{ audioConfig.sampleRate }} Hz</span>
+              </div>
+              <div class="flex justify-between">
+                <span>Channels:</span>
+                <span class="text-amber-400">{{ audioConfig.channelCount }} (Mono)</span>
+              </div>
+              <div class="flex justify-between">
+                <span>Echo Cancellation:</span>
+                <span class="text-amber-400">{{ audioConfig.echoCancellation ? 'Enabled' : 'Disabled' }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span>Noise Suppression:</span>
+                <span class="text-amber-400">{{ audioConfig.noiseSuppression ? 'Enabled' : 'Disabled' }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span>Auto Gain Control:</span>
+                <span class="text-amber-400">{{ audioConfig.autoGainControl ? 'Enabled' : 'Disabled' }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Permissions Status -->
+          <div class="bg-[#0d0d0f] border border-[#1a1a1e] rounded-lg p-4">
+            <div class="text-[10px] font-mono uppercase tracking-wider text-[#555] mb-3">Permissions</div>
+            <div class="space-y-2">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full" :class="micPermission === 'granted' ? 'bg-emerald-500' : micPermission === 'denied' ? 'bg-red-500' : 'bg-amber-500'"></div>
+                <span class="text-xs font-mono text-[#888]">Microphone: {{ micPermission }}</span>
+              </div>
+              <button
+                v-if="micPermission !== 'granted'"
+                @click="requestMicPermission"
+                class="text-xs font-mono text-amber-500 hover:text-amber-400 transition-colors"
+              >
+                → Request Microphone Access
+              </button>
+            </div>
+          </div>
+
+          <!-- Test Audio Button -->
+          <button
+            @click="testAudio"
+            :disabled="testingAudio"
+            class="w-full py-3 rounded-lg font-mono text-sm uppercase tracking-wider transition-all duration-300 border"
+            :class="testingAudio
+              ? 'bg-amber-500/20 border-amber-500/50 text-amber-400 cursor-wait'
+              : 'bg-[#1a1a1e] border-[#2a2a2e] text-[#ccc] hover:border-amber-500/50 hover:text-amber-400'"
+          >
+            {{ testingAudio ? 'Testing...' : 'Test Microphone' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -451,6 +642,7 @@ const router = useRouter();
 // API URLs
 const LOG_QUERY_URL = 'https://logs.ai-tools-marketplace.io';
 const VOICE_WS_URL = 'wss://voice.ai-tools-marketplace.io';
+const API_GATEWAY_URL = import.meta.env.VITE_API_URL || 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run';
 
 // State
 const personas = ref([]);
@@ -464,10 +656,27 @@ const temperature = ref(0.7);
 const maxTokens = ref(150);
 const voiceId = ref('');
 const adminPhone = ref('');
+const savedPhoneNumbers = ref([]);
 
 // UI State
 const expandPromptEditor = ref(false);
 const connectionStatus = ref('idle');
+const showSettingsModal = ref(false);
+
+// Audio Settings State
+const audioInputDevices = ref([]);
+const audioOutputDevices = ref([]);
+const selectedAudioInput = ref('');
+const selectedAudioOutput = ref('');
+const micPermission = ref('prompt');
+const testingAudio = ref(false);
+const audioConfig = ref({
+  sampleRate: 16000,
+  channelCount: 1,
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true
+});
 
 // Call state
 const isBrowserVoiceActive = ref(false);
@@ -570,11 +779,26 @@ const savePersona = async () => {
 };
 
 const saveAdminPhone = () => {
+  // Save current phone
   localStorage.setItem('adminPhone', adminPhone.value);
+
+  // Add to saved numbers if not already there and if valid
+  if (adminPhone.value && !savedPhoneNumbers.value.includes(adminPhone.value)) {
+    savedPhoneNumbers.value.push(adminPhone.value);
+    localStorage.setItem('savedPhoneNumbers', JSON.stringify(savedPhoneNumbers.value));
+  }
 };
 
 const loadAdminPhone = () => {
   adminPhone.value = localStorage.getItem('adminPhone') || '';
+  const saved = localStorage.getItem('savedPhoneNumbers');
+  if (saved) {
+    try {
+      savedPhoneNumbers.value = JSON.parse(saved);
+    } catch (e) {
+      savedPhoneNumbers.value = [];
+    }
+  }
 };
 
 // Recent Calls
@@ -640,10 +864,12 @@ const startBrowserVoice = async () => {
     // Get microphone access
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
-        sampleRate: 16000,
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true
+        deviceId: selectedAudioInput.value ? { exact: selectedAudioInput.value } : undefined,
+        sampleRate: audioConfig.value.sampleRate,
+        channelCount: audioConfig.value.channelCount,
+        echoCancellation: audioConfig.value.echoCancellation,
+        noiseSuppression: audioConfig.value.noiseSuppression,
+        autoGainControl: audioConfig.value.autoGainControl
       }
     });
 
@@ -658,15 +884,18 @@ const startBrowserVoice = async () => {
       connectionStatus.value = 'connected';
       isBrowserVoiceActive.value = true;
 
-      // Send config
+      // Send init message with token (required by browser-stream handler)
       voiceWebSocket.send(JSON.stringify({
-        type: 'config',
+        type: 'init',
+        token: localStorage.getItem('adminToken'),
         persona_id: selectedPersona.value.id,
         admin_id: 'admin',
-        system_prompt: editedPrompt.value,
-        temperature: temperature.value,
-        max_tokens: maxTokens.value,
-        voice_id: voiceId.value
+        overrides: {
+          core_system_prompt: editedPrompt.value,
+          temperature: temperature.value,
+          max_tokens: maxTokens.value,
+          default_voice_id: voiceId.value
+        }
       }));
 
       // Start sending audio
@@ -715,6 +944,25 @@ const stopBrowserVoice = () => {
   stopAudioCapture();
   connectionStatus.value = 'idle';
   isBrowserVoiceActive.value = false;
+};
+
+const hangUpActiveCall = () => {
+  if (isBrowserVoiceActive.value) {
+    stopBrowserVoice();
+  }
+  if (isTwilioCallActive.value) {
+    isTwilioCallActive.value = false;
+    // Note: Twilio call hangup would happen server-side
+    // The call status will update when the call ends
+  }
+  transcript.value = [];
+};
+
+const handleLogout = () => {
+  // Clear admin token
+  localStorage.removeItem('adminToken');
+  // Navigate to login
+  router.push('/admin/login');
 };
 
 const startAudioCapture = () => {
@@ -769,19 +1017,16 @@ const triggerTwilioCall = async () => {
     transcript.value = [];
 
     const token = localStorage.getItem('adminToken');
-    const response = await fetch(`${LOG_QUERY_URL}/api/calls/trigger`, {
+    const response = await fetch(`${API_GATEWAY_URL}/api/calls/trigger`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        phone_number: adminPhone.value,
-        persona_id: selectedPersona.value.id,
-        system_prompt_override: editedPrompt.value,
-        temperature: temperature.value,
-        max_tokens: maxTokens.value,
-        voice_id: voiceId.value
+        phoneNumber: adminPhone.value,
+        personaId: selectedPersona.value.id,
+        userId: 'demo_user' // Use demo mode for free testing calls
       })
     });
 
@@ -802,6 +1047,112 @@ const triggerTwilioCall = async () => {
   }
 };
 
+// Audio Settings Methods
+const enumerateAudioDevices = async () => {
+  try {
+    // Request mic permission first to get device labels
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    audioInputDevices.value = devices.filter(d => d.kind === 'audioinput');
+    audioOutputDevices.value = devices.filter(d => d.kind === 'audiooutput');
+
+    // Load saved preferences
+    selectedAudioInput.value = localStorage.getItem('preferredAudioInput') || '';
+    selectedAudioOutput.value = localStorage.getItem('preferredAudioOutput') || '';
+
+    // Check mic permission status
+    const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
+    micPermission.value = permissionStatus.state;
+
+    permissionStatus.onchange = () => {
+      micPermission.value = permissionStatus.state;
+    };
+  } catch (err) {
+    console.error('Error enumerating audio devices:', err);
+    micPermission.value = 'denied';
+  }
+};
+
+const handleAudioInputChange = () => {
+  localStorage.setItem('preferredAudioInput', selectedAudioInput.value);
+  // If currently in a call, we'd need to restart the audio stream
+  if (isBrowserVoiceActive.value) {
+    alert('Audio input changed. Please stop and restart the browser voice to apply changes.');
+  }
+};
+
+const handleAudioOutputChange = () => {
+  localStorage.setItem('preferredAudioOutput', selectedAudioOutput.value);
+};
+
+const requestMicPermission = async () => {
+  try {
+    await navigator.mediaDevices.getUserMedia({ audio: true });
+    await enumerateAudioDevices();
+  } catch (err) {
+    console.error('Microphone permission denied:', err);
+    alert('Microphone permission denied. Please enable it in your browser settings.');
+  }
+};
+
+const testAudio = async () => {
+  testingAudio.value = true;
+  try {
+    const constraints = {
+      audio: {
+        deviceId: selectedAudioInput.value ? { exact: selectedAudioInput.value } : undefined,
+        sampleRate: audioConfig.value.sampleRate,
+        channelCount: audioConfig.value.channelCount,
+        echoCancellation: audioConfig.value.echoCancellation,
+        noiseSuppression: audioConfig.value.noiseSuppression,
+        autoGainControl: audioConfig.value.autoGainControl
+      }
+    };
+
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: audioConfig.value.sampleRate });
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+
+    analyser.fftSize = 256;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    // Monitor audio level for 2 seconds
+    let maxLevel = 0;
+    const startTime = Date.now();
+    const checkLevel = () => {
+      analyser.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+      maxLevel = Math.max(maxLevel, average);
+
+      if (Date.now() - startTime < 2000) {
+        requestAnimationFrame(checkLevel);
+      } else {
+        stream.getTracks().forEach(t => t.stop());
+        audioContext.close();
+
+        if (maxLevel > 10) {
+          alert(`✅ Microphone working! Detected audio level: ${Math.round(maxLevel)}/255\n\nSpeak into your mic while testing.`);
+        } else {
+          alert('⚠️ No audio detected. Check if your microphone is muted or speak louder.');
+        }
+        testingAudio.value = false;
+      }
+    };
+
+    alert('🎤 Testing microphone... Please speak for 2 seconds.');
+    checkLevel();
+
+  } catch (err) {
+    console.error('Error testing audio:', err);
+    alert('Failed to test microphone: ' + err.message);
+    testingAudio.value = false;
+  }
+};
+
 // Lifecycle
 onMounted(() => {
   const adminToken = localStorage.getItem('adminToken');
@@ -812,6 +1163,7 @@ onMounted(() => {
   fetchPersonas();
   loadAdminPhone();
   fetchRecentCalls();
+  enumerateAudioDevices();
 });
 
 onUnmounted(() => {
