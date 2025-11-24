@@ -19,10 +19,13 @@ export default class extends Service<Env> {
    */
   async executeQuery(sql: string, params?: any[]): Promise<{ rows: any[] }> {
     try {
-      this.env.logger.info('Database proxy executing query', {
-        sqlPreview: sql.substring(0, 100),
-        paramsCount: params?.length || 0
-      });
+      // COMMENTED FOR LOGGER BINDING FIX - cross-service calls lose this binding
+      // this.env.logger.info('Database proxy executing query', {
+      //   sqlPreview: sql.substring(0, 100),
+      //   paramsCount: params?.length || 0
+      // });
+      // TESTING: Using console instead as binding test
+      console.log('Database proxy executing query:', sql.substring(0, 100), 'params:', params?.length || 0);
 
       const dbConfig: VultrDbConfig = {
         apiUrl: 'https://db.ai-tools-marketplace.io',
@@ -31,16 +34,22 @@ export default class extends Service<Env> {
 
       const result = await executeSQL(dbConfig, sql, params);
 
-      this.env.logger.info('Query executed successfully', {
-        rowCount: result.rows?.length || 0
-      });
+      // COMMENTED FOR LOGGER BINDING FIX - cross-service calls lose this binding
+      // this.env.logger.info('Query executed successfully', {
+      //   rowCount: result.rows?.length || 0
+      // });
+      // TESTING: Using console instead as binding test
+      console.log('Query executed successfully, rows:', result.rows?.length || 0);
 
       return result;
     } catch (error) {
-      this.env.logger.error('Database proxy query failed', {
-        error: error instanceof Error ? error.message : String(error),
-        sqlPreview: sql.substring(0, 100)
-      });
+      // COMMENTED FOR LOGGER BINDING FIX - cross-service calls lose this binding
+      // this.env.logger.error('Database proxy query failed', {
+      //   error: error instanceof Error ? error.message : String(error),
+      //   sqlPreview: sql.substring(0, 100)
+      // });
+      // TESTING: Using console instead as binding test
+      console.error('Database proxy query failed:', error instanceof Error ? error.message : String(error), sql.substring(0, 100));
       throw error;
     }
   }
@@ -50,19 +59,28 @@ export default class extends Service<Env> {
    */
   async getPersonas(): Promise<any[]> {
     try {
-      this.env.logger.info('Database proxy: Fetching personas');
+      // COMMENTED FOR LOGGER BINDING FIX - cross-service calls lose this binding
+      // this.env.logger.info('Database proxy: Fetching personas');
+      // TESTING: Using console instead as binding test
+      console.log('Database proxy: Fetching personas');
 
       const result = await this.executeQuery(
         'SELECT * FROM personas ORDER BY created_at DESC',
         []
       );
 
-      this.env.logger.info('Personas fetched', { count: result.rows.length });
+      // COMMENTED FOR LOGGER BINDING FIX - cross-service calls lose this binding
+      // this.env.logger.info('Personas fetched', { count: result.rows.length });
+      // TESTING: Using console instead as binding test
+      console.log('Personas fetched:', result.rows.length);
       return result.rows;
     } catch (error) {
-      this.env.logger.error('Failed to fetch personas via database proxy', {
-        error: error instanceof Error ? error.message : String(error)
-      });
+      // COMMENTED FOR LOGGER BINDING FIX - cross-service calls lose this binding
+      // this.env.logger.error('Failed to fetch personas via database proxy', {
+      //   error: error instanceof Error ? error.message : String(error)
+      // });
+      // TESTING: Using console instead as binding test
+      console.error('Failed to fetch personas via database proxy:', error instanceof Error ? error.message : String(error));
       throw error;
     }
   }

@@ -33,6 +33,16 @@ export default class extends Service<Env> {
         return await this.handleGetUserBudget(request, path);
       }
 
+      // POST /api/costs/track - Record a cost event
+      if (path === '/api/costs/track' && request.method === 'POST') {
+        return await this.handleTrackCost(request);
+      }
+
+      // POST /api/costs/call/:callId/finalize - Finalize call costs
+      if (path.match(/^\/api\/costs\/call\/[^/]+\/finalize$/) && request.method === 'POST') {
+        return await this.handleFinalizeCallCosts(request, path);
+      }
+
       // Health check
       if (path === '/health' && request.method === 'GET') {
         return new Response(JSON.stringify({
@@ -375,5 +385,156 @@ export default class extends Service<Env> {
     };
 
     return budget;
+  }
+
+  /**
+   * Handle cost tracking (POST /api/costs/track)
+   */
+  private async handleTrackCost(request: Request): Promise<Response> {
+    try {
+      const body = await request.json() as any;
+
+      // Validate required fields
+      if (!body.callId || !body.service || !body.operation) {
+        return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      //Record the cost event via database-proxy
+      await this.env.DATABASE_PROXY.recordCostEvent({
+        callId: body.callId,
+        userId: body.userId,
+        personaId: body.personaId,
+        service: body.service,
+        operation: body.operation,
+        usageAmount: body.usageAmount || 0,
+        usageUnit: body.usageUnit || 'units',
+        unitCost: body.unitCost || 0,
+        totalCost: body.totalCost || 0,
+        metadata: body.metadata
+      });
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      this.env.logger.error('Failed to track cost', { error: String(error) });
+      return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  /**
+   * Handle call cost finalization (POST /api/costs/call/:callId/finalize)
+   */
+  private async handleFinalizeCallCosts(request: Request, path: string): Promise<Response> {
+    try {
+      const callId = path.split('/')[4] || ''; // /api/costs/call/:callId/finalize
+      const body = await request.json() as any;
+
+      const { durationSeconds, userId, personaId } = body;
+
+      if (!durationSeconds) {
+        return new Response(JSON.stringify({ error: 'Missing durationSeconds' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Calculate costs based on duration
+      const durationMinutes = durationSeconds / 60;
+
+      // Standard rates (2025-11-22)
+      const twilioCost = durationMinutes * 0.014;
+      const deepgramCost = durationMinutes * 0.0059;
+
+      // Estimate based on typical usage
+      const turnsPerMinute = 4;
+      const avgResponseChars = 50;
+      const avgTokensPerTurn = 1100;
+
+      const totalTurns = durationMinutes * turnsPerMinute;
+      const elevenlabsCost = (totalTurns * avgResponseChars / 1000) * 0.00015;
+      const cerebrasCost = (totalTurns * avgTokensPerTurn / 1000000) * 0.10;
+
+      const totalCostUsd = twilioCost + deepgramCost + elevenlabsCost + cerebrasCost;
+
+      // Update call with total cost
+      await this.env.DATABASE_PROXY.updateCallCosts(callId, totalCostUsd);
+
+      // Record individual cost events for tracking
+      await this.env.DATABASE_PROXY.recordCostEvent({
+        callId: callId,
+        userId: userId || undefined,
+        personaId: personaId || undefined,
+        service: 'twilio',
+        operation: 'voice_call',
+        usageAmount: durationMinutes,
+        usageUnit: 'minutes',
+        unitCost: 0.014,
+        totalCost: twilioCost
+      });
+
+      await this.env.DATABASE_PROXY.recordCostEvent({
+        callId: callId,
+        userId: userId || undefined,
+        personaId: personaId || undefined,
+        service: 'deepgram',
+        operation: 'stt_streaming',
+        usageAmount: durationMinutes,
+        usageUnit: 'minutes',
+        unitCost: 0.0059,
+        totalCost: deepgramCost
+      });
+
+      await this.env.DATABASE_PROXY.recordCostEvent({
+        callId: callId,
+        userId: userId || undefined,
+        personaId: personaId || undefined,
+        service: 'elevenlabs',
+        operation: 'tts_generation',
+        usageAmount: totalTurns * avgResponseChars,
+        usageUnit: 'characters',
+        unitCost: 0.00015,
+        totalCost: elevenlabsCost,
+        metadata: { estimated: true, turns: totalTurns }
+      });
+
+      await this.env.DATABASE_PROXY.recordCostEvent({
+        callId: callId,
+        userId: userId || undefined,
+        personaId: personaId || undefined,
+        service: 'cerebras',
+        operation: 'chat_completion',
+        usageAmount: totalTurns * avgTokensPerTurn,
+        usageUnit: 'tokens',
+        unitCost: 0.0000001,
+        totalCost: cerebrasCost,
+        metadata: { estimated: true, turns: totalTurns }
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        totalCostUsd,
+        breakdown: {
+          twilio: twilioCost,
+          deepgram: deepgramCost,
+          elevenlabs: elevenlabsCost,
+          cerebras: cerebrasCost
+        }
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      this.env.logger.error('Failed to finalize call costs', { error: String(error) });
+      return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
   }
 }

@@ -1,35 +1,41 @@
 <template>
-  <div class="min-h-screen bg-midnight text-cream font-[--font-body]">
-    <!-- Ambient Background (matching Home.vue) -->
-    <div class="fixed inset-0 -z-10 bg-midnight">
-      <div class="grain-overlay absolute inset-0 pointer-events-none mix-blend-overlay opacity-50"></div>
-      <div class="absolute w-[600px] h-[600px] -top-[200px] -right-[200px] opacity-10 pointer-events-none blur-[120px] animate-[float_20s_ease-in-out_infinite] bg-gradient-radial from-glow via-ember to-transparent"></div>
-      <div class="absolute w-[500px] h-[500px] bottom-[10%] -left-[150px] opacity-12 pointer-events-none blur-[120px] animate-[float_25s_ease-in-out_infinite_reverse] bg-gradient-radial from-solar to-transparent"></div>
+  <div class="min-h-screen bg-[#0d0d0f] text-[#e8e6e3] font-['Inter',sans-serif] overflow-hidden">
+    <!-- Ambient Background - Matching Persona Designer -->
+    <div class="fixed inset-0 -z-10">
+      <div class="absolute inset-0 bg-gradient-to-b from-[#0d0d0f] via-[#131318] to-[#0d0d0f]"></div>
+      <div class="grain-overlay absolute inset-0 pointer-events-none mix-blend-overlay opacity-30"></div>
+      <!-- Subtle amber glow top right -->
+      <div class="absolute w-[800px] h-[600px] -top-[300px] -right-[200px] opacity-[0.04] pointer-events-none blur-[150px] bg-gradient-radial from-amber-500 to-transparent"></div>
+      <!-- Subtle cyan glow bottom left -->
+      <div class="absolute w-[600px] h-[500px] bottom-[-200px] -left-[200px] opacity-[0.03] pointer-events-none blur-[150px] bg-gradient-radial from-cyan-500 to-transparent"></div>
     </div>
 
-    <!-- Header -->
-    <header class="border-b border-white/10 backdrop-blur-xl bg-deep/50 sticky top-0 z-40">
-      <div class="max-w-[1800px] mx-auto px-6 lg:px-12 py-6">
+    <!-- TACTICAL COMMAND NAV - Sticky Header -->
+    <nav class="sticky top-0 z-50 border-b border-[#2a2a2e] backdrop-blur-xl bg-[#0d0d0f]/90">
+      <div class="max-w-[1800px] mx-auto px-6 py-4">
         <div class="flex items-center justify-between">
-          <!-- Title with live indicator -->
-          <div class="flex items-center gap-4">
-            <div class="w-3 h-3 bg-glow rounded-full animate-[pulseGlow_2s_ease-in-out_infinite] shadow-[0_0_12px_rgba(251,191,36,0.8)]"></div>
-            <h1 class="text-3xl lg:text-4xl font-[--font-display] font-black tracking-tight">
-              <span class="bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">Admin</span> Dashboard
-            </h1>
+          <!-- Left: Branding -->
+          <div class="flex items-center gap-6">
+            <div class="flex items-center gap-3">
+              <div class="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse"></div>
+              <h1 class="font-['JetBrains_Mono',monospace] text-sm tracking-[0.3em] uppercase text-[#999]">
+                Command Center
+              </h1>
+            </div>
           </div>
 
-          <div class="flex items-center gap-4">
+          <!-- Right: Controls -->
+          <div class="flex items-center gap-3">
             <!-- Period Selector -->
-            <div class="flex items-center gap-2 bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-1.5">
+            <div class="flex items-center gap-1 bg-[#1a1a1e] px-1.5 py-1.5 rounded-lg border border-[#2a2a2e]">
               <button
                 v-for="option in periodOptions"
                 :key="option.value"
                 @click="selectedPeriod = option.value; fetchDashboardData()"
-                class="px-5 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wider transition-all duration-300"
+                class="px-4 py-1.5 rounded-md font-mono text-[10px] uppercase tracking-[0.2em] transition-all duration-300"
                 :class="selectedPeriod === option.value
-                  ? 'bg-gradient-to-r from-glow to-ember text-deep shadow-lg'
-                  : 'text-cream/60 hover:text-cream hover:bg-white/5'"
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  : 'text-[#666] hover:text-amber-500 hover:bg-[#1e1e22]'"
               >
                 {{ option.label }}
               </button>
@@ -38,482 +44,343 @@
             <!-- Persona Designer Link -->
             <router-link
               to="/admin/personas/designer"
-              class="px-6 py-2.5 bg-gradient-to-r from-glow/10 to-ember/10 hover:from-glow/20 hover:to-ember/20 border border-glow/30 hover:border-glow/50 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 group"
+              class="flex items-center gap-2 bg-[#1a1a1e] px-4 py-2 rounded-lg border border-[#2a2a2e] hover:border-amber-500/50 hover:bg-[#1e1e22] transition-all duration-300 group"
             >
-              <svg class="w-4 h-4 text-glow group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <svg class="w-4 h-4 text-[#666] group-hover:text-amber-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
               </svg>
-              <span class="bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">Persona Designer</span>
+              <span class="font-mono text-xs uppercase tracking-wider text-[#666] group-hover:text-amber-500">Designer</span>
             </router-link>
 
-            <!-- Audio Settings Button -->
-            <button
-              @click="showSettingsModal = true"
-              class="px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/20 hover:border-glow/50 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 group"
-              title="Audio Settings"
-            >
-              <svg class="w-5 h-5 text-cream/60 group-hover:text-glow transition-all duration-300 group-hover:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span class="text-sm">Settings</span>
-            </button>
-
-            <!-- Logout Button -->
+            <!-- Logout -->
             <button
               @click="handleLogout"
-              class="px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/20 hover:border-ember/50 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 group"
+              class="flex items-center gap-2 bg-[#1a1a1e] px-4 py-2 rounded-lg border border-[#2a2a2e] hover:border-red-500/50 hover:bg-red-500/5 transition-all duration-300 group"
             >
-              <svg class="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <svg class="w-4 h-4 text-[#666] group-hover:text-red-400 transition-colors group-hover:rotate-180 duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
               </svg>
-              <span class="text-sm">Logout</span>
+              <span class="font-mono text-xs uppercase tracking-wider text-[#666] group-hover:text-red-400">Logout</span>
             </button>
           </div>
         </div>
       </div>
-    </header>
+    </nav>
 
     <!-- Main Content -->
-    <main class="max-w-[1800px] mx-auto px-6 lg:px-12 py-12">
+    <main class="max-w-[1800px] mx-auto px-6 py-8">
       <!-- Loading State -->
-      <div v-if="loading" class="space-y-8">
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div v-for="i in 4" :key="i" class="h-[180px] bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl animate-pulse"></div>
+      <div v-if="loading" class="space-y-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div v-for="i in 4" :key="i" class="h-[140px] bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg animate-pulse"></div>
         </div>
-        <div class="h-[400px] bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl animate-pulse"></div>
       </div>
 
       <!-- Error State -->
-      <div v-else-if="error" class="bg-red-500/10 border-2 border-red-500/30 rounded-2xl p-8 backdrop-blur-xl">
-        <div class="flex items-center gap-4 mb-4">
-          <svg class="w-8 h-8 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <div v-else-if="error" class="bg-red-500/10 border border-red-500/30 rounded-lg p-6 backdrop-blur-xl">
+        <div class="flex items-center gap-3 mb-3">
+          <svg class="w-6 h-6 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <h2 class="text-2xl font-bold text-red-400">Error Loading Dashboard</h2>
+          <h2 class="font-['JetBrains_Mono',monospace] text-lg tracking-wide uppercase text-red-400">System Error</h2>
         </div>
-        <p class="text-cream/70 mb-6">{{ error }}</p>
+        <p class="text-[#999] mb-4 font-mono text-sm">{{ error }}</p>
         <button
           @click="fetchDashboardData"
-          class="px-6 py-3 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-xl font-semibold transition-all duration-300"
+          class="px-4 py-2 bg-red-500/20 border border-red-500/50 rounded-lg font-mono text-xs uppercase tracking-wider text-red-400 hover:bg-red-500/30 transition-all"
         >
           Retry
         </button>
       </div>
 
-      <!-- Dashboard Data -->
-      <div v-else class="space-y-8 opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards]">
-        <!-- Metrics Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <!-- Dashboard Content -->
+      <div v-else class="space-y-6">
+        <!-- KEY METRICS - Top Row -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <!-- Total Calls -->
-          <div class="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-8 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(251,191,36,0.2)] overflow-hidden">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-glow/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div class="relative z-10">
-              <div class="flex items-center justify-between mb-4">
-                <div class="text-sm font-bold uppercase tracking-[0.15em] text-cream/50">Total Calls</div>
-                <svg class="w-6 h-6 text-glow/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
+          <div class="relative group">
+            <div class="absolute inset-0 bg-gradient-to-br from-amber-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg blur-xl"></div>
+            <div class="relative bg-[#1a1a1e] border border-[#2a2a2e] group-hover:border-amber-500/30 rounded-lg p-5 transition-all duration-300">
+              <div class="flex items-start justify-between mb-4">
+                <div class="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                  <svg class="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </div>
+                <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
               </div>
-              <div class="text-5xl font-[--font-display] font-black mb-2 font-mono bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">
-                {{ formatNumber(dashboardData.summary?.totalCalls || 0) }}
+              <div class="font-['JetBrains_Mono',monospace] text-3xl font-bold text-[#e8e6e3] mb-1">
+                {{ stats.totalCalls || 0 }}
               </div>
-              <div class="text-xs text-cream/40 font-medium">Since launch</div>
+              <div class="font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Total Calls</div>
             </div>
           </div>
 
-          <!-- Total Revenue -->
-          <div class="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-8 transition-all duration-500 hover:bg-white/[0.12] hover:border-emerald-500/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(16,185,129,0.2)] overflow-hidden">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div class="relative z-10">
-              <div class="flex items-center justify-between mb-4">
-                <div class="text-sm font-bold uppercase tracking-[0.15em] text-cream/50">Revenue</div>
-                <svg class="w-6 h-6 text-emerald-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+          <!-- Total Duration -->
+          <div class="relative group">
+            <div class="absolute inset-0 bg-gradient-to-br from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg blur-xl"></div>
+            <div class="relative bg-[#1a1a1e] border border-[#2a2a2e] group-hover:border-cyan-500/30 rounded-lg p-5 transition-all duration-300">
+              <div class="flex items-start justify-between mb-4">
+                <div class="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
+                  <svg class="w-5 h-5 text-cyan-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div class="w-2 h-2 rounded-full bg-cyan-500 animate-pulse shadow-[0_0_8px_rgba(6,182,212,0.6)]"></div>
               </div>
-              <div class="text-5xl font-[--font-display] font-black mb-2 font-mono text-emerald-400">
-                ${{ formatCurrency(dashboardData.financials?.revenue || 0) }}
+              <div class="font-['JetBrains_Mono',monospace] text-3xl font-bold text-[#e8e6e3] mb-1">
+                {{ formatDuration(stats.totalDuration) }}
               </div>
-              <div class="text-xs text-cream/40 font-medium">Total earnings</div>
+              <div class="font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Total Duration</div>
             </div>
           </div>
 
           <!-- Total Cost -->
-          <div class="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-8 transition-all duration-500 hover:bg-white/[0.12] hover:border-ember/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(255,140,66,0.2)] overflow-hidden">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-ember/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div class="relative z-10">
-              <div class="flex items-center justify-between mb-4">
-                <div class="text-sm font-bold uppercase tracking-[0.15em] text-cream/50">Cost</div>
-                <svg class="w-6 h-6 text-ember/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
-                </svg>
+          <div class="relative group">
+            <div class="absolute inset-0 bg-gradient-to-br from-rose-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg blur-xl"></div>
+            <div class="relative bg-[#1a1a1e] border border-[#2a2a2e] group-hover:border-rose-500/30 rounded-lg p-5 transition-all duration-300">
+              <div class="flex items-start justify-between mb-4">
+                <div class="p-2 bg-rose-500/10 rounded-lg border border-rose-500/20">
+                  <svg class="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div class="w-2 h-2 rounded-full bg-rose-500 animate-pulse shadow-[0_0_8px_rgba(244,63,94,0.6)]"></div>
               </div>
-              <div class="text-5xl font-[--font-display] font-black mb-2 font-mono text-ember">
-                ${{ formatCurrency(dashboardData.financials?.totalCost || 0) }}
+              <div class="font-['JetBrains_Mono',monospace] text-3xl font-bold text-[#e8e6e3] mb-1">
+                ${{ (stats.totalCost || 0).toFixed(2) }}
               </div>
-              <div class="text-xs text-cream/40 font-medium">Total expenses</div>
+              <div class="font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">API Costs</div>
             </div>
           </div>
 
-          <!-- Profit -->
-          <div class="group relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-8 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(251,191,36,0.2)] overflow-hidden">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-glow/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div class="relative z-10">
-              <div class="flex items-center justify-between mb-4">
-                <div class="text-sm font-bold uppercase tracking-[0.15em] text-cream/50">Profit</div>
-                <svg class="w-6 h-6 text-glow/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                </svg>
+          <!-- Avg Cost/Call -->
+          <div class="relative group">
+            <div class="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-lg blur-xl"></div>
+            <div class="relative bg-[#1a1a1e] border border-[#2a2a2e] group-hover:border-violet-500/30 rounded-lg p-5 transition-all duration-300">
+              <div class="flex items-start justify-between mb-4">
+                <div class="p-2 bg-violet-500/10 rounded-lg border border-violet-500/20">
+                  <svg class="w-5 h-5 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                <div class="w-2 h-2 rounded-full bg-violet-500 animate-pulse shadow-[0_0_8px_rgba(139,92,246,0.6)]"></div>
               </div>
-              <div class="text-5xl font-[--font-display] font-black mb-2 font-mono bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">
-                ${{ formatCurrency((dashboardData.financials?.revenue || 0) - (dashboardData.financials?.totalCost || 0)) }}
+              <div class="font-['JetBrains_Mono',monospace] text-3xl font-bold text-[#e8e6e3] mb-1">
+                ${{ (stats.avgCostPerCall || 0).toFixed(4) }}
               </div>
-              <div class="text-xs font-medium" :class="profitMargin >= 70 ? 'text-emerald-400' : profitMargin >= 50 ? 'text-glow' : 'text-ember'">
-                {{ profitMargin }}% margin
-              </div>
+              <div class="font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Avg Per Call</div>
             </div>
           </div>
         </div>
 
-        <!-- Call Status & Failed Call Costs -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <!-- Failed Call Costs -->
-          <div class="group relative bg-gradient-to-br from-red-500/10 to-red-500/5 backdrop-blur-xl border border-red-500/30 rounded-2xl p-8 transition-all duration-500 hover:bg-red-500/15 hover:border-red-500/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(239,68,68,0.2)] overflow-hidden">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div class="relative z-10">
-              <div class="flex items-center justify-between mb-4">
-                <div class="text-sm font-bold uppercase tracking-[0.15em] text-cream/50">Failed Costs</div>
-                <svg class="w-6 h-6 text-red-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+        <!-- COST BREAKDOWN - Service Breakdown -->
+        <div class="bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg p-6">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="w-1 h-6 bg-gradient-to-b from-amber-500 to-orange-500 rounded-full"></div>
+            <h2 class="font-['JetBrains_Mono',monospace] text-lg tracking-wide uppercase text-[#e8e6e3]">Cost Breakdown by Service</h2>
+          </div>
+
+          <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <!-- Twilio -->
+            <div class="bg-[#131318] border border-[#2a2a2e] rounded-lg p-4 hover:border-amber-500/30 transition-all duration-300">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-2 h-2 rounded-full bg-amber-500"></div>
+                <div class="font-mono text-xs uppercase tracking-wider text-[#999]">Twilio</div>
               </div>
-              <div class="text-4xl font-[--font-display] font-black mb-2 font-mono text-red-400">
-                ${{ formatCurrency(dashboardData.financials?.failedCallCosts || 0) }}
+              <div class="font-['JetBrains_Mono',monospace] text-2xl font-bold text-[#e8e6e3]">
+                ${{ (stats.costByService?.twilio || 0).toFixed(4) }}
               </div>
-              <div class="text-xs text-cream/40 font-medium">{{ dashboardData.summary?.failedCalls || 0 }} failed calls</div>
+              <div class="mt-2 font-mono text-[9px] text-[#666]">Voice Calling</div>
+            </div>
+
+            <!-- Deepgram -->
+            <div class="bg-[#131318] border border-[#2a2a2e] rounded-lg p-4 hover:border-cyan-500/30 transition-all duration-300">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-2 h-2 rounded-full bg-cyan-500"></div>
+                <div class="font-mono text-xs uppercase tracking-wider text-[#999]">Deepgram</div>
+              </div>
+              <div class="font-['JetBrains_Mono',monospace] text-2xl font-bold text-[#e8e6e3]">
+                ${{ (stats.costByService?.deepgram || 0).toFixed(4) }}
+              </div>
+              <div class="mt-2 font-mono text-[9px] text-[#666]">Speech-to-Text</div>
+            </div>
+
+            <!-- Cerebras -->
+            <div class="bg-[#131318] border border-[#2a2a2e] rounded-lg p-4 hover:border-violet-500/30 transition-all duration-300">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-2 h-2 rounded-full bg-violet-500"></div>
+                <div class="font-mono text-xs uppercase tracking-wider text-[#999]">Cerebras</div>
+              </div>
+              <div class="font-['JetBrains_Mono',monospace] text-2xl font-bold text-[#e8e6e3]">
+                ${{ (stats.costByService?.cerebras || 0).toFixed(4) }}
+              </div>
+              <div class="mt-2 font-mono text-[9px] text-[#666]">AI Inference</div>
+            </div>
+
+            <!-- ElevenLabs -->
+            <div class="bg-[#131318] border border-[#2a2a2e] rounded-lg p-4 hover:border-emerald-500/30 transition-all duration-300">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-2 h-2 rounded-full bg-emerald-500"></div>
+                <div class="font-mono text-xs uppercase tracking-wider text-[#999]">ElevenLabs</div>
+              </div>
+              <div class="font-['JetBrains_Mono',monospace] text-2xl font-bold text-[#e8e6e3]">
+                ${{ (stats.costByService?.elevenlabs || 0).toFixed(4) }}
+              </div>
+              <div class="mt-2 font-mono text-[9px] text-[#666]">Text-to-Speech</div>
+            </div>
+
+            <!-- Stripe -->
+            <div class="bg-[#131318] border border-[#2a2a2e] rounded-lg p-4 hover:border-rose-500/30 transition-all duration-300">
+              <div class="flex items-center gap-2 mb-3">
+                <div class="w-2 h-2 rounded-full bg-rose-500"></div>
+                <div class="font-mono text-xs uppercase tracking-wider text-[#999]">Stripe</div>
+              </div>
+              <div class="font-['JetBrains_Mono',monospace] text-2xl font-bold text-[#e8e6e3]">
+                ${{ (stats.costByService?.stripe || 0).toFixed(4) }}
+              </div>
+              <div class="mt-2 font-mono text-[9px] text-[#666]">Payment Fees</div>
             </div>
           </div>
 
-          <!-- In-Progress Calls -->
-          <div class="group relative bg-gradient-to-br from-blue-500/10 to-blue-500/5 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-8 transition-all duration-500 hover:bg-blue-500/15 hover:border-blue-500/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(59,130,246,0.2)] overflow-hidden">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div class="relative z-10">
-              <div class="flex items-center justify-between mb-4">
-                <div class="text-sm font-bold uppercase tracking-[0.15em] text-cream/50">In Progress</div>
-                <svg class="w-6 h-6 text-blue-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+          <!-- Cost Distribution Bars -->
+          <div class="mt-6 space-y-2">
+            <div v-for="service in ['twilio', 'deepgram', 'cerebras', 'elevenlabs', 'stripe']" :key="service" class="flex items-center gap-3">
+              <div class="w-24 font-mono text-xs uppercase tracking-wider text-[#666]">{{ service }}</div>
+              <div class="flex-1 h-2 bg-[#0d0d0f] rounded-full overflow-hidden">
+                <div
+                  class="h-full rounded-full transition-all duration-1000 ease-out"
+                  :class="{
+                    'bg-gradient-to-r from-amber-500 to-orange-500': service === 'twilio',
+                    'bg-gradient-to-r from-cyan-500 to-blue-500': service === 'deepgram',
+                    'bg-gradient-to-r from-violet-500 to-purple-500': service === 'cerebras',
+                    'bg-gradient-to-r from-emerald-500 to-green-500': service === 'elevenlabs',
+                    'bg-gradient-to-r from-rose-500 to-red-500': service === 'stripe'
+                  }"
+                  :style="{ width: getCostPercentage(service) + '%' }"
+                ></div>
               </div>
-              <div class="text-4xl font-[--font-display] font-black mb-2 font-mono text-blue-400">
-                {{ formatNumber(dashboardData.summary?.inProgressCalls || 0) }}
-              </div>
-              <div class="text-xs text-cream/40 font-medium">{{ dashboardData.callStatusBreakdown?.inProgressPercent || '0%' }}</div>
-            </div>
-          </div>
-
-          <!-- Completed Call Costs -->
-          <div class="group relative bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 backdrop-blur-xl border border-emerald-500/30 rounded-2xl p-8 transition-all duration-500 hover:bg-emerald-500/15 hover:border-emerald-500/50 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(16,185,129,0.2)] overflow-hidden">
-            <div class="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 -mr-16 -mt-16 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-            <div class="relative z-10">
-              <div class="flex items-center justify-between mb-4">
-                <div class="text-sm font-bold uppercase tracking-[0.15em] text-cream/50">Completed Costs</div>
-                <svg class="w-6 h-6 text-emerald-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div class="text-4xl font-[--font-display] font-black mb-2 font-mono text-emerald-400">
-                ${{ formatCurrency(dashboardData.financials?.completedCallCosts || 0) }}
-              </div>
-              <div class="text-xs text-cream/40 font-medium">{{ dashboardData.summary?.completedCalls || 0 }} completed</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Data Tables Grid -->
-        <div class="grid lg:grid-cols-2 gap-6">
-          <!-- Cost Breakdown by Service -->
-          <div class="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-8 transition-all duration-500 hover:border-glow/30">
-            <h2 class="text-2xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
-              <span class="w-2 h-2 bg-glow rounded-full"></span>
-              Cost Breakdown
-            </h2>
-            <div class="space-y-4">
-              <div
-                v-for="service in dashboardData.costByService"
-                :key="service.service"
-                class="group flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-glow/30 rounded-xl transition-all duration-300"
-              >
-                <div class="flex items-center gap-4">
-                  <div class="w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center text-sm font-black uppercase"
-                    :class="getServiceColor(service.service)">
-                    {{ service.service.slice(0, 2) }}
-                  </div>
-                  <div>
-                    <div class="font-bold capitalize">{{ service.service }}</div>
-                    <div class="text-sm text-cream/50">{{ formatNumber(service.usage_count || 0) }} uses</div>
-                  </div>
-                </div>
-                <div class="text-right">
-                  <div class="text-2xl font-mono font-black text-ember">${{ formatCurrency(service.total_cost) }}</div>
-                  <div class="text-xs text-cream/50 font-medium">{{ ((service.total_cost / (dashboardData.summary?.total_cost || 1)) * 100).toFixed(1) }}%</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Top Personas -->
-          <div class="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-8 transition-all duration-500 hover:border-glow/30">
-            <h2 class="text-2xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
-              <span class="w-2 h-2 bg-glow rounded-full"></span>
-              Top Personas
-            </h2>
-            <div class="space-y-4">
-              <div
-                v-for="(persona, index) in dashboardData.topPersonas"
-                :key="persona.persona_id"
-                class="group flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-glow/30 rounded-xl transition-all duration-300"
-              >
-                <div class="flex items-center gap-4">
-                  <div class="relative">
-                    <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-glow/20 to-ember/20 flex items-center justify-center text-xl font-black">
-                      {{ persona.persona_name?.charAt(0) || '?' }}
-                    </div>
-                    <div class="absolute -top-2 -right-2 w-6 h-6 bg-glow text-deep rounded-full flex items-center justify-center text-xs font-black">
-                      {{ index + 1 }}
-                    </div>
-                  </div>
-                  <div>
-                    <div class="font-bold">{{ persona.persona_name || 'Unknown' }}</div>
-                    <div class="text-sm text-cream/50">{{ formatNumber(persona.call_count) }} calls</div>
-                  </div>
-                </div>
-                <div class="text-right">
-                  <div class="text-2xl font-mono font-black text-emerald-400">${{ formatCurrency(persona.total_revenue) }}</div>
-                  <div class="text-xs text-cream/50 font-medium">{{ ((persona.total_revenue / (dashboardData.summary?.total_revenue || 1)) * 100).toFixed(1) }}%</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Top Users -->
-          <div class="lg:col-span-2 bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-8 transition-all duration-500 hover:border-glow/30">
-            <h2 class="text-2xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
-              <span class="w-2 h-2 bg-glow rounded-full"></span>
-              Top Users
-            </h2>
-            <div class="overflow-x-auto">
-              <table class="w-full">
-                <thead>
-                  <tr class="border-b border-white/10">
-                    <th class="text-left py-4 px-4 text-sm font-bold uppercase tracking-wider text-cream/50">Rank</th>
-                    <th class="text-left py-4 px-4 text-sm font-bold uppercase tracking-wider text-cream/50">User</th>
-                    <th class="text-right py-4 px-4 text-sm font-bold uppercase tracking-wider text-cream/50">Calls</th>
-                    <th class="text-right py-4 px-4 text-sm font-bold uppercase tracking-wider text-cream/50">Duration</th>
-                    <th class="text-right py-4 px-4 text-sm font-bold uppercase tracking-wider text-cream/50">Revenue</th>
-                    <th class="text-right py-4 px-4 text-sm font-bold uppercase tracking-wider text-cream/50">Avg/Call</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="(user, index) in dashboardData.top_users"
-                    :key="user.user_id"
-                    class="border-b border-white/5 hover:bg-white/5 transition-colors duration-200"
-                  >
-                    <td class="py-4 px-4">
-                      <div class="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black"
-                        :class="index === 0 ? 'bg-glow text-deep' : index === 1 ? 'bg-ember text-deep' : index === 2 ? 'bg-solar text-deep' : 'bg-white/10 text-cream'">
-                        {{ index + 1 }}
-                      </div>
-                    </td>
-                    <td class="py-4 px-4">
-                      <div class="font-bold">{{ user.user_name || 'Anonymous' }}</div>
-                      <div class="text-sm text-cream/50">{{ user.user_email }}</div>
-                    </td>
-                    <td class="py-4 px-4 text-right font-mono font-bold text-lg">{{ formatNumber(user.call_count) }}</td>
-                    <td class="py-4 px-4 text-right font-mono text-cream/70">{{ formatDuration(user.total_duration) }}</td>
-                    <td class="py-4 px-4 text-right font-mono font-black text-xl text-emerald-400">${{ formatCurrency(user.total_revenue) }}</td>
-                    <td class="py-4 px-4 text-right font-mono text-glow">${{ formatCurrency(user.total_revenue / user.call_count) }}</td>
-                  </tr>
-                </tbody>
-              </table>
+              <div class="w-16 text-right font-mono text-xs text-[#999]">{{ getCostPercentage(service).toFixed(1) }}%</div>
             </div>
           </div>
         </div>
 
-        <!-- Footer Stats -->
-        <div class="bg-gradient-to-r from-glow/10 via-ember/10 to-solar/10 backdrop-blur-xl border border-glow/20 rounded-2xl p-8">
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            <div>
-              <div class="text-sm text-cream/50 font-bold uppercase tracking-wider mb-2">Avg Call Duration</div>
-              <div class="text-3xl font-mono font-black text-glow">{{ formatDuration((dashboardData.summary?.total_duration || 0) / (dashboardData.summary?.total_calls || 1)) }}</div>
+        <!-- RECENT CALLS TABLE -->
+        <div class="bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg overflow-hidden">
+          <div class="p-6 border-b border-[#2a2a2e]">
+            <div class="flex items-center gap-3">
+              <div class="w-1 h-6 bg-gradient-to-b from-cyan-500 to-blue-500 rounded-full"></div>
+              <h2 class="font-['JetBrains_Mono',monospace] text-lg tracking-wide uppercase text-[#e8e6e3]">Recent Call Activity</h2>
             </div>
-            <div>
-              <div class="text-sm text-cream/50 font-bold uppercase tracking-wider mb-2">Avg Revenue/Call</div>
-              <div class="text-3xl font-mono font-black text-emerald-400">${{ formatCurrency((dashboardData.summary?.total_revenue || 0) / (dashboardData.summary?.total_calls || 1)) }}</div>
-            </div>
-            <div>
-              <div class="text-sm text-cream/50 font-bold uppercase tracking-wider mb-2">Avg Cost/Call</div>
-              <div class="text-3xl font-mono font-black text-ember">${{ formatCurrency((dashboardData.summary?.total_cost || 0) / (dashboardData.summary?.total_calls || 1)) }}</div>
-            </div>
-            <div>
-              <div class="text-sm text-cream/50 font-bold uppercase tracking-wider mb-2">Active Users</div>
-              <div class="text-3xl font-mono font-black text-glow">{{ formatNumber(dashboardData.top_users?.length || 0) }}</div>
-            </div>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-[#2a2a2e]">
+                  <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Call ID</th>
+                  <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Persona</th>
+                  <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Duration</th>
+                  <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Cost</th>
+                  <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Status</th>
+                  <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="call in recentCalls" :key="call.id" class="border-b border-[#2a2a2e]/50 hover:bg-[#131318] transition-colors">
+                  <td class="px-6 py-4 font-['JetBrains_Mono',monospace] text-xs text-[#999]">{{ call.id.substring(0, 12) }}...</td>
+                  <td class="px-6 py-4 font-mono text-sm text-[#e8e6e3]">{{ call.persona_name || 'Unknown' }}</td>
+                  <td class="px-6 py-4 font-['JetBrains_Mono',monospace] text-sm text-cyan-400">{{ formatSeconds(call.duration_seconds) }}</td>
+                  <td class="px-6 py-4 font-['JetBrains_Mono',monospace] text-sm text-amber-400">${{ (call.cost_usd || 0).toFixed(4) }}</td>
+                  <td class="px-6 py-4">
+                    <span
+                      class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider"
+                      :class="{
+                        'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30': call.status === 'completed',
+                        'bg-amber-500/10 text-amber-400 border border-amber-500/30': call.status === 'in_progress',
+                        'bg-red-500/10 text-red-400 border border-red-500/30': call.status === 'failed'
+                      }"
+                    >
+                      <div class="w-1.5 h-1.5 rounded-full" :class="{
+                        'bg-emerald-500': call.status === 'completed',
+                        'bg-amber-500 animate-pulse': call.status === 'in_progress',
+                        'bg-red-500': call.status === 'failed'
+                      }"></div>
+                      {{ call.status }}
+                    </span>
+                  </td>
+                  <td class="px-6 py-4 font-mono text-xs text-[#666]">{{ formatTime(call.created_at) }}</td>
+                </tr>
+                <tr v-if="!recentCalls || recentCalls.length === 0">
+                  <td colspan="6" class="px-6 py-12 text-center font-mono text-sm text-[#666]">
+                    No call data available for selected period
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
     </main>
 
-    <!-- Audio Settings Modal -->
-    <div v-if="showSettingsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" @click.self="showSettingsModal = false">
-      <div class="bg-deep border border-white/10 rounded-2xl max-w-2xl w-full mx-4 overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.5)] backdrop-blur-xl">
-        <!-- Modal Header -->
-        <div class="flex items-center justify-between px-6 py-5 bg-white/5 border-b border-white/10">
-          <div class="flex items-center gap-3">
-            <div class="w-2 h-2 bg-glow rounded-full animate-pulse shadow-[0_0_8px_rgba(251,191,36,0.6)]"></div>
-            <h2 class="text-lg font-[--font-display] font-bold bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">Audio Settings</h2>
-          </div>
-          <button @click="showSettingsModal = false" class="text-cream/50 hover:text-glow transition-colors">
+    <!-- Audio Settings Modal (if needed) -->
+    <div v-if="showSettingsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" @click.self="showSettingsModal = false">
+      <div class="bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg p-6 max-w-md w-full mx-4">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-['JetBrains_Mono',monospace] text-lg tracking-wide uppercase text-[#e8e6e3]">Settings</h3>
+          <button @click="showSettingsModal = false" class="text-[#666] hover:text-[#e8e6e3] transition-colors">
             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
-
-        <!-- Modal Body -->
-        <div class="p-6 space-y-6">
-          <!-- Audio Input Device -->
-          <div>
-            <label class="text-sm font-bold uppercase tracking-wider text-cream/70 block mb-3">Microphone</label>
-            <select
-              v-model="selectedAudioInput"
-              @change="handleAudioInputChange"
-              class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-cream focus:border-glow/50 focus:outline-none transition-colors"
-            >
-              <option value="">Default Microphone</option>
-              <option v-for="device in audioInputDevices" :key="device.deviceId" :value="device.deviceId">
-                {{ device.label || `Microphone ${device.deviceId.slice(0, 8)}...` }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Audio Output Device -->
-          <div>
-            <label class="text-sm font-bold uppercase tracking-wider text-cream/70 block mb-3">Speaker</label>
-            <select
-              v-model="selectedAudioOutput"
-              @change="handleAudioOutputChange"
-              class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-cream focus:border-glow/50 focus:outline-none transition-colors"
-            >
-              <option value="">Default Speaker</option>
-              <option v-for="device in audioOutputDevices" :key="device.deviceId" :value="device.deviceId">
-                {{ device.label || `Speaker ${device.deviceId.slice(0, 8)}...` }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Audio Configuration Info -->
-          <div class="bg-white/5 border border-white/10 rounded-xl p-4 backdrop-blur-xl">
-            <div class="text-xs font-bold uppercase tracking-wider text-cream/50 mb-3">Current Configuration</div>
-            <div class="space-y-2 text-sm text-cream/70">
-              <div class="flex justify-between">
-                <span>Sample Rate:</span>
-                <span class="text-glow font-semibold">16000 Hz</span>
-              </div>
-              <div class="flex justify-between">
-                <span>Channels:</span>
-                <span class="text-glow font-semibold">1 (Mono)</span>
-              </div>
-              <div class="flex justify-between">
-                <span>Echo Cancellation:</span>
-                <span class="text-emerald-400 font-semibold">Enabled</span>
-              </div>
-              <div class="flex justify-between">
-                <span>Noise Suppression:</span>
-                <span class="text-emerald-400 font-semibold">Enabled</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Permissions Status -->
-          <div class="bg-white/5 border border-white/10 rounded-xl p-4 backdrop-blur-xl">
-            <div class="text-xs font-bold uppercase tracking-wider text-cream/50 mb-3">Permissions</div>
-            <div class="space-y-2">
-              <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full" :class="micPermission === 'granted' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : micPermission === 'denied' ? 'bg-red-500' : 'bg-amber-500'"></div>
-                <span class="text-sm text-cream/70">Microphone: <span class="font-semibold text-cream">{{ micPermission }}</span></span>
-              </div>
-              <button
-                v-if="micPermission !== 'granted'"
-                @click="requestMicPermission"
-                class="text-sm font-semibold text-glow hover:text-ember transition-colors"
-              >
-                → Request Microphone Access
-              </button>
-            </div>
-          </div>
-
-          <!-- Test Audio Button -->
-          <button
-            @click="testAudio"
-            :disabled="testingAudio"
-            class="w-full py-3 rounded-xl font-semibold uppercase tracking-wider transition-all duration-300 border"
-            :class="testingAudio
-              ? 'bg-glow/20 border-glow/50 text-glow cursor-wait'
-              : 'bg-white/5 border-white/20 text-cream hover:border-glow/50 hover:bg-white/10'"
-          >
-            {{ testingAudio ? 'Testing...' : 'Test Microphone' }}
-          </button>
-        </div>
+        <p class="font-mono text-sm text-[#999]">Settings panel coming soon...</p>
       </div>
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from 'vue';
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
 
 // State
 const loading = ref(true);
-const error = ref(null);
-const selectedPeriod = ref('30d');
-const dashboardData = ref({
-  summary: null,
-  cost_breakdown: [],
-  top_personas: [],
-  top_users: []
-});
-
-// Audio Settings State
+const error = ref<string | null>(null);
 const showSettingsModal = ref(false);
-const audioInputDevices = ref([]);
-const audioOutputDevices = ref([]);
-const selectedAudioInput = ref('');
-const selectedAudioOutput = ref('');
-const micPermission = ref('prompt');
-const testingAudio = ref(false);
+const selectedPeriod = ref('30d');
 
-// Period options
 const periodOptions = [
   { label: '7D', value: '7d' },
   { label: '30D', value: '30d' },
-  { label: '90D', value: '90d' }
+  { label: '90D', value: '90d' },
+  { label: 'ALL', value: 'all' }
 ];
 
-// Computed
-const profitMargin = computed(() => {
-  const revenue = parseFloat(dashboardData.value.financials?.revenue || 0);
-  const cost = parseFloat(dashboardData.value.financials?.totalCost || 0);
-  if (revenue === 0) return 0;
-  return Math.round(((revenue - cost) / revenue) * 100);
+// Dashboard stats
+const stats = ref({
+  totalCalls: 0,
+  totalDuration: 0,
+  totalCost: 0,
+  avgCostPerCall: 0,
+  costByService: {
+    twilio: 0,
+    deepgram: 0,
+    cerebras: 0,
+    elevenlabs: 0,
+    stripe: 0,
+    raindrop: 0,
+    vultr: 0,
+    vercel: 0
+  }
 });
 
-// Methods
-const fetchDashboardData = async () => {
+const recentCalls = ref<any[]>([]);
+
+// Fetch dashboard data
+async function fetchDashboardData() {
   loading.value = true;
   error.value = null;
 
@@ -524,171 +391,107 @@ const fetchDashboardData = async () => {
       return;
     }
 
-    // Call log-query-service directly (bypasses Cloudflare Workers fetch limitation)
-    const LOG_QUERY_URL = 'https://logs.ai-tools-marketplace.io';
-    const response = await fetch(`${LOG_QUERY_URL}/api/admin/dashboard?period=${selectedPeriod.value}`, {
+    // Fetch from database via API gateway
+    const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://call-me-back.raindrop.run'}/api/admin/dashboard?period=${selectedPeriod.value}`, {
       headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Bearer ${token}`
       }
     });
 
     if (!response.ok) {
-      if (response.status === 401) {
-        localStorage.removeItem('adminToken');
-        router.push('/admin/login');
-        return;
-      }
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      throw new Error('Failed to fetch dashboard data');
     }
 
     const data = await response.json();
-    dashboardData.value = data;
+
+    if (data.stats) {
+      stats.value = data.stats;
+    }
+
+    if (data.recentCalls) {
+      recentCalls.value = data.recentCalls;
+    }
   } catch (err) {
-    console.error('Dashboard fetch error:', err);
-    error.value = err.message || 'Failed to load dashboard data';
+    error.value = err instanceof Error ? err.message : 'Unknown error occurred';
+    console.error('Dashboard error:', err);
   } finally {
     loading.value = false;
   }
-};
+}
 
-const handleLogout = () => {
+// Utilities
+function formatDuration(seconds: number): string {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+}
+
+function formatSeconds(seconds: number): string {
+  if (!seconds) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function formatTime(timestamp: string): string {
+  if (!timestamp) return 'N/A';
+  const date = new Date(timestamp);
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function getCostPercentage(service: string): number {
+  const total = stats.value.totalCost || 0;
+  if (total === 0) return 0;
+  const serviceCost = (stats.value.costByService as any)[service] || 0;
+  return (serviceCost / total) * 100;
+}
+
+function handleLogout() {
   localStorage.removeItem('adminToken');
   router.push('/admin/login');
-};
+}
 
-const formatNumber = (num) => {
-  return new Intl.NumberFormat('en-US').format(Math.round(num));
-};
-
-const formatCurrency = (num) => {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(num);
-};
-
-const formatDuration = (seconds) => {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}m ${secs}s`;
-};
-
-const getServiceColor = (service) => {
-  const colors = {
-    twilio: 'from-red-500 to-red-600 text-white',
-    deepgram: 'from-blue-500 to-blue-600 text-white',
-    cerebras: 'from-purple-500 to-purple-600 text-white',
-    elevenlabs: 'from-emerald-500 to-emerald-600 text-white',
-    raindrop: 'from-glow to-ember text-deep'
-  };
-  return colors[service?.toLowerCase()] || 'from-white/20 to-white/30 text-cream';
-};
-
-// Audio Settings Methods
-const enumerateAudioDevices = async () => {
-  try {
-    await navigator.mediaDevices.getUserMedia({ audio: true });
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    audioInputDevices.value = devices.filter(d => d.kind === 'audioinput');
-    audioOutputDevices.value = devices.filter(d => d.kind === 'audiooutput');
-
-    selectedAudioInput.value = localStorage.getItem('preferredAudioInput') || '';
-    selectedAudioOutput.value = localStorage.getItem('preferredAudioOutput') || '';
-
-    const permissionStatus = await navigator.permissions.query({ name: 'microphone' });
-    micPermission.value = permissionStatus.state;
-    permissionStatus.onchange = () => {
-      micPermission.value = permissionStatus.state;
-    };
-  } catch (err) {
-    console.error('Error enumerating audio devices:', err);
-    micPermission.value = 'denied';
-  }
-};
-
-const handleAudioInputChange = () => {
-  localStorage.setItem('preferredAudioInput', selectedAudioInput.value);
-};
-
-const handleAudioOutputChange = () => {
-  localStorage.setItem('preferredAudioOutput', selectedAudioOutput.value);
-};
-
-const requestMicPermission = async () => {
-  try {
-    await navigator.mediaDevices.getUserMedia({ audio: true });
-    await enumerateAudioDevices();
-  } catch (err) {
-    console.error('Microphone permission denied:', err);
-    alert('Microphone permission denied. Please enable it in your browser settings.');
-  }
-};
-
-const testAudio = async () => {
-  testingAudio.value = true;
-  try {
-    const constraints = {
-      audio: {
-        deviceId: selectedAudioInput.value ? { exact: selectedAudioInput.value } : undefined,
-        sampleRate: 16000,
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true
-      }
-    };
-
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    const analyser = audioContext.createAnalyser();
-    const source = audioContext.createMediaStreamSource(stream);
-    source.connect(analyser);
-
-    analyser.fftSize = 256;
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-
-    let maxLevel = 0;
-    const startTime = Date.now();
-    const checkLevel = () => {
-      analyser.getByteFrequencyData(dataArray);
-      const average = dataArray.reduce((a, b) => a + b) / bufferLength;
-      maxLevel = Math.max(maxLevel, average);
-
-      if (Date.now() - startTime < 2000) {
-        requestAnimationFrame(checkLevel);
-      } else {
-        stream.getTracks().forEach(t => t.stop());
-        audioContext.close();
-
-        if (maxLevel > 10) {
-          alert(`✅ Microphone working! Detected audio level: ${Math.round(maxLevel)}/255`);
-        } else {
-          alert('⚠️ No audio detected. Check if your microphone is muted or speak louder.');
-        }
-        testingAudio.value = false;
-      }
-    };
-
-    alert('🎤 Testing microphone... Please speak for 2 seconds.');
-    checkLevel();
-  } catch (err) {
-    console.error('Error testing audio:', err);
-    alert('Failed to test microphone: ' + err.message);
-    testingAudio.value = false;
-  }
-};
-
-// Lifecycle
 onMounted(() => {
   fetchDashboardData();
-  enumerateAudioDevices();
 });
 </script>
 
 <style scoped>
-/* Grain overlay texture (matching Home.vue) */
+/* Grain overlay texture */
 .grain-overlay {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+/* Radial gradient utility */
+.bg-gradient-radial {
+  background-image: radial-gradient(circle, var(--tw-gradient-stops));
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d0d0f;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a2e;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3e;
 }
 </style>

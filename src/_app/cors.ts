@@ -1,4 +1,4 @@
-import { corsAllowAll } from '@liquidmetal-ai/raindrop-framework/core/cors';
+import { createCorsHandler } from '@liquidmetal-ai/raindrop-framework/core/cors';
 
 /**
  * cors is the application-wide CORS (Cross-Origin Resource Sharing) handler.
@@ -61,5 +61,17 @@ import { corsAllowAll } from '@liquidmetal-ai/raindrop-framework/core/cors';
  * };
  * ```
  */
-// Enable CORS for all origins to allow frontend access from Vercel
-export const cors = corsAllowAll;
+// Enable CORS for specific trusted origins (SECURE for production)
+export const cors = createCorsHandler({
+  origin: [
+    'https://call-me-back.vercel.app',      // Production frontend (Vercel)
+    'https://call-me-back.raindrop.run',    // Raindrop backend
+    'http://localhost:3002',                 // Local dev (primary)
+    'http://localhost:3000',                 // Local dev (alt)
+    'http://localhost:5173',                 // Vite default
+  ],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,  // Allow cookies and auth headers
+  maxAge: 86400       // Cache preflight requests for 24 hours
+});

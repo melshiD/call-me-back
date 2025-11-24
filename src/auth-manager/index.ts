@@ -2,18 +2,114 @@ import { Service } from '@liquidmetal-ai/raindrop-framework';
 import { Env } from './raindrop.gen';
 import type { RegisterInput, LoginInput, AuthResponse, TokenValidationResult } from './interfaces';
 import * as utils from './utils';
-import { WorkOS } from '@workos-inc/node';
+
+// WorkOS API response types
+interface WorkOSUser {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  emailVerified: boolean;
+}
+
+interface WorkOSAuthResponse {
+  accessToken: string;
+  user: WorkOSUser;
+}
+
+// WorkOS REST API client - Workers-compatible (uses fetch instead of Node.js http)
+class WorkOSClient {
+  private apiKey: string;
+  private baseUrl = 'https://api.workos.com';
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+  }
+
+  async createUser(data: {
+    email: string;
+    password: string;
+    firstName?: string;
+    lastName?: string;
+    emailVerified?: boolean;
+  }): Promise<WorkOSUser> {
+    const response = await fetch(`${this.baseUrl}/user_management/users`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: data.email,
+        password: data.password,
+        first_name: data.firstName,
+        last_name: data.lastName,
+        email_verified: data.emailVerified,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`WorkOS createUser failed: ${error}`);
+    }
+
+    const result = await response.json() as any;
+    return {
+      id: result.id,
+      email: result.email,
+      firstName: result.first_name,
+      lastName: result.last_name,
+      emailVerified: result.email_verified || false,
+    };
+  }
+
+  async authenticateWithPassword(data: {
+    email: string;
+    password: string;
+    clientId: string;
+  }): Promise<WorkOSAuthResponse> {
+    const response = await fetch(`${this.baseUrl}/user_management/authenticate`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: data.email,
+        password: data.password,
+        client_id: data.clientId,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`WorkOS authenticate failed: ${error}`);
+    }
+
+    const result = await response.json() as any;
+    return {
+      accessToken: result.access_token,
+      user: {
+        id: result.user.id,
+        email: result.user.email,
+        firstName: result.user.first_name,
+        lastName: result.user.last_name,
+        emailVerified: result.user.email_verified || false,
+      },
+    };
+  }
+}
 
 export default class extends Service<Env> {
   async fetch(request: Request): Promise<Response> {
     return new Response('Not implemented', { status: 501 });
   }
 
-  private getWorkOS(): WorkOS | null {
+  private getWorkOS(): WorkOSClient | null {
     if (!this.env.WORKOS_API_KEY) {
       return null;
     }
-    return new WorkOS(this.env.WORKOS_API_KEY);
+    return new WorkOSClient(this.env.WORKOS_API_KEY);
   }
 
   async register(input: RegisterInput): Promise<AuthResponse> {
@@ -33,7 +129,7 @@ export default class extends Service<Env> {
 
         try {
           // Create user in WorkOS
-          const workosUser = await workos.userManagement.createUser({
+          const workosUser = await workos.createUser({
             email: input.email,
             password: input.password,
             firstName: input.name?.split(' ')[0] || '',
@@ -49,7 +145,7 @@ export default class extends Service<Env> {
           );
 
           // Authenticate to get access token
-          const authResponse = await workos.userManagement.authenticateWithPassword({
+          const authResponse = await workos.authenticateWithPassword({
             email: input.email,
             password: input.password,
             clientId: this.env.WORKOS_CLIENT_ID
@@ -139,7 +235,7 @@ export default class extends Service<Env> {
 
         try {
           // Authenticate with WorkOS
-          const authResponse = await workos.userManagement.authenticateWithPassword({
+          const authResponse = await workos.authenticateWithPassword({
             email: input.email,
             password: input.password,
             clientId: this.env.WORKOS_CLIENT_ID

@@ -750,13 +750,42 @@ let isAISpeaking = false; // Track when AI is generating/playing audio
 let currentAudio = null; // Track currently playing audio element
 let sessionStartTimeout = null;
 
-// Voice IDs
+// ElevenLabs Voice IDs - Comprehensive Collection
 const availableVoices = [
-  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Brad (Adam)' },
-  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah (Bella)' },
-  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel' },
-  { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi' },
-  { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli' },
+  // Original personas
+  { id: 'pNInz6obpgDQGcFmaJgB', name: 'Adam - Deep, authoritative male' },
+  { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Bella - Warm, engaging female' },
+  { id: '21m00Tcm4TlvDq8ikWAM', name: 'Rachel - Young, energetic female' },
+  { id: 'AZnzlk1XvdvUeBnXmlld', name: 'Domi - Professional female' },
+  { id: 'MF3mGyEYCl7XYWbV9V6O', name: 'Elli - Friendly, conversational female' },
+  // Additional pre-made voices
+  { id: 'TxGEqnHWrfWFTfGW9XjX', name: 'Josh - Young, casual male' },
+  { id: 'VR6AewLTigWG4xSOukaG', name: 'Arnold - Deep, mature male' },
+  { id: 'ErXwobaYiN019PkySvjV', name: 'Antoni - Warm, reassuring male' },
+  { id: 'yoZ06aMxZJJ28mfd3POQ', name: 'Sam - Neutral, clear narrator' },
+  { id: 'ThT5KcBeYPX3keUQqHPh', name: 'Dorothy - Cheerful, bright female' },
+  { id: 'CYw3kZ02Hs0563khs1Fj', name: 'Dave - Conversational male' },
+  { id: 'N2lVS1w4EtoT3dr4eOWO', name: 'Fin - Elderly, wise male' },
+  { id: 'IKne3meq5aSn9XLyUdCD', name: 'Freya - Mature, sophisticated female' },
+  { id: 'jsCqWAovK2LkecY7zXl4', name: 'Jessie - Calm, measured female' },
+  { id: 'ODq5zmih8GrVes37Dizd', name: 'Patrick - Professional newscaster male' },
+  { id: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam - Confident, strong male' },
+  { id: 'pqHfZKP75CvOlQylNhV4', name: 'Bill - Casual, friendly male' },
+  { id: 'Zlb1dXrM653N07WRdFW3', name: 'Charlotte - Gentle, warm female' },
+  { id: 'GBv7mTt0atIp3Br8iCZE', name: 'Thomas - Smooth, corporate male' },
+  { id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George - Deep British male' },
+  { id: 'XrExE9yKIg1WjnnlVkGX', name: 'Matilda - Kind, motherly female' },
+  { id: 'nPczCjzI2devNBz1zQrb', name: 'Brian - Youthful, energetic male' },
+  { id: 'XB0fDUnXU5powFXDhCwa', name: 'Emily - Clear, articulate female' },
+  { id: 'cjVigY5qzO86Huf0OWal', name: 'Ethan - Professional, modern male' },
+  { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica - Bright, enthusiastic female' },
+  { id: 'iP95p4xoKVk53GoZ742B', name: 'Chris - Casual, relatable male' },
+  { id: 'onwK4e9ZLuTAKqWW03F9', name: 'Daniel - Authoritative, commanding male' },
+  { id: 'pFZP5JQG7iQjIQuC4Bku', name: 'Lily - Sweet, gentle female' },
+  { id: 'SOYHLrjzK2X1ezoPC6cr', name: 'Harry - British, refined male' },
+  { id: 'bIHbv24MWmeRgasZH58o', name: 'Callum - Scottish accent male' },
+  { id: 'FGY2WhTYpPnrIDTdsKH5', name: 'Laura - Australian accent female' },
+  { id: 'D38z5RcWu1voky8WS1ja', name: 'Charlie - British young male' },
 ];
 
 // Computed
@@ -1017,6 +1046,10 @@ const startBrowserVoice = async () => {
         } else if (msg.type === 'audio') {
           // Play audio response - backend sends base64 MP3 in msg.audio
           playAudioResponse(msg.audio);
+        } else if (msg.type === 'interrupt') {
+          // Backend VAD detected user speaking - stop AI audio playback
+          console.log('[Browser Voice] Backend interrupt signal - stopping AI audio');
+          stopAudioPlayback();
         } else if (msg.type === 'error') {
           // Clear timeout on error
           if (sessionStartTimeout) {
@@ -1169,23 +1202,16 @@ const startAudioCapture = async () => {
     workletNode.port.onmessage = (event) => {
       const message = event.data;
 
-      // Handle voice detection event
+      // Handle voice detection event (for UI feedback only - backend VAD handles interruptions)
       if (message.type === 'voice_detected') {
-        // If user speaks while AI is speaking, trigger interruption
-        if (isAISpeaking) {
-          console.log('[Browser Voice] User interrupted AI speech');
-          stopAudioPlayback();
-
-          // Send interrupt message to backend
-          if (voiceWebSocket?.readyState === WebSocket.OPEN) {
-            voiceWebSocket.send(JSON.stringify({ type: 'interrupt' }));
-          }
-        }
+        // Just log for debugging - don't interrupt here
+        // The backend Silero VAD is much smarter and will handle interruptions
+        console.log('[Browser Voice] Voice activity detected (forwarding to backend VAD)');
       }
-      // Handle audio data
+      // Handle audio data - send to backend for VAD processing
       else if (message.type === 'audio' && message.data) {
         if (voiceWebSocket?.readyState === WebSocket.OPEN) {
-          voiceWebSocket.send(message.data); // Send PCM16 ArrayBuffer
+          voiceWebSocket.send(message.data); // Send PCM16 ArrayBuffer to backend
         }
       }
     };
