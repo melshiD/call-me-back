@@ -804,13 +804,13 @@ const hasChanges = computed(() => {
 const fetchPersonas = async () => {
   loadingPersonas.value = true;
   try {
-    const token = localStorage.getItem('adminToken');
-    const response = await fetch(`${LOG_QUERY_URL}/api/admin/personas`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
+    // Fetch from main API gateway, not logs service
+    // No auth needed - /api/personas is public
+    const response = await fetch(`${API_GATEWAY_URL}/api/personas`);
     if (!response.ok) throw new Error('Failed to fetch personas');
     const data = await response.json();
     personas.value = data.personas || data || [];
+    console.log(`Loaded ${personas.value.length} personas from API`);
   } catch (err) {
     console.error('Error fetching personas:', err);
   } finally {
@@ -832,7 +832,8 @@ const savePersona = async () => {
   saving.value = true;
   try {
     const token = localStorage.getItem('adminToken');
-    const response = await fetch(`${LOG_QUERY_URL}/api/admin/personas/${selectedPersona.value.id}`, {
+    // Use main API gateway for persona updates
+    const response = await fetch(`${API_GATEWAY_URL}/api/admin/personas/${selectedPersona.value.id}`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${token}`,

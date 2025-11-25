@@ -27,9 +27,11 @@ export default class extends Service<Env> {
       // TESTING: Using console instead as binding test
       console.log('Database proxy executing query:', sql.substring(0, 100), 'params:', params?.length || 0);
 
+      // BINDING FIX: Store env reference to avoid this binding issues
+      const env = this.env;
       const dbConfig: VultrDbConfig = {
         apiUrl: 'https://db.ai-tools-marketplace.io',
-        apiKey: this.env.VULTR_DB_API_KEY
+        apiKey: env.VULTR_DB_API_KEY
       };
 
       const result = await executeSQL(dbConfig, sql, params);
@@ -200,6 +202,110 @@ export default class extends Service<Env> {
         error: error instanceof Error ? error.message : String(error)
       });
       throw error;
+    }
+  }
+
+  /**
+   * Record a cost event for tracking API usage
+   * RECREATED: Lost in git checkout - see NSL 2025-11-22_12-30
+   */
+  async recordCostEvent(data: {
+    callId: string;
+    userId?: string;
+    personaId?: string;
+    service: string;
+    operation: string;
+    usageAmount: number;
+    usageUnit: string;
+    unitCost: number;
+    totalCost: number;
+    metadata?: any;
+  }): Promise<void> {
+    try {
+      // TESTING: Using console for cross-service calls - logger binding issue
+      console.log('Database proxy: Recording cost event', {
+        service: data.service,
+        operation: data.operation,
+        totalCost: data.totalCost
+      });
+
+      await this.executeQuery(
+        `INSERT INTO api_call_events
+         (call_id, user_id, persona_id, service, operation, usage_amount, usage_unit, unit_cost, total_cost, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          data.callId,
+          data.userId || null,
+          data.personaId || null,
+          data.service,
+          data.operation,
+          data.usageAmount,
+          data.usageUnit,
+          data.unitCost,
+          data.totalCost,
+          data.metadata ? JSON.stringify(data.metadata) : null
+        ]
+      );
+
+      console.log('Cost event recorded', { service: data.service });
+    } catch (error) {
+      console.error('Failed to record cost event', {
+        error: error instanceof Error ? error.message : String(error),
+        service: data.service
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Update total costs for a call
+   * RECREATED: Lost in git checkout - see NSL 2025-11-22_12-30
+   */
+  async updateCallCosts(callId: string, totalCostUsd: number): Promise<void> {
+    try {
+      // TESTING: Using console for cross-service calls - logger binding issue
+      console.log('Database proxy: Updating call costs', { callId, totalCostUsd });
+
+      await this.executeQuery(
+        'UPDATE calls SET cost_usd = $1 WHERE id = $2',
+        [totalCostUsd, callId]
+      );
+
+      console.log('Call costs updated', { callId });
+    } catch (error) {
+      console.error('Failed to update call costs', {
+        error: error instanceof Error ? error.message : String(error),
+        callId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get current price for a service from database
+   * RECREATED: Lost in git checkout - see NSL 2025-11-22_12-30
+   */
+  async getCurrentPrice(service: string, pricingType: string): Promise<number> {
+    try {
+      const result = await this.executeQuery(
+        'SELECT get_current_price($1, $2) as price',
+        [service, pricingType]
+      );
+
+      const price = result.rows?.[0]?.price || 0;
+
+      if (price === 0) {
+        console.warn('No price found for service', { service, pricingType });
+      }
+
+      return parseFloat(String(price));
+    } catch (error) {
+      console.error('Failed to get current price', {
+        error: error instanceof Error ? error.message : String(error),
+        service,
+        pricingType
+      });
+      return 0; // Return 0 instead of throwing - graceful degradation
     }
   }
 }

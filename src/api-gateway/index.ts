@@ -1037,13 +1037,19 @@ export default class extends Service<Env> {
   }
 
   /**
-   * Handle admin routes - proxy to admin-dashboard service
+   * Handle admin routes - call admin-dashboard service methods directly
+   * REFACTORED 2025-11-24: Changed from .fetch() to direct method calls (Raindrop pattern)
    */
   private async handleAdminRoutes(request: Request, path: string): Promise<Response> {
     try {
+      console.log('[API-GATEWAY] handleAdminRoutes called, path:', path);
+
       // Validate admin token
       const authHeader = request.headers.get('Authorization');
+      console.log('[API-GATEWAY] Got auth header:', !!authHeader);
+
       if (!authHeader) {
+        console.log('[API-GATEWAY] No auth header provided');
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }
@@ -1051,41 +1057,53 @@ export default class extends Service<Env> {
       }
 
       const token = authHeader.replace('Bearer ', '');
-      if (token !== this.env.ADMIN_SECRET_TOKEN) {
+      const envTokenExists = !!this.env.ADMIN_SECRET_TOKEN;
+      const tokensMatch = token === this.env.ADMIN_SECRET_TOKEN;
+
+      console.log('[API-GATEWAY] Token check:', {
+        providedTokenLength: token.length,
+        envTokenExists,
+        tokensMatch
+      });
+
+      if (!tokensMatch) {
+        console.log('[API-GATEWAY] Token mismatch');
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }
         });
       }
 
-      // Route through admin-dashboard service (has permission to fetch external URLs)
+      console.log('[API-GATEWAY] Token validated');
+
+      // Parse URL to get query params
       const url = new URL(request.url);
-      const adminPath = path.replace('/api/admin', '');
 
-      // Create a new request with the admin token in the Authorization header
-      const adminRequest = new Request(`https://placeholder${adminPath}${url.search}`, {
-        method: request.method,
-        headers: {
-          'Authorization': `Bearer ${this.env.ADMIN_SECRET_TOKEN}`
-        }
-      });
+      console.log('[API-GATEWAY] Checking path:', path);
 
-      const response = await this.env.ADMIN_DASHBOARD.fetch(adminRequest);
-      const data = await response.json();
+      // Route to dashboard endpoint
+      if (path === '/api/admin/dashboard' || path.startsWith('/api/admin/dashboard')) {
+        const period = url.searchParams.get('period') || '30d';
+        console.log('[API-GATEWAY] Calling ADMIN_DASHBOARD.getDashboardData(), period:', period);
 
-      return new Response(JSON.stringify(data), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-        }
+        const data = await this.env.ADMIN_DASHBOARD.getDashboardData(period);
+
+        return new Response(JSON.stringify(data), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+          }
+        });
+      }
+
+      return new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
       });
     } catch (error) {
-      this.env.logger.error('Admin route error', {
-        error: error instanceof Error ? error.message : String(error),
-        path
-      });
+      console.error('Admin route error:', error instanceof Error ? error.message : String(error), 'path:', path);
       return new Response(JSON.stringify({
         error: error instanceof Error ? error.message : 'Admin error'
       }), {
