@@ -1042,9 +1042,33 @@ export default class extends Service<Env> {
    */
   private async handleAdminRoutes(request: Request, path: string): Promise<Response> {
     try {
-      console.log('[API-GATEWAY] handleAdminRoutes called, path:', path);
+      console.log('[API-GATEWAY] handleAdminRoutes called, path:', path, 'method:', request.method);
 
-      // Validate admin token
+      // Allowed origins for admin routes (production + local dev)
+      const allowedOrigins = [
+        'https://call-me-back.vercel.app',
+        'http://localhost:5173',
+        'http://localhost:3000'
+      ];
+
+      const origin = request.headers.get('Origin') || '';
+      const allowOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+
+      // Handle CORS preflight
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            'Access-Control-Allow-Origin': allowOrigin,
+            'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '86400',
+            'Vary': 'Origin'
+          }
+        });
+      }
+
+      // Validate JWT token
       const authHeader = request.headers.get('Authorization');
       console.log('[API-GATEWAY] Got auth header:', !!authHeader);
 
@@ -1052,29 +1076,66 @@ export default class extends Service<Env> {
         console.log('[API-GATEWAY] No auth header provided');
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': allowOrigin,
+            'Vary': 'Origin'
+          }
         });
       }
 
       const token = authHeader.replace('Bearer ', '');
-      const envTokenExists = !!this.env.ADMIN_SECRET_TOKEN;
-      const tokensMatch = token === this.env.ADMIN_SECRET_TOKEN;
+      console.log('[API-GATEWAY] Validating JWT token, length:', token.length);
 
-      console.log('[API-GATEWAY] Token check:', {
-        providedTokenLength: token.length,
-        envTokenExists,
-        tokensMatch
-      });
-
-      if (!tokensMatch) {
-        console.log('[API-GATEWAY] Token mismatch');
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      // Decode JWT to get payload (WorkOS JWT has adminId, regular JWT has userId)
+      let payload: any;
+      try {
+        const parts = token.split('.');
+        if (parts.length !== 3 || !parts[1]) {
+          throw new Error('Invalid JWT format');
+        }
+        payload = JSON.parse(atob(parts[1]));
+        console.log('[API-GATEWAY] JWT payload fields:', Object.keys(payload));
+      } catch (e) {
+        console.log('[API-GATEWAY] Failed to decode JWT:', e);
+        return new Response(JSON.stringify({ error: 'Unauthorized: Invalid token format' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' }
         });
       }
 
-      console.log('[API-GATEWAY] Token validated');
+      // Validate JWT token using AUTH_MANAGER
+      const validation = await this.env.AUTH_MANAGER.validateToken(token);
+
+      if (!validation.valid) {
+        console.log('[API-GATEWAY] JWT validation failed:', validation.error);
+        return new Response(JSON.stringify({ error: 'Unauthorized: Invalid token' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Get user ID (WorkOS uses adminId, regular auth uses userId)
+      const userId = payload.adminId || payload.userId || validation.userId;
+      const userEmail = payload.email;
+
+      console.log('[API-GATEWAY] JWT validated, userId:', userId, 'email:', userEmail);
+
+      // Check if user is an admin by checking admin_users table
+      const adminCheck = await this.env.DATABASE_PROXY.executeQuery(
+        'SELECT id, email, role FROM admin_users WHERE id = $1 OR email = $2',
+        [userId, userEmail]
+      );
+
+      if (!adminCheck.rows || adminCheck.rows.length === 0) {
+        console.log('[API-GATEWAY] User is not an admin. userId:', userId, 'email:', userEmail);
+        return new Response(JSON.stringify({ error: 'Forbidden: Admin access required' }), {
+          status: 403,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      console.log('[API-GATEWAY] Admin access confirmed for user:', userId);
 
       // Parse URL to get query params
       const url = new URL(request.url);
@@ -1091,9 +1152,58 @@ export default class extends Service<Env> {
         return new Response(JSON.stringify(data), {
           headers: {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+            'Access-Control-Allow-Origin': allowOrigin,
+            'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Vary': 'Origin'
+          }
+        });
+      }
+
+      // PATCH/PUT /api/admin/personas/:id - Update persona
+      const personaUpdateMatch = path.match(/^\/api\/admin\/personas\/([^/]+)$/);
+      if ((request.method === 'PATCH' || request.method === 'PUT') && personaUpdateMatch && personaUpdateMatch[1]) {
+        const personaId = personaUpdateMatch[1];
+        console.log('[API-GATEWAY] Updating persona:', personaId);
+
+        const body = await request.json() as {
+          core_system_prompt?: string;
+          systemPrompt?: string;
+          default_voice_id?: string;
+          voice?: string;
+          temperature?: number;
+          max_tokens?: number;
+          max_call_duration?: number;
+        };
+
+        // Normalize field names - accept both API names and database names
+        const updates: any = {};
+
+        if (body.systemPrompt !== undefined || body.core_system_prompt !== undefined) {
+          updates.systemPrompt = body.systemPrompt || body.core_system_prompt;
+        }
+        if (body.voice !== undefined || body.default_voice_id !== undefined) {
+          updates.voice = body.voice || body.default_voice_id;
+        }
+        if (body.temperature !== undefined) {
+          updates.temperature = body.temperature;
+        }
+        if (body.max_tokens !== undefined) {
+          updates.max_tokens = body.max_tokens;
+        }
+        if (body.max_call_duration !== undefined) {
+          updates.max_call_duration = body.max_call_duration;
+        }
+
+        await this.env.PERSONA_MANAGER.updatePersona(personaId, updates);
+
+        return new Response(JSON.stringify({ success: true, personaId }), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': allowOrigin,
+            'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Vary': 'Origin'
           }
         });
       }

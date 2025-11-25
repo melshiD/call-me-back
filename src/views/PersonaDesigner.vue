@@ -791,12 +791,15 @@ const availableVoices = [
 // Computed
 const hasChanges = computed(() => {
   if (!selectedPersona.value) return false;
+  // API returns 'systemPrompt' not 'core_system_prompt', 'voice' not 'default_voice_id'
+  const originalPrompt = selectedPersona.value.systemPrompt || selectedPersona.value.core_system_prompt || '';
+  const originalVoice = selectedPersona.value.voice || selectedPersona.value.default_voice_id || '';
   return (
-    editedPrompt.value !== selectedPersona.value.core_system_prompt ||
+    editedPrompt.value !== originalPrompt ||
     temperature.value !== parseFloat(selectedPersona.value.temperature || 0.7) ||
     maxTokens.value !== parseInt(selectedPersona.value.max_tokens || 150) ||
     maxCallDuration.value !== parseInt(selectedPersona.value.max_call_duration || 15) ||
-    voiceId.value !== (selectedPersona.value.default_voice_id || '')
+    voiceId.value !== originalVoice
   );
 });
 
@@ -820,11 +823,13 @@ const fetchPersonas = async () => {
 
 const selectPersona = (persona) => {
   selectedPersona.value = persona;
-  editedPrompt.value = persona.core_system_prompt || '';
+  // API returns 'systemPrompt' not 'core_system_prompt'
+  editedPrompt.value = persona.systemPrompt || persona.core_system_prompt || '';
   temperature.value = parseFloat(persona.temperature || 0.7);
   maxTokens.value = parseInt(persona.max_tokens || 150);
   maxCallDuration.value = parseInt(persona.max_call_duration || 15);
-  voiceId.value = persona.default_voice_id || '';
+  // API returns 'voice' not 'default_voice_id'
+  voiceId.value = persona.voice || persona.default_voice_id || '';
 };
 
 const savePersona = async () => {
@@ -849,12 +854,12 @@ const savePersona = async () => {
     });
     if (!response.ok) throw new Error('Failed to save persona');
 
-    // Update local state
-    selectedPersona.value.core_system_prompt = editedPrompt.value;
+    // Update local state (use API field names)
+    selectedPersona.value.systemPrompt = editedPrompt.value;
+    selectedPersona.value.voice = voiceId.value;
     selectedPersona.value.temperature = temperature.value;
     selectedPersona.value.max_tokens = maxTokens.value;
     selectedPersona.value.max_call_duration = maxCallDuration.value;
-    selectedPersona.value.default_voice_id = voiceId.value;
 
     // Update in personas array
     const idx = personas.value.findIndex(p => p.id === selectedPersona.value.id);

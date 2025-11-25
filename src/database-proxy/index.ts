@@ -125,6 +125,68 @@ export default class extends Service<Env> {
     }
   }
 
+  async updatePersona(personaId: string, data: {
+    core_system_prompt?: string;
+    default_voice_id?: string;
+    temperature?: number;
+    max_tokens?: number;
+    max_call_duration?: number;
+  }): Promise<void> {
+    try {
+      console.log('Database proxy: Updating persona', { personaId, fields: Object.keys(data) });
+
+      // Build dynamic UPDATE query based on provided fields
+      const updates: string[] = [];
+      const values: any[] = [];
+      let paramIndex = 1;
+
+      if (data.core_system_prompt !== undefined) {
+        updates.push(`core_system_prompt = $${paramIndex++}`);
+        values.push(data.core_system_prompt);
+      }
+      if (data.default_voice_id !== undefined) {
+        updates.push(`default_voice_id = $${paramIndex++}`);
+        values.push(data.default_voice_id);
+      }
+      if (data.temperature !== undefined) {
+        updates.push(`temperature = $${paramIndex++}`);
+        values.push(data.temperature);
+      }
+      if (data.max_tokens !== undefined) {
+        updates.push(`max_tokens = $${paramIndex++}`);
+        values.push(data.max_tokens);
+      }
+      if (data.max_call_duration !== undefined) {
+        updates.push(`max_call_duration = $${paramIndex++}`);
+        values.push(data.max_call_duration);
+      }
+
+      if (updates.length === 0) {
+        console.log('Database proxy: No fields to update');
+        return;
+      }
+
+      // Always update updated_at
+      updates.push(`updated_at = CURRENT_TIMESTAMP`);
+      
+      // Add personaId as the last parameter
+      values.push(personaId);
+
+      const query = `UPDATE personas SET ${updates.join(', ')} WHERE id = $${paramIndex}`;
+      
+      console.log('Database proxy: Executing update query', { query, valueCount: values.length });
+      await this.executeQuery(query, values);
+
+      console.log('Persona updated via database proxy', { personaId });
+    } catch (error) {
+      console.error('Failed to update persona via database proxy', {
+        error: error instanceof Error ? error.message : String(error),
+        personaId
+      });
+      throw error;
+    }
+  }
+
   /**
    * Add a contact to the database
    */

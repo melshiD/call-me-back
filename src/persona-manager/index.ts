@@ -78,6 +78,48 @@ export default class extends Service<Env> {
     }
   }
 
+  async updatePersona(personaId: string, updates: {
+    systemPrompt?: string;
+    voice?: string;
+    temperature?: number;
+    max_tokens?: number;
+    max_call_duration?: number;
+  }): Promise<void> {
+    try {
+      this.env.logger.info('Updating persona via database-proxy', { personaId, fields: Object.keys(updates) });
+
+      // Map API field names to database field names
+      const dbUpdates: any = {};
+      
+      if (updates.systemPrompt !== undefined) {
+        dbUpdates.core_system_prompt = updates.systemPrompt;
+      }
+      if (updates.voice !== undefined) {
+        dbUpdates.default_voice_id = updates.voice;
+      }
+      if (updates.temperature !== undefined) {
+        dbUpdates.temperature = updates.temperature;
+      }
+      if (updates.max_tokens !== undefined) {
+        dbUpdates.max_tokens = updates.max_tokens;
+      }
+      if (updates.max_call_duration !== undefined) {
+        dbUpdates.max_call_duration = updates.max_call_duration;
+      }
+
+      // Call the database-proxy service
+      await this.env.DATABASE_PROXY.updatePersona(personaId, dbUpdates);
+
+      this.env.logger.info('Persona updated via database-proxy', { personaId });
+    } catch (error) {
+      this.env.logger.error('Failed to update persona', { 
+        error: error instanceof Error ? error.message : String(error), 
+        personaId 
+      });
+      throw error;
+    }
+  }
+
   async addContact(input: { userId: string; personaId: string }): Promise<Contact> {
     try {
       this.env.logger.info('Adding contact via database-proxy', { userId: input.userId, personaId: input.personaId });
