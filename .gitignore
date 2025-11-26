@@ -30,3 +30,5 @@ set-vlutr-env.sh
 use_cases
 .admin-tokeneval_images/
 eval_images
+commands-to-explain.txt
+documentation/
