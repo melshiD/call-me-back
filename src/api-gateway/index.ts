@@ -46,8 +46,14 @@ export default class extends Service<Env> {
       }
 
       // SmartMemory routes (for PersonaDesigner context persistence)
-      if (path.startsWith('/api/memory')) {
+      // Also handles /api/userdata for KV storage
+      if (path.startsWith('/api/memory') || path.startsWith('/api/userdata')) {
         return await this.handleMemoryRoutes(request, path);
+      }
+
+      // Cerebras models endpoint - proxy to Cerebras API to list available models
+      if (path === '/api/cerebras/models') {
+        return await this.handleCerebrasModels(request);
       }
 
       // Debug endpoint - check env vars
@@ -1488,6 +1494,51 @@ export default class extends Service<Env> {
   }
 
   /**
+   * Handle Cerebras models endpoint - proxy to Cerebras API to list available models
+   */
+  private async handleCerebrasModels(request: Request): Promise<Response> {
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': request.headers.get('Origin') || 'https://call-me-back.vercel.app',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    };
+
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    try {
+      // Fetch models from Cerebras API
+      const response = await fetch('https://api.cerebras.ai/v1/models', {
+        headers: {
+          'Authorization': `Bearer ${this.env.CEREBRAS_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        this.env.logger.error('Cerebras API error', { error });
+        return new Response(JSON.stringify({ error: 'Failed to fetch models' }), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const data = await response.json();
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    } catch (err) {
+      this.env.logger.error('Error fetching Cerebras models', { error: String(err) });
+      return new Response(JSON.stringify({ error: 'Internal error' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+  }
+
+  /**
    * Handle SmartMemory routes - for PersonaDesigner context persistence
    * Used by admin dashboard to save/load relationship context, user facts, call pretext, etc.
    */
@@ -1592,6 +1643,67 @@ export default class extends Service<Env> {
           objectId,
           document: { deleted: true, deletedAt: new Date().toISOString() }
         });
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // ============================================
+      // User Data KV Storage Endpoints
+      // Stores: user facts, persona context, long-term memory
+      // Key patterns:
+      //   - long_term:{adminId}:{personaId} -> user facts (Layer 4)
+      //   - admin_context:{personaId} -> persona context (Layers 2/3)
+      // ============================================
+
+      // GET /api/userdata/:key - Get user data by key
+      const userDataGetMatch = path.match(/^\/api\/userdata\/(.+)$/);
+      if (request.method === 'GET' && userDataGetMatch && userDataGetMatch[1]) {
+        const key = decodeURIComponent(userDataGetMatch[1]);
+        this.env.logger.info('UserData get', { key });
+
+        const value = await this.env.USER_DATA.get(key, 'json');
+
+        if (value === null) {
+          return new Response(JSON.stringify({ success: false, error: 'Key not found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        return new Response(JSON.stringify({ success: true, data: value }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // PUT /api/userdata - Store user data with key
+      if (request.method === 'PUT' && path === '/api/userdata') {
+        const body = await request.json() as { key: string; value: any };
+
+        if (!body.key || body.value === undefined) {
+          return new Response(JSON.stringify({ error: 'key and value are required' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        this.env.logger.info('UserData put', { key: body.key });
+
+        await this.env.USER_DATA.put(body.key, JSON.stringify(body.value));
+
+        return new Response(JSON.stringify({ success: true, key: body.key }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // DELETE /api/userdata/:key - Delete user data by key
+      const userDataDeleteMatch = path.match(/^\/api\/userdata\/(.+)$/);
+      if (request.method === 'DELETE' && userDataDeleteMatch && userDataDeleteMatch[1]) {
+        const key = decodeURIComponent(userDataDeleteMatch[1]);
+        this.env.logger.info('UserData delete', { key });
+
+        await this.env.USER_DATA.delete(key);
 
         return new Response(JSON.stringify({ success: true }), {
           headers: { 'Content-Type': 'application/json', ...corsHeaders }

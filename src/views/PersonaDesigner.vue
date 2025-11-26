@@ -417,7 +417,8 @@
                 <div class="led-indicator bg-cyan-500"></div>
                 <span class="font-mono text-xs uppercase tracking-[0.15em]">User Knowledge</span>
                 <span class="text-[10px] text-[#555] font-mono">LAYER 4</span>
-                <span v-if="mockUserFacts.length > 0" class="text-[10px] text-cyan-400 font-mono ml-2">{{ mockUserFacts.length }} FACTS</span>
+                <span v-if="loadingUserFacts" class="text-[10px] text-amber-400 font-mono ml-2">LOADING...</span>
+                <span v-else-if="userFacts.length > 0" class="text-[10px] text-cyan-400 font-mono ml-2">{{ userFacts.length }} FACTS</span>
               </div>
               <svg class="w-4 h-4 transition-transform text-[#555]" :class="{ 'rotate-180': expandUserKnowledge }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
@@ -425,13 +426,19 @@
             </div>
             <div v-show="expandUserKnowledge" class="console-body space-y-4">
               <div class="text-[11px] text-[#666] font-mono mb-2">
-                Mock user facts for testing. In production, these come from SmartMemory.
+                Facts about this user. Auto-extracted from calls or manually added.
               </div>
 
               <!-- Existing Facts -->
               <div class="space-y-2 max-h-48 overflow-y-auto">
+                <div v-if="loadingUserFacts" class="text-center py-4">
+                  <span class="text-[#666] font-mono text-sm">Loading facts...</span>
+                </div>
+                <div v-else-if="userFacts.length === 0" class="text-center py-4">
+                  <span class="text-[#555] font-mono text-sm">No facts yet. Add some or have a conversation!</span>
+                </div>
                 <div
-                  v-for="(fact, idx) in mockUserFacts"
+                  v-for="(fact, idx) in userFacts"
                   :key="idx"
                   class="fact-card group"
                 >
@@ -484,15 +491,19 @@
             </div>
           </div>
 
-          <!-- AI Parameters -->
+          <!-- AI Parameters (Collapsible) -->
           <div class="console-panel">
-            <div class="console-header">
+            <div class="console-header cursor-pointer" @click="expandAIParameters = !expandAIParameters">
               <div class="flex items-center gap-3">
                 <div class="led-indicator bg-cyan-500"></div>
                 <span class="font-mono text-xs uppercase tracking-[0.15em]">AI Parameters</span>
+                <span v-if="hasChanges" class="text-[10px] text-amber-400 font-mono ml-2">● MODIFIED</span>
               </div>
+              <svg class="w-4 h-4 transition-transform text-[#555]" :class="{ 'rotate-180': expandAIParameters }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
             </div>
-            <div class="console-body space-y-6">
+            <div v-show="expandAIParameters" class="console-body space-y-6">
               <!-- Temperature Slider -->
               <div>
                 <div class="flex items-center justify-between mb-3">
@@ -574,6 +585,127 @@
                 <div class="mt-2 text-[10px] text-[#555] font-mono">
                   Warnings at 66%, 86%, and 96% of duration
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Global Memory Extraction Settings -->
+          <div class="console-panel">
+            <div class="console-header cursor-pointer" @click="expandExtractionSettings = !expandExtractionSettings">
+              <div class="flex items-center gap-3">
+                <div class="led-indicator" :class="extractionSettings.enabled ? 'bg-emerald-500' : 'bg-[#555]'"></div>
+                <span class="font-mono text-xs uppercase tracking-[0.15em]">Memory Extraction</span>
+                <span class="text-[10px] text-[#555] font-mono">GLOBAL</span>
+                <span v-if="extractionSettings.enabled" class="text-[10px] text-emerald-400 font-mono ml-2">● ACTIVE</span>
+              </div>
+              <svg class="w-4 h-4 transition-transform text-[#555]" :class="{ 'rotate-180': expandExtractionSettings }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div v-show="expandExtractionSettings" class="console-body space-y-4">
+              <div class="text-[11px] text-[#666] font-mono mb-2">
+                Configure how facts are extracted from calls and stored in SmartMemory. These settings apply to ALL personas.
+              </div>
+
+              <!-- Enable/Disable Toggle -->
+              <div class="flex items-center justify-between">
+                <label class="font-mono text-xs uppercase tracking-wider text-[#888]">Enable Extraction</label>
+                <button
+                  @click="extractionSettings.enabled = !extractionSettings.enabled; saveExtractionSettings()"
+                  class="relative w-12 h-6 rounded-full transition-colors"
+                  :class="extractionSettings.enabled ? 'bg-emerald-500/30' : 'bg-[#2a2a2e]'"
+                >
+                  <div
+                    class="absolute top-1 w-4 h-4 rounded-full transition-all"
+                    :class="extractionSettings.enabled ? 'left-7 bg-emerald-400' : 'left-1 bg-[#555]'"
+                  ></div>
+                </button>
+              </div>
+
+              <!-- Model Selection -->
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <label class="font-mono text-xs uppercase tracking-wider text-[#888]">Cerebras Model</label>
+                  <button
+                    @click="fetchCerebrasModels"
+                    class="text-[10px] text-emerald-400 hover:text-emerald-300 font-mono"
+                    :disabled="loadingCerebrasModels"
+                  >
+                    {{ loadingCerebrasModels ? 'Loading...' : '↻ Refresh' }}
+                  </button>
+                </div>
+                <select
+                  v-model="extractionSettings.model"
+                  @change="saveExtractionSettings"
+                  class="w-full bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg px-4 py-2.5 font-mono text-sm text-[#ccc] focus:border-emerald-500/50 focus:outline-none transition-colors appearance-none cursor-pointer"
+                >
+                  <option v-if="availableCerebrasModels.length === 0" value="llama-3.3-70b">llama-3.3-70b (default)</option>
+                  <option v-for="model in availableCerebrasModels" :key="model.id" :value="model.id">
+                    {{ model.id }}
+                  </option>
+                </select>
+                <div v-if="availableCerebrasModels.length > 0" class="mt-1 text-[10px] text-[#555] font-mono">
+                  {{ availableCerebrasModels.length }} models available (Llama & Qwen)
+                </div>
+              </div>
+
+              <!-- Temperature -->
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <label class="font-mono text-xs uppercase tracking-wider text-[#888]">Extraction Temperature</label>
+                  <span class="font-mono text-sm text-emerald-400">{{ extractionSettings.temperature.toFixed(2) }}</span>
+                </div>
+                <input
+                  type="range"
+                  v-model.number="extractionSettings.temperature"
+                  @change="saveExtractionSettings"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  class="w-full accent-emerald-500"
+                />
+                <div class="flex justify-between mt-1 text-[10px] text-[#555] font-mono">
+                  <span>PRECISE (0.0)</span>
+                  <span>CREATIVE (1.0)</span>
+                </div>
+              </div>
+
+              <!-- Max Tokens -->
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <label class="font-mono text-xs uppercase tracking-wider text-[#888]">Max Extraction Tokens</label>
+                  <span class="font-mono text-sm text-emerald-400">{{ extractionSettings.maxTokens }}</span>
+                </div>
+                <input
+                  type="number"
+                  v-model.number="extractionSettings.maxTokens"
+                  @change="saveExtractionSettings"
+                  min="100"
+                  max="2000"
+                  step="50"
+                  class="w-full bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg px-4 py-2 font-mono text-sm text-[#ccc] focus:border-emerald-500/50 focus:outline-none transition-colors"
+                />
+              </div>
+
+              <!-- Custom Extraction Prompt (Advanced) -->
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <label class="font-mono text-xs uppercase tracking-wider text-[#888]">Custom Extraction Prompt</label>
+                  <span class="text-[10px] text-[#555] font-mono">OPTIONAL</span>
+                </div>
+                <textarea
+                  v-model="extractionSettings.extractionPrompt"
+                  @blur="saveExtractionSettings"
+                  rows="4"
+                  class="w-full bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg px-4 py-2 font-mono text-xs text-[#ccc] placeholder:text-[#444] focus:border-emerald-500/50 focus:outline-none transition-colors resize-none"
+                  placeholder="Leave empty to use default prompt. Custom prompt must instruct LLM to output JSON array of facts."
+                ></textarea>
+              </div>
+
+              <!-- Settings Status -->
+              <div class="flex items-center gap-2 text-[10px] font-mono">
+                <span v-if="extractionSettingsSaved" class="text-emerald-400">✓ Settings saved</span>
+                <span v-else class="text-[#555]">Settings auto-save on change</span>
               </div>
             </div>
           </div>
@@ -701,15 +833,15 @@
                   <div class="layer-divider"></div>
 
                   <!-- Layer 4: User Knowledge -->
-                  <div class="prompt-layer" :class="{ 'layer-active': mockUserFacts.length > 0, 'layer-inactive': mockUserFacts.length === 0 }">
+                  <div class="prompt-layer" :class="{ 'layer-active': userFacts.length > 0, 'layer-inactive': userFacts.length === 0 }">
                     <div class="layer-header">
                       <span class="layer-number bg-cyan-500/20 text-cyan-400">4</span>
                       <span class="text-cyan-500/70 uppercase tracking-wider text-[10px]">USER KNOWLEDGE (SmartMemory)</span>
-                      <span v-if="mockUserFacts.length === 0" class="text-[10px] text-[#555] ml-2">(no facts)</span>
+                      <span v-if="userFacts.length === 0" class="text-[10px] text-[#555] ml-2">(no facts)</span>
                     </div>
-                    <div v-if="mockUserFacts.length > 0" class="text-[#aaa] pl-6">
+                    <div v-if="userFacts.length > 0" class="text-[#aaa] pl-6">
                       <div class="text-cyan-400/60 mb-1">What you know about this user:</div>
-                      <div v-for="(fact, idx) in mockUserFacts" :key="idx" class="flex items-start gap-2 mb-1">
+                      <div v-for="(fact, idx) in userFacts" :key="idx" class="flex items-start gap-2 mb-1">
                         <span class="text-cyan-500/40">•</span>
                         <span>{{ fact.content }}</span>
                       </div>
@@ -1030,8 +1162,33 @@ const expandPromptEditor = ref(false);
 const expandCallContext = ref(false);
 const expandRelationship = ref(false);
 const expandUserKnowledge = ref(false);
+const expandAIParameters = ref(true);  // Default expanded
+const expandExtractionSettings = ref(false);
+
+// Track initial context values to detect changes (set when loading context)
+const initialContext = ref({
+  callPretext: '',
+  customInstructions: '',
+  selectedScenarioId: null,
+  relationshipTypeId: null,
+  relationshipDuration: 6,
+  relationshipPrompt: '',
+  userFactsCount: 0
+});
 const connectionStatus = ref('idle');
 const showSettingsModal = ref(false);
+
+// Global Extraction Settings (applies to all personas)
+const extractionSettings = ref({
+  enabled: true,
+  model: 'llama-3.3-70b',
+  temperature: 0.1,
+  maxTokens: 500,
+  extractionPrompt: ''
+});
+const extractionSettingsSaved = ref(false);
+const availableCerebrasModels = ref([]);
+const loadingCerebrasModels = ref(false);
 const previewMode = ref('full'); // 'raw' or 'full'
 
 // Call Context State (Layer 2)
@@ -1061,7 +1218,9 @@ const relationshipTypes = [
 ];
 
 // User Knowledge State (Layer 4)
-const mockUserFacts = ref([]);
+// All facts (both manually added and auto-extracted) stored in long_term:{adminId}:{personaId}
+const userFacts = ref([]);
+const loadingUserFacts = ref(false);
 const newFactCategory = ref('personal');
 const newFactContent = ref('');
 const factPresets = [
@@ -1076,23 +1235,41 @@ const factPresets = [
 // SmartMemory persistence for context data (per persona)
 // Object ID pattern: admin_context:{personaId}
 const getMemoryObjectId = (personaId) => `admin_context:${personaId}`;
-const API_BASE = import.meta.env.VITE_API_URL || 'https://call-me-back-api-gateway.raindrop-dash.workers.dev';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run';
 
-const saveContextToSmartMemory = async () => {
-  if (!selectedPersona.value?.id) return;
+// Fetch available Cerebras models (filtered to Llama and Qwen)
+const fetchCerebrasModels = async () => {
+  loadingCerebrasModels.value = true;
+  try {
+    const token = localStorage.getItem('adminToken');
+    // Proxy through API gateway to avoid CORS and hide API key
+    const response = await fetch(`${API_BASE}/api/cerebras/models`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
 
-  const objectId = getMemoryObjectId(selectedPersona.value.id);
-  const document = {
-    callPretext: callPretext.value,
-    customInstructions: customInstructions.value,
-    selectedScenarioId: selectedScenario.value?.id || null,
-    relationshipTypeId: relationshipType.value?.id || null,
-    relationshipDuration: relationshipDuration.value,
-    relationshipPrompt: relationshipPrompt.value,
-    mockUserFacts: mockUserFacts.value,
-    updatedAt: new Date().toISOString(),
-  };
+    if (response.ok) {
+      const data = await response.json();
+      // Filter for Llama and Qwen models only
+      const filtered = (data.models || data.data || [])
+        .filter(m => {
+          const id = (m.id || m.name || '').toLowerCase();
+          return id.includes('llama') || id.includes('qwen');
+        })
+        .sort((a, b) => (a.id || a.name).localeCompare(b.id || b.name));
+      availableCerebrasModels.value = filtered;
+      console.log(`[PersonaDesigner] Loaded ${filtered.length} Cerebras models`);
+    } else {
+      console.error('[PersonaDesigner] Failed to fetch Cerebras models:', await response.text());
+    }
+  } catch (err) {
+    console.error('[PersonaDesigner] Error fetching Cerebras models:', err);
+  } finally {
+    loadingCerebrasModels.value = false;
+  }
+};
 
+// Save global extraction settings to SmartMemory
+const saveExtractionSettings = async () => {
   try {
     const token = localStorage.getItem('adminToken');
     const response = await fetch(`${API_BASE}/api/memory/semantic`, {
@@ -1101,18 +1278,98 @@ const saveContextToSmartMemory = async () => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({ objectId, document }),
+      body: JSON.stringify({
+        objectId: 'global:extraction_settings',
+        document: {
+          enabled: extractionSettings.value.enabled,
+          model: extractionSettings.value.model,
+          temperature: extractionSettings.value.temperature,
+          maxTokens: extractionSettings.value.maxTokens,
+          extractionPrompt: extractionSettings.value.extractionPrompt || null,
+          updatedAt: new Date().toISOString()
+        }
+      }),
     });
 
     if (response.ok) {
-      console.log(`[PersonaDesigner] Saved context to SmartMemory for ${selectedPersona.value.id}`);
+      extractionSettingsSaved.value = true;
+      setTimeout(() => { extractionSettingsSaved.value = false; }, 2000);
+      console.log('[PersonaDesigner] Saved extraction settings');
     } else {
-      console.error('[PersonaDesigner] SmartMemory save failed:', await response.text());
+      console.error('[PersonaDesigner] Failed to save extraction settings:', await response.text());
+    }
+  } catch (err) {
+    console.error('[PersonaDesigner] Error saving extraction settings:', err);
+  }
+};
+
+// Load global extraction settings from SmartMemory
+const loadExtractionSettings = async () => {
+  try {
+    const token = localStorage.getItem('adminToken');
+    const response = await fetch(`${API_BASE}/api/memory/semantic/${encodeURIComponent('global:extraction_settings')}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      if (result.document && !result.document.deleted) {
+        extractionSettings.value = {
+          enabled: result.document.enabled ?? true,
+          model: result.document.model || 'llama-3.3-70b',
+          temperature: result.document.temperature ?? 0.1,
+          maxTokens: result.document.maxTokens || 500,
+          extractionPrompt: result.document.extractionPrompt || ''
+        };
+        console.log('[PersonaDesigner] Loaded extraction settings');
+      }
+    }
+  } catch (err) {
+    console.error('[PersonaDesigner] Error loading extraction settings:', err);
+  }
+};
+
+const saveContextToSmartMemory = async () => {
+  console.log('[PersonaDesigner] saveContextToSmartMemory called');
+  if (!selectedPersona.value?.id) {
+    console.log('[PersonaDesigner] No persona selected, skipping save');
+    return;
+  }
+
+  const key = getMemoryObjectId(selectedPersona.value.id);
+  const value = {
+    callPretext: callPretext.value,
+    customInstructions: customInstructions.value,
+    selectedScenarioId: selectedScenario.value?.id || null,
+    relationshipTypeId: relationshipType.value?.id || null,
+    relationshipDuration: relationshipDuration.value,
+    relationshipPrompt: relationshipPrompt.value,
+    userFacts: userFacts.value,
+    updatedAt: new Date().toISOString(),
+  };
+  console.log('[PersonaDesigner] Saving context to KV:', { key, callPretext: value.callPretext?.substring(0, 50) });
+
+  try {
+    const token = localStorage.getItem('adminToken');
+    // Use KV storage endpoint: PUT /api/userdata
+    const response = await fetch(`${API_BASE}/api/userdata`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ key, value }),
+    });
+
+    if (response.ok) {
+      console.log(`[PersonaDesigner] Saved context to KV for ${selectedPersona.value.id}`);
+    } else {
+      console.error('[PersonaDesigner] KV save failed:', await response.text());
       // Fallback to localStorage
       saveContextToLocalStorage();
     }
   } catch (e) {
-    console.error('[PersonaDesigner] SmartMemory save error:', e);
+    console.error('[PersonaDesigner] KV save error:', e);
     // Fallback to localStorage
     saveContextToLocalStorage();
   }
@@ -1121,11 +1378,12 @@ const saveContextToSmartMemory = async () => {
 const loadContextFromSmartMemory = async () => {
   if (!selectedPersona.value?.id) return;
 
-  const objectId = getMemoryObjectId(selectedPersona.value.id);
+  const key = getMemoryObjectId(selectedPersona.value.id);
 
   try {
     const token = localStorage.getItem('adminToken');
-    const response = await fetch(`${API_BASE}/api/memory/semantic/${encodeURIComponent(objectId)}`, {
+    // Use KV storage endpoint: GET /api/userdata/:key
+    const response = await fetch(`${API_BASE}/api/userdata/${encodeURIComponent(key)}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -1133,8 +1391,8 @@ const loadContextFromSmartMemory = async () => {
 
     if (response.ok) {
       const result = await response.json();
-      // SmartMemory returns { success: true, document: {...} } or similar
-      const data = result.document || result;
+      // KV returns { success: true, data: {...} }
+      const data = result.data;
 
       if (data && !data.deleted) {
         callPretext.value = data.callPretext || '';
@@ -1147,18 +1405,166 @@ const loadContextFromSmartMemory = async () => {
           : null;
         relationshipDuration.value = data.relationshipDuration || 6;
         relationshipPrompt.value = data.relationshipPrompt || '';
-        mockUserFacts.value = data.mockUserFacts || [];
-        console.log(`[PersonaDesigner] Loaded context from SmartMemory for ${selectedPersona.value.id}`);
+        // Note: userFacts are loaded separately via loadUserFacts()
+
+        // Store initial values for change detection
+        initialContext.value = {
+          callPretext: data.callPretext || '',
+          customInstructions: data.customInstructions || '',
+          selectedScenarioId: data.selectedScenarioId || null,
+          relationshipTypeId: data.relationshipTypeId || null,
+          relationshipDuration: data.relationshipDuration || 6,
+          relationshipPrompt: data.relationshipPrompt || '',
+          userFactsCount: 0  // Will be updated by loadUserFacts
+        };
+
+        console.log(`[PersonaDesigner] Loaded context from KV for ${selectedPersona.value.id}`);
         return;
       }
     }
 
-    // If SmartMemory fails or has no data, try localStorage fallback
+    // If KV fails or has no data, try localStorage fallback
     loadContextFromLocalStorage();
   } catch (e) {
-    console.error('[PersonaDesigner] SmartMemory load error:', e);
+    console.error('[PersonaDesigner] KV load error:', e);
     // Fallback to localStorage
     loadContextFromLocalStorage();
+  }
+};
+
+/**
+ * LAYER 4: Load user facts from long-term memory (KV Storage)
+ * These include both auto-extracted facts from calls AND manually added facts
+ * Key pattern: long_term:{adminId}:{personaId}
+ */
+const loadUserFacts = async () => {
+  if (!selectedPersona.value?.id) return;
+
+  // Get adminId from token
+  const token = localStorage.getItem('adminToken');
+  if (!token) return;
+
+  // Decode JWT to get admin ID (simple base64 decode of payload)
+  let adminId;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    adminId = payload.sub || payload.id || payload.adminId;
+  } catch (e) {
+    console.error('[PersonaDesigner] Could not decode admin token');
+    return;
+  }
+
+  if (!adminId) return;
+
+  const key = `long_term:${adminId}:${selectedPersona.value.id}`;
+  loadingUserFacts.value = true;
+
+  try {
+    // Use KV storage endpoint: GET /api/userdata/:key
+    const response = await fetch(`${API_BASE}/api/userdata/${encodeURIComponent(key)}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      // Response format: { success: true, data: { facts: [...], ... } }
+      const data = result.data || {};
+      const facts = data.facts || [];
+
+      if (facts.length > 0) {
+        // Map facts to the expected format for display
+        userFacts.value = facts.map(f => {
+          if (typeof f === 'string') {
+            return { category: 'personal', content: f, importance: 'medium' };
+          }
+          return {
+            category: f.category || 'personal',
+            content: f.fact || f.content || f,
+            importance: f.importance || 'medium',
+            timestamp: f.timestamp
+          };
+        });
+        // Update initial context with loaded facts count
+        initialContext.value.userFactsCount = userFacts.value.length;
+        console.log(`[PersonaDesigner] Loaded ${userFacts.value.length} facts from Layer 4 (KV: ${key})`);
+      } else {
+        userFacts.value = [];
+        initialContext.value.userFactsCount = 0;
+        console.log('[PersonaDesigner] No facts found in Layer 4');
+      }
+    } else if (response.status === 404) {
+      // No data exists yet - this is normal for new personas
+      userFacts.value = [];
+      initialContext.value.userFactsCount = 0;
+      console.log('[PersonaDesigner] No Layer 4 data exists yet (404)');
+    } else {
+      userFacts.value = [];
+      initialContext.value.userFactsCount = 0;
+      console.warn('[PersonaDesigner] Failed to load Layer 4:', response.status);
+    }
+  } catch (e) {
+    console.error('[PersonaDesigner] Error loading user facts:', e);
+    userFacts.value = [];
+  } finally {
+    loadingUserFacts.value = false;
+  }
+};
+
+/**
+ * Save user facts to long-term memory (KV Storage)
+ * Key pattern: long_term:{adminId}:{personaId}
+ */
+const saveUserFacts = async () => {
+  if (!selectedPersona.value?.id) return;
+
+  const token = localStorage.getItem('adminToken');
+  if (!token) return;
+
+  let adminId;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    adminId = payload.sub || payload.id || payload.adminId;
+  } catch (e) {
+    console.error('[PersonaDesigner] Could not decode admin token');
+    return;
+  }
+
+  if (!adminId) return;
+
+  const key = `long_term:${adminId}:${selectedPersona.value.id}`;
+
+  try {
+    // Use KV storage endpoint: PUT /api/userdata
+    const response = await fetch(`${API_BASE}/api/userdata`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        key,
+        value: {
+          facts: userFacts.value.map(f => ({
+            fact: f.content,
+            category: f.category,
+            importance: f.importance || 'medium',
+            timestamp: f.timestamp || new Date().toISOString()
+          })),
+          updatedAt: new Date().toISOString()
+        }
+      }),
+    });
+
+    if (response.ok) {
+      console.log(`[PersonaDesigner] Saved ${userFacts.value.length} facts to Layer 4 (KV: ${key})`);
+    } else {
+      console.warn('[PersonaDesigner] Failed to save Layer 4:', response.status, await response.text());
+    }
+  } catch (e) {
+    console.error('[PersonaDesigner] Error saving user facts:', e);
   }
 };
 
@@ -1175,7 +1581,7 @@ const saveContextToLocalStorage = () => {
     relationshipTypeId: relationshipType.value?.id || null,
     relationshipDuration: relationshipDuration.value,
     relationshipPrompt: relationshipPrompt.value,
-    mockUserFacts: mockUserFacts.value,
+    userFacts: userFacts.value,
   };
   localStorage.setItem(key, JSON.stringify(data));
   console.log(`[PersonaDesigner] Saved context to localStorage for ${selectedPersona.value.id}`);
@@ -1198,7 +1604,19 @@ const loadContextFromLocalStorage = () => {
         : null;
       relationshipDuration.value = data.relationshipDuration || 6;
       relationshipPrompt.value = data.relationshipPrompt || '';
-      mockUserFacts.value = data.mockUserFacts || [];
+      userFacts.value = data.userFacts || [];
+
+      // Store initial values for change detection
+      initialContext.value = {
+        callPretext: data.callPretext || '',
+        customInstructions: data.customInstructions || '',
+        selectedScenarioId: data.selectedScenarioId || null,
+        relationshipTypeId: data.relationshipTypeId || null,
+        relationshipDuration: data.relationshipDuration || 6,
+        relationshipPrompt: data.relationshipPrompt || '',
+        userFactsCount: (data.userFacts || []).length
+      };
+
       console.log(`[PersonaDesigner] Loaded context from localStorage for ${selectedPersona.value.id}`);
     } catch (e) {
       console.error('[PersonaDesigner] Failed to load context from localStorage:', e);
@@ -1216,23 +1634,28 @@ const resetContextToDefaults = () => {
   relationshipType.value = null;
   relationshipDuration.value = 6;
   relationshipPrompt.value = '';
-  mockUserFacts.value = [];
+  userFacts.value = [];
+
+  // Reset initial context for change detection
+  initialContext.value = {
+    callPretext: '',
+    customInstructions: '',
+    selectedScenarioId: null,
+    relationshipTypeId: null,
+    relationshipDuration: 6,
+    relationshipPrompt: '',
+    userFactsCount: 0
+  };
 };
 
-// Auto-save context when it changes (debounced)
-let saveTimeout = null;
-const debouncedSave = () => {
-  if (saveTimeout) clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(saveContextToSmartMemory, 1000); // 1 second debounce for API calls
-};
-
-// Watch all context fields for changes
-watch([callPretext, customInstructions, selectedScenario, relationshipType, relationshipDuration, relationshipPrompt, mockUserFacts], debouncedSave, { deep: true });
+// NOTE: Auto-save removed - save is now handled by explicit savePersona() button click
+// The hasChanges computed property tracks all persona + context changes
 
 // Load context when persona changes
 watch(selectedPersona, (newPersona) => {
   if (newPersona) {
     loadContextFromSmartMemory();
+    loadUserFacts();  // LAYER 4: Load user knowledge facts
   }
 });
 
@@ -1314,13 +1737,28 @@ const hasChanges = computed(() => {
   // API returns 'systemPrompt' not 'core_system_prompt', 'voice' not 'default_voice_id'
   const originalPrompt = selectedPersona.value.systemPrompt || selectedPersona.value.core_system_prompt || '';
   const originalVoice = selectedPersona.value.voice || selectedPersona.value.default_voice_id || '';
-  return (
+
+  // Check persona field changes
+  const personaChanged = (
     editedPrompt.value !== originalPrompt ||
     temperature.value !== parseFloat(selectedPersona.value.temperature || 0.7) ||
     maxTokens.value !== parseInt(selectedPersona.value.max_tokens || 150) ||
     maxCallDuration.value !== parseInt(selectedPersona.value.max_call_duration || 15) ||
     voiceId.value !== originalVoice
   );
+
+  // Check context field changes (Layer 2, 3, 4)
+  const contextChanged = (
+    callPretext.value !== initialContext.value.callPretext ||
+    customInstructions.value !== initialContext.value.customInstructions ||
+    (selectedScenario.value?.id || null) !== initialContext.value.selectedScenarioId ||
+    (relationshipType.value?.id || null) !== initialContext.value.relationshipTypeId ||
+    relationshipDuration.value !== initialContext.value.relationshipDuration ||
+    relationshipPrompt.value !== initialContext.value.relationshipPrompt ||
+    userFacts.value.length !== initialContext.value.userFactsCount
+  );
+
+  return personaChanged || contextChanged;
 });
 
 // Methods
@@ -1384,6 +1822,23 @@ const savePersona = async () => {
     // Update in personas array
     const idx = personas.value.findIndex(p => p.id === selectedPersona.value.id);
     if (idx !== -1) personas.value[idx] = { ...selectedPersona.value };
+
+    // Also save context (Layer 2, 3) and user facts (Layer 4) to SmartMemory
+    await saveContextToSmartMemory();
+    await saveUserFacts();
+
+    // Update initialContext to reflect saved state (so hasChanges becomes false)
+    initialContext.value = {
+      callPretext: callPretext.value,
+      customInstructions: customInstructions.value,
+      selectedScenarioId: selectedScenario.value?.id || null,
+      relationshipTypeId: relationshipType.value?.id || null,
+      relationshipDuration: relationshipDuration.value,
+      relationshipPrompt: relationshipPrompt.value,
+      userFactsCount: userFacts.value.length
+    };
+
+    console.log('[PersonaDesigner] Saved persona + context + user facts');
 
   } catch (err) {
     console.error('Error saving persona:', err);
@@ -1487,19 +1942,23 @@ const selectRelationshipType = (rel) => {
   }
 };
 
-// User Knowledge Methods
+// User Knowledge Methods (Layer 4)
+// Note: Facts are saved when user clicks the main Save button (savePersona)
 const addFact = () => {
   if (!newFactContent.value.trim()) return;
-  mockUserFacts.value.push({
+  userFacts.value.push({
     category: newFactCategory.value,
     content: newFactContent.value.trim(),
-    importance: 'medium'
+    importance: 'medium',
+    timestamp: new Date().toISOString()
   });
   newFactContent.value = '';
+  // hasChanges will now be true, user must click Save button
 };
 
 const removeFact = (idx) => {
-  mockUserFacts.value.splice(idx, 1);
+  userFacts.value.splice(idx, 1);
+  // hasChanges will now be true, user must click Save button
 };
 
 const addPresetFact = (preset) => {
@@ -1512,11 +1971,13 @@ const addPresetFact = (preset) => {
     'In a relationship': 'relationships',
     'Health-conscious': 'health',
   };
-  mockUserFacts.value.push({
+  userFacts.value.push({
     category: categoryMap[preset] || 'personal',
     content: preset,
-    importance: 'medium'
+    importance: 'medium',
+    timestamp: new Date().toISOString()
   });
+  // hasChanges will now be true, user must click Save button
 };
 
 const getCategoryColor = (category) => {
@@ -1548,7 +2009,7 @@ const estimatedTokens = computed(() => {
     if (relationshipType.value) total += 20;
 
     // User facts
-    mockUserFacts.value.forEach(fact => {
+    userFacts.value.forEach(fact => {
       total += Math.ceil(fact.content.length / 4) + 5;
     });
 
@@ -1585,9 +2046,9 @@ const copyPromptToClipboard = async () => {
       prompt += '\n';
     }
 
-    if (mockUserFacts.value.length > 0) {
+    if (userFacts.value.length > 0) {
       prompt += '=== WHAT YOU KNOW ABOUT THIS USER ===\n';
-      mockUserFacts.value.forEach(fact => {
+      userFacts.value.forEach(fact => {
         prompt += `• ${fact.content}\n`;
       });
       prompt += '\n';
@@ -1661,9 +2122,9 @@ const startBrowserVoice = async () => {
       if (relationshipPrompt.value) {
         smartMemoryContext += `${relationshipPrompt.value}\n`;
       }
-      if (mockUserFacts.value.length > 0) {
+      if (userFacts.value.length > 0) {
         smartMemoryContext += '\nWHAT YOU KNOW ABOUT THIS USER:\n';
-        mockUserFacts.value.forEach(fact => {
+        userFacts.value.forEach(fact => {
           smartMemoryContext += `• ${fact.content}\n`;
         });
       }
@@ -1675,11 +2136,23 @@ const startBrowserVoice = async () => {
       }
 
       // Send init message with token (required by browser-stream handler)
+      // Decode admin ID from JWT token for Layer 4 memory matching
+      const token = localStorage.getItem('adminToken');
+      let adminId = 'admin';
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          adminId = payload.sub || payload.id || payload.adminId || 'admin';
+        } catch (e) {
+          console.warn('[Browser Voice] Could not decode admin ID from token');
+        }
+      }
+
       const initMsg = {
         type: 'init',
-        token: localStorage.getItem('adminToken'),
+        token: token,
         persona_id: selectedPersona.value.id,
-        admin_id: 'admin',
+        admin_id: adminId,
         overrides: {
           core_system_prompt: editedPrompt.value,
           temperature: temperature.value,
@@ -2215,6 +2688,8 @@ onMounted(() => {
   loadAdminPhone();
   fetchRecentCalls();
   enumerateAudioDevices();
+  loadExtractionSettings();
+  fetchCerebrasModels();
 });
 
 onUnmounted(() => {

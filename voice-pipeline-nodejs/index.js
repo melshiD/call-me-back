@@ -88,11 +88,45 @@ envFile.split('\n').forEach(line => {
 
 const app = express();
 const server = createServer(app);
-// Twilio stream handler
-const wss = new WebSocketServer({ server, path: '/stream' });
+
+// CRITICAL: Multiple WebSocket servers require noServer mode + manual upgrade handling
+// See: https://github.com/websockets/ws#multiple-servers-sharing-a-single-https-server
+const wss = new WebSocketServer({
+  noServer: true,
+  perMessageDeflate: false,
+  clientTracking: true
+});
+
+console.log('[INIT] Twilio WebSocket server created (noServer mode)');
 
 // Browser stream handler for admin debugger
-const browserWss = new WebSocketServer({ server, path: '/browser-stream' });
+const browserWss = new WebSocketServer({
+  noServer: true,
+  perMessageDeflate: false,
+  clientTracking: true
+});
+
+console.log('[INIT] Browser WebSocket server created (noServer mode)');
+
+// Handle WebSocket upgrade requests - route to correct server based on path
+server.on('upgrade', (request, socket, head) => {
+  const { pathname } = new URL(request.url, 'wss://base.url');
+
+  console.log('[UPGRADE] WebSocket upgrade request for path:', pathname);
+
+  if (pathname === '/stream') {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  } else if (pathname === '/browser-stream') {
+    browserWss.handleUpgrade(request, socket, head, (ws) => {
+      browserWss.emit('connection', ws, request);
+    });
+  } else {
+    console.log('[UPGRADE] Unknown path, destroying socket:', pathname);
+    socket.destroy();
+  }
+});
 
 const PORT = env.PORT || 8001;
 
@@ -113,9 +147,11 @@ class VoicePipeline {
   constructor(twilioWs, callParams) {
     this.twilioWs = twilioWs;
     this.callId = callParams.callId;
+    this.twilioCallSid = callParams.twilioCallSid || null;
     this.userId = callParams.userId;
     this.personaId = callParams.personaId;
-    this.callPretext = callParams.callPretext || ''; // e.g., "Save me from a bad date"
+    // callPretext is fetched from database via callId (not passed via TwiML due to 500 char limit)
+    this.callPretext = '';
 
     // Persona metadata (will be fetched from database)
     this.personaName = null;
@@ -157,6 +193,18 @@ class VoicePipeline {
       maxEvaluations: 2          // Max LLM evals before forcing
     };
 
+    // Call tracking and cleanup
+    this.cleanedUp = false;
+    this.sessionStartTime = Date.now();
+
+    // Cost tracking
+    this.costTracking = {
+      deepgramMinutes: 0,
+      elevenLabsCharacters: 0,
+      cerebrasTokens: 0,
+      sessionDuration: 0
+    };
+
     console.log(`[VoicePipeline ${this.callId}] Initialized`, callParams);
   }
 
@@ -168,11 +216,12 @@ class VoicePipeline {
     try {
       console.log(`[VoicePipeline ${this.callId}] Fetching persona metadata for ${this.personaId}...`);
 
-      const response = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+      // Fetch persona data
+      const personaResponse = await fetch(`${env.VULTR_DB_API_URL}/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`  // Fixed: Changed from X-API-Key to Authorization: Bearer
+          'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
         },
         body: JSON.stringify({
           sql: `
@@ -188,21 +237,60 @@ class VoicePipeline {
         })
       });
 
-      console.log(`[VoicePipeline ${this.callId}] Database response status: ${response.status}`);
+      console.log(`[VoicePipeline ${this.callId}] Persona query response status: ${personaResponse.status}`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Database query failed: ${response.status} - ${errorText}`);
+      if (!personaResponse.ok) {
+        const errorText = await personaResponse.text();
+        throw new Error(`Persona query failed: ${personaResponse.status} - ${errorText}`);
       }
 
-      const result = await response.json();
-      console.log(`[VoicePipeline ${this.callId}] Database result:`, JSON.stringify(result, null, 2));
+      const personaResult = await personaResponse.json();
 
-      if (result.rows && result.rows.length > 0) {
-        const row = result.rows[0];
+      // Fetch call context (pretext, scenario, etc.) from calls table using callId
+      // This is where scheduled call context gets passed to the voice pipeline
+      let callContext = null;
+      if (this.callId && this.callId !== 'unknown') {
+        console.log(`[VoicePipeline ${this.callId}] Fetching call context from database...`);
+        try {
+          const callResponse = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+            },
+            body: JSON.stringify({
+              sql: `
+                SELECT call_pretext, call_scenario, custom_instructions,
+                       max_duration_minutes, voice_id_override
+                FROM calls
+                WHERE id = $1
+              `,
+              params: [this.callId]
+            })
+          });
+
+          if (callResponse.ok) {
+            const callResult = await callResponse.json();
+            if (callResult.rows && callResult.rows.length > 0) {
+              callContext = callResult.rows[0];
+              console.log(`[VoicePipeline ${this.callId}] ✅ Found call context:`, {
+                hasPretext: !!callContext.call_pretext,
+                scenario: callContext.call_scenario,
+                maxDuration: callContext.max_duration_minutes
+              });
+            }
+          }
+        } catch (callError) {
+          console.warn(`[VoicePipeline ${this.callId}] ⚠️ Could not fetch call context:`, callError.message);
+        }
+      }
+
+      if (personaResult.rows && personaResult.rows.length > 0) {
+        const row = personaResult.rows[0];
         this.personaName = row.name || 'Brad';
         // Use custom voice if set, otherwise use persona's default voice
-        this.voiceId = row.voice_id || row.default_voice_id || 'pNInz6obpgDQGcFmaJgB';
+        // Call-level voice override takes precedence
+        this.voiceId = callContext?.voice_id_override || row.voice_id || row.default_voice_id || 'pNInz6obpgDQGcFmaJgB';
         // Use custom system prompt if set, otherwise use persona's core prompt
         this.systemPrompt = row.custom_system_prompt || row.core_system_prompt ||
           'You are a supportive friend who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.';
@@ -212,11 +300,20 @@ class VoicePipeline {
         // Note: smart_memory column doesn't exist in current schema - will be added later for static relationship context
         this.smartMemory = '';
 
+        // Set call context from database (fetched via callId, not passed via TwiML)
+        if (callContext) {
+          this.callPretext = callContext.call_pretext || '';
+          this.callScenario = callContext.call_scenario || '';
+          this.customInstructions = callContext.custom_instructions || '';
+          this.maxDurationMinutes = callContext.max_duration_minutes || null;
+        }
+
         console.log(`[VoicePipeline ${this.callId}] ✅ Loaded persona successfully:`, {
           name: this.personaName,
           voiceId: this.voiceId,
           systemPromptLength: this.systemPrompt.length,
           hasCallPretext: !!this.callPretext,
+          callScenario: this.callScenario,
           maxTokens: this.maxTokens,
           temperature: this.temperature
         });
@@ -228,6 +325,8 @@ class VoicePipeline {
         this.maxTokens = 100;
         this.temperature = 0.7;
         this.smartMemory = '';
+        this.callPretext = callContext?.call_pretext || '';
+        this.callScenario = callContext?.call_scenario || '';
       }
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] ❌ Failed to fetch persona metadata:`, error);
@@ -239,6 +338,8 @@ class VoicePipeline {
       this.voiceId = 'pNInz6obpgDQGcFmaJgB';
       this.systemPrompt = 'You are Brad, a supportive bro who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.';
       this.smartMemory = '';
+      this.callPretext = '';
+      this.callScenario = '';
     }
   }
 
@@ -773,9 +874,24 @@ Answer:`;
       return 'RESPOND'; // e.g., "please send it", "tell me"
     }
 
-    // Acknowledgments and affirmations
-    const acknowledgments = ['yeah', 'yes', 'yep', 'okay', 'ok', 'sure', 'alright', 'right',
-                            'thanks', 'thank you', 'got it', 'i see', 'no problem'];
+    // Leading words - these often signal user is about to continue speaking
+    // When standalone, we should WAIT rather than respond immediately
+    const leadingWords = ['alright', 'okay', 'ok', 'so', 'well', 'yeah', 'yes', 'yep', 'no', 'hmm', 'right'];
+    if (leadingWords.includes(text)) {
+      console.log(`[VoicePipeline] Detected standalone leading word "${text}", waiting for continuation...`);
+      return 'WAIT';
+    }
+
+    // Check if utterance ends with a leading word (e.g., "and okay" or "but yeah")
+    if (leadingWords.includes(lastWord) && words.length <= 3) {
+      console.log(`[VoicePipeline] Utterance ends with leading word "${lastWord}", waiting...`);
+      return 'WAIT';
+    }
+
+    // Acknowledgments and affirmations - but NOT the ambiguous leading words
+    // These are unambiguous completions
+    const acknowledgments = ['thanks', 'thank you', 'got it', 'i see', 'no problem', 'sure thing',
+                            'sounds good', 'perfect', 'great', 'awesome', 'understood'];
     if (acknowledgments.includes(text) || acknowledgments.some(ack => text === ack)) {
       return 'RESPOND';
     }
@@ -1060,6 +1176,13 @@ Answer:`;
    * Cleanup resources
    */
   cleanup() {
+    // Guard against multiple cleanup calls
+    if (this.cleanedUp) {
+      console.log(`[VoicePipeline ${this.callId}] Already cleaned up, skipping`);
+      return;
+    }
+    this.cleanedUp = true;
+
     console.log(`[VoicePipeline ${this.callId}] Cleaning up...`);
 
     if (this.silenceTimer) {
@@ -1093,35 +1216,201 @@ Answer:`;
       }
       this.vad = null;
     }
+
+    // Calculate and log session costs
+    this.costTracking.sessionDuration = (Date.now() - this.sessionStartTime) / 1000 / 60; // minutes
+    this.costTracking.deepgramMinutes = this.costTracking.sessionDuration; // Approximate
+
+    const estimatedCost = this.calculateEstimatedCost();
+    const durationSeconds = Math.round(this.costTracking.sessionDuration * 60);
+    console.log(`[VoicePipeline ${this.callId}] Session ended - Duration: ${this.costTracking.sessionDuration.toFixed(2)} min`);
+    console.log(`[VoicePipeline ${this.callId}] Cost estimate: $${estimatedCost.total.toFixed(4)} (Deepgram: $${estimatedCost.deepgram.toFixed(4)}, ElevenLabs: $${estimatedCost.elevenlabs.toFixed(4)}, Cerebras: $${estimatedCost.cerebras.toFixed(4)})`);
+
+    // Save call completion data to database
+    if (this.callId) {
+      this.saveCallCompletion(durationSeconds, estimatedCost).catch(err => {
+        console.error(`[VoicePipeline ${this.callId}] Failed to save call completion:`, err);
+      });
+    }
+
+    console.log(`[VoicePipeline ${this.callId}] Cleaned up`);
+  }
+
+  /**
+   * Calculate estimated cost of the call based on usage
+   *
+   * PRICING SOURCE: src/shared/pricing.ts (PRICING_CONFIG)
+   * Keep these values in sync with the centralized config.
+   * See also: documentation/HARDCODED_COST_VALUES.md
+   * See PUNCHLIST.md item #2 for pricing inconsistency issue
+   */
+  calculateEstimatedCost() {
+    // Pricing (as of 2025) - synced with BrowserVoicePipeline
+    const DEEPGRAM_COST_PER_MIN = 0.0043; // Nova-2 pricing
+    const ELEVENLABS_COST_PER_1K_CHARS = 0.18; // Turbo v2.5
+    const CEREBRAS_COST_PER_1M_TOKENS = 0.10; // Llama 3.1 8B
+
+    const deepgramCost = this.costTracking.deepgramMinutes * DEEPGRAM_COST_PER_MIN;
+    const elevenlabsCost = (this.costTracking.elevenLabsCharacters / 1000) * ELEVENLABS_COST_PER_1K_CHARS;
+    const cerebrasCost = (this.costTracking.cerebrasTokens / 1000000) * CEREBRAS_COST_PER_1M_TOKENS;
+
+    return {
+      deepgram: deepgramCost,
+      elevenlabs: elevenlabsCost,
+      cerebras: cerebrasCost,
+      total: deepgramCost + elevenlabsCost + cerebrasCost
+    };
+  }
+
+  /**
+   * Save call completion data to database
+   */
+  async saveCallCompletion(durationSeconds, costEstimate) {
+    try {
+      console.log(`[VoicePipeline ${this.callId}] Saving call completion to database...`);
+
+      // Update call record with completion status, duration, and cost
+      // Note: this.callId is our internal UUID (stored in calls.id column)
+      // The call-orchestrator creates records with UUID as 'id' and stores Twilio SID in 'twilio_call_sid'
+      const updateResult = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+        },
+        body: JSON.stringify({
+          sql: `UPDATE calls
+                SET status = 'completed',
+                    duration_seconds = $1,
+                    cost_usd = $2,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $3`,
+          params: [durationSeconds, costEstimate.total, this.callId]
+        })
+      });
+
+      if (!updateResult.ok) {
+        console.error(`[VoicePipeline ${this.callId}] Failed to update call:`, await updateResult.text());
+        return;
+      }
+
+      console.log(`[VoicePipeline ${this.callId}] ✅ Call marked as completed - Duration: ${durationSeconds}s, Cost: $${costEstimate.total.toFixed(4)}`);
+
+      // Also update the scheduled_calls table if this call originated from a schedule
+      // Query the calls table to get the scheduled_call_id
+      const scheduledCallResult = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+        },
+        body: JSON.stringify({
+          sql: `SELECT scheduled_call_id FROM calls WHERE id = $1`,
+          params: [this.callId]
+        })
+      });
+
+      if (scheduledCallResult.ok) {
+        const scheduledCallData = await scheduledCallResult.json();
+        const scheduledCallId = scheduledCallData.rows?.[0]?.scheduled_call_id;
+
+        if (scheduledCallId) {
+          console.log(`[VoicePipeline ${this.callId}] Updating scheduled call ${scheduledCallId} to completed...`);
+
+          const updateScheduledResult = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+            },
+            body: JSON.stringify({
+              sql: `UPDATE scheduled_calls
+                    SET status = 'completed',
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $1`,
+              params: [scheduledCallId]
+            })
+          });
+
+          if (updateScheduledResult.ok) {
+            console.log(`[VoicePipeline ${this.callId}] ✅ Scheduled call ${scheduledCallId} marked as completed`);
+          } else {
+            console.error(`[VoicePipeline ${this.callId}] Failed to update scheduled call:`, await updateScheduledResult.text());
+          }
+        }
+      }
+
+      // Log individual service costs to api_call_events table
+      // Pricing synced with calculateEstimatedCost() - see PUNCHLIST.md item #2
+      const services = [
+        { service: 'deepgram', cost: costEstimate.deepgram, operation: 'transcription', usageAmount: this.costTracking.deepgramMinutes, usageUnit: 'minutes', unitCost: 0.0043 },
+        { service: 'elevenlabs', cost: costEstimate.elevenlabs, operation: 'tts', usageAmount: this.costTracking.elevenLabsCharacters, usageUnit: 'characters', unitCost: 0.00018 },
+        { service: 'cerebras', cost: costEstimate.cerebras, operation: 'inference', usageAmount: this.costTracking.cerebrasTokens || 0, usageUnit: 'tokens', unitCost: 0.0000001 }
+      ];
+
+      for (const { service, cost, operation, usageAmount, usageUnit, unitCost } of services) {
+        if (cost > 0) {
+          await fetch(`${env.VULTR_DB_API_URL}/query`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+            },
+            body: JSON.stringify({
+              sql: `INSERT INTO api_call_events (call_id, service, operation, usage_amount, usage_unit, unit_cost, total_cost, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
+              params: [this.callId, service, operation, usageAmount, usageUnit, unitCost, cost]
+            })
+          });
+        }
+      }
+
+      console.log(`[VoicePipeline ${this.callId}] ✅ Cost breakdown logged to api_call_events`);
+    } catch (error) {
+      console.error(`[VoicePipeline ${this.callId}] Error saving call completion:`, error);
+    }
   }
 }
 
 // WebSocket connection handler
-wss.on('connection', async (twilioWs, req) => {
-  console.log('[Voice Pipeline] New WebSocket connection from Twilio');
+// TEMPORARY: Using test server pattern to debug
+wss.on('connection', (twilioWs, req) => {
+  console.log('[Voice Pipeline - WSS] ✅ WebSocket connection opened');
+  console.log('[Voice Pipeline - WSS] User-Agent:', req.headers['user-agent']);
+  console.log('[Voice Pipeline - WSS] Path:', req.url);
 
   let pipeline = null;
 
-  twilioWs.on('message', async (data) => {
+  twilioWs.on('message', (data) => {
+    console.log('[Voice Pipeline] ===== MESSAGE RECEIVED =====');
+    const str = data.toString();
+    console.log('[Voice Pipeline] Data:', str.substring(0, 200));
     try {
-      const message = JSON.parse(data.toString());
+      const message = JSON.parse(str);
+      console.log('[Voice Pipeline] Event type:', message.event);
 
       if (message.event === 'start') {
         console.log('[Voice Pipeline] Received START message from Twilio');
 
+        // Extract params from TwiML <Parameter> elements
+        // NOTE: callPretext is NOT passed via TwiML (500 char limit) - it's fetched from DB via callId
         const callId = message.start.customParameters?.callId || 'unknown';
+        const twilioCallSid = message.start.customParameters?.twilioCallSid || message.start.callSid || 'unknown';
         const userId = message.start.customParameters?.userId || 'unknown';
         const personaId = message.start.customParameters?.personaId || 'brad_001';
-        const callPretext = message.start.customParameters?.callPretext || '';
 
-        console.log('[Voice Pipeline] Call params:', { callId, userId, personaId, callPretext });
+        console.log('[Voice Pipeline] Call params:', { callId, twilioCallSid, userId, personaId });
 
         const streamSid = message.start.streamSid;
 
-        pipeline = new VoicePipeline(twilioWs, { callId, userId, personaId, callPretext });
+        // Pass callId to pipeline - it will fetch call context (pretext, etc.) from database
+        pipeline = new VoicePipeline(twilioWs, { callId, twilioCallSid, userId, personaId });
         pipeline.streamSid = streamSid;
 
-        await pipeline.start();
+        // Call start() without await - let it run in background
+        pipeline.start().catch(error => {
+          console.error('[Voice Pipeline] Error starting pipeline:', error);
+        });
       }
 
       else if (message.event === 'media' && pipeline) {
@@ -1165,6 +1454,13 @@ class BrowserVoicePipeline {
     this.adminId = params.adminId;
     this.overrides = params.overrides || {};
 
+    // Context from PersonaDesigner UI (for testing)
+    this.smartMemory = params.smartMemory || null;
+    this.callPretext = params.callPretext || null;
+
+    // Long-term memory (facts learned from previous calls)
+    this.longTermMemory = null;
+
     // Persona metadata
     this.personaName = null;
     this.voiceId = null;
@@ -1185,6 +1481,37 @@ class BrowserVoicePipeline {
     this.isSpeaking = false;
     this.silenceTimer = null;
 
+    // VAD state
+    this.vad = null;
+    this.vadEnabled = true;
+    this.isUserSpeaking = false;
+    this.vadErrorLogged = false;
+
+    // Phase 2: Context preservation for interruptions
+    this.partialResponse = '';  // Accumulate AI response text as it's generated
+
+    // Session Management Safeguards
+    this.sessionStartTime = Date.now();
+    this.lastUserActivityTime = Date.now();
+    this.maxSessionDuration = 15 * 60 * 1000; // Default 15 minutes (will be updated from persona)
+    this.idleTimeout = 5 * 60 * 1000; // 5 minutes
+    this.sessionTimeoutTimer = null;
+    this.idleCheckInterval = null;
+    this.warningCheckInterval = null;
+    this.warningsSent = {
+      firstWarning: false,    // 66% of max duration
+      secondWarning: false,   // 86% of max duration
+      finalWarning: false     // 96% of max duration
+    };
+
+    // Cost Tracking
+    this.costTracking = {
+      deepgramMinutes: 0,
+      elevenLabsCharacters: 0,
+      cerebrasTokens: 0,
+      sessionDuration: 0
+    };
+
     console.log(`[BrowserPipeline ${this.sessionId}] Initialized`);
   }
 
@@ -1197,7 +1524,7 @@ class BrowserVoicePipeline {
           'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
         },
         body: JSON.stringify({
-          sql: `SELECT name, core_system_prompt, default_voice_id, max_tokens, temperature FROM personas WHERE id = $1`,
+          sql: `SELECT name, core_system_prompt, default_voice_id, max_tokens, temperature, max_call_duration FROM personas WHERE id = $1`,
           params: [this.personaId]
         })
       });
@@ -1211,6 +1538,12 @@ class BrowserVoicePipeline {
           this.systemPrompt = this.overrides.core_system_prompt || row.core_system_prompt;
           this.maxTokens = this.overrides.max_tokens ?? row.max_tokens ?? 100;
           this.temperature = this.overrides.temperature ?? row.temperature ?? 0.7;
+
+          // Update max session duration from persona settings (convert minutes to milliseconds)
+          // Priority: override > persona setting > default (15)
+          const maxCallMinutes = this.overrides.max_call_duration ?? row.max_call_duration ?? 15;
+          this.maxSessionDuration = maxCallMinutes * 60 * 1000;
+          console.log(`[BrowserPipeline ${this.sessionId}] Max call duration set to ${maxCallMinutes} minutes (66%=${(maxCallMinutes*0.66).toFixed(1)}m, 86%=${(maxCallMinutes*0.86).toFixed(1)}m, 96%=${(maxCallMinutes*0.96).toFixed(1)}m)`);
         }
       }
     } catch (error) {
@@ -1223,12 +1556,114 @@ class BrowserVoicePipeline {
     if (!this.systemPrompt) this.systemPrompt = 'You are Brad, a supportive friend.';
   }
 
+  /**
+   * LAYER 4: USER KNOWLEDGE LAYER
+   * Load long-term memory (facts learned from previous calls) from KV Storage.
+   * These are facts extracted by post-call evaluation and stored per user/persona pair.
+   * Key format: long_term:{userId}:{personaId}
+   */
+  async loadLongTermMemory() {
+    // Need userId to load user-specific facts
+    if (!this.adminId || !this.personaId) {
+      console.log(`[BrowserPipeline ${this.sessionId}] Skipping Layer 4 (User Knowledge) - no adminId or personaId`);
+      return;
+    }
+
+    const key = `long_term:${this.adminId}:${this.personaId}`;
+
+    try {
+      // Use KV storage endpoint: GET /api/userdata/:key
+      const response = await fetch(`${env.API_GATEWAY_URL}/api/userdata/${encodeURIComponent(key)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.ADMIN_SECRET_TOKEN}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        // KV returns { success: true, data: {...} }
+        const data = result.data;
+        const facts = data?.facts || data?.important_memories || [];
+
+        if (facts.length > 0) {
+          // Format facts for the AI
+          const factsList = facts
+            .map(f => typeof f === 'string' ? f : (f.fact || f.content))
+            .filter(Boolean)
+            .join('\n- ');
+
+          this.longTermMemory = factsList;
+          console.log(`[BrowserPipeline ${this.sessionId}] ✅ Layer 4 loaded: ${facts.length} facts from KV storage`);
+        } else {
+          console.log(`[BrowserPipeline ${this.sessionId}] Layer 4: No facts in KV storage`);
+        }
+      } else if (response.status === 404) {
+        console.log(`[BrowserPipeline ${this.sessionId}] Layer 4: No long-term memory exists yet (404)`);
+      } else {
+        console.log(`[BrowserPipeline ${this.sessionId}] Layer 4: Failed to load (${response.status})`);
+      }
+    } catch (error) {
+      console.error(`[BrowserPipeline ${this.sessionId}] Layer 4 error loading long-term memory:`, error.message);
+    }
+  }
+
   async start() {
+    console.log(`[BrowserPipeline ${this.sessionId}] Starting pipeline...`);
     await this.fetchPersonaMetadata();
+    console.log(`[BrowserPipeline ${this.sessionId}] Persona metadata fetched`);
+
+    // LAYER 4: Load facts learned from previous calls
+    await this.loadLongTermMemory();
+
+    // Create call record in database
+    await this.createCallRecord();
+
     await this.connectDeepgram();
+    console.log(`[BrowserPipeline ${this.sessionId}] Deepgram connected`);
+
     await this.connectElevenLabs();
+    console.log(`[BrowserPipeline ${this.sessionId}] ElevenLabs connected`);
+
+    // Initialize VAD for better turn-taking
+    if (this.vadEnabled) {
+      await this.initializeVAD();
+    }
 
     this.send({ type: 'session_start', session_id: this.sessionId, persona: { id: this.personaId, name: this.personaName } });
+    console.log(`[BrowserPipeline ${this.sessionId}] Session start message sent`);
+
+    // Start session safeguard timers
+    this.startSessionSafeguards();
+  }
+
+  async createCallRecord() {
+    try {
+      // Generate a call ID (use session ID for browser calls)
+      this.callId = this.sessionId;
+
+      const response = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+        },
+        body: JSON.stringify({
+          sql: `INSERT INTO calls (id, user_id, persona_id, phone_number, status, cost_usd, created_at)
+                VALUES ($1, $2, $3, $4, 'in-progress', 0, CURRENT_TIMESTAMP)`,
+          params: [this.callId, this.adminId || 'browser-admin', this.personaId, '555-555-5555']
+        })
+      });
+
+      if (response.ok) {
+        console.log(`[BrowserPipeline ${this.sessionId}] ✅ Call record created: ${this.callId}`);
+      } else {
+        console.error(`[BrowserPipeline ${this.sessionId}] Failed to create call record:`, await response.text());
+      }
+    } catch (error) {
+      console.error(`[BrowserPipeline ${this.sessionId}] Error creating call record:`, error);
+    }
   }
 
   async connectDeepgram() {
@@ -1294,9 +1729,112 @@ class BrowserVoicePipeline {
     });
   }
 
+  async initializeVAD() {
+    try {
+      console.log(`[BrowserPipeline ${this.sessionId}] Initializing Silero-VAD...`);
+
+      this.vad = await RealTimeVAD.new({
+        model: 'v5',
+        positiveSpeechThreshold: 0.5,
+        negativeSpeechThreshold: 0.35,
+        preSpeechPadFrames: 1,
+        redemptionFrames: 10,        // 300ms pauses allowed
+        minSpeechFrames: 3,
+        frameSamples: 1536,
+
+        onSpeechStart: (audio) => {
+          if (this.isSpeaking) {
+            // User interrupted AI speech!
+            console.log(`[BrowserPipeline ${this.sessionId}] 🔥 VAD: User interrupted AI speech`);
+            // Send interrupt signal to frontend to stop audio playback
+            this.send({ type: 'interrupt' });
+            // Handle interruption on backend
+            this.handleInterruption();
+          } else {
+            // Normal user speech
+            console.log(`[BrowserPipeline ${this.sessionId}] 🎤 VAD: User started speaking`);
+            this.isUserSpeaking = true;
+            this.lastSpeechTime = Date.now();
+          }
+        },
+
+        onSpeechEnd: (audio) => {
+          if (!this.isSpeaking && this.isUserSpeaking) {
+            console.log(`[BrowserPipeline ${this.sessionId}] 🔇 VAD: User stopped speaking`);
+            this.isUserSpeaking = false;
+            this.onVADSpeechEnd();
+          }
+        }
+      });
+
+      console.log(`[BrowserPipeline ${this.sessionId}] ✅ Silero-VAD initialized`);
+    } catch (error) {
+      console.error(`[BrowserPipeline ${this.sessionId}] ❌ Failed to initialize VAD:`, error);
+      this.vadEnabled = false;
+    }
+  }
+
+  async onVADSpeechEnd() {
+    const transcript = this.transcriptSegments.join(' ');
+    const silenceDuration = Date.now() - this.lastSpeechTime;
+
+    console.log(`[BrowserPipeline ${this.sessionId}] VAD detected speech end (${silenceDuration}ms, "${transcript}")`);
+
+    // For short utterances, wait a bit more to ensure completeness
+    if (silenceDuration < 400 || transcript.length < 8) {
+      console.log(`[BrowserPipeline ${this.sessionId}] Short utterance, waiting for more...`);
+      // Let timer-based fallback handle it
+      return;
+    }
+
+    // Check for leading words that indicate user will continue speaking
+    // These are words people say before making a longer statement
+    const leadingWords = ['alright', 'okay', 'ok', 'so', 'well', 'um', 'uh', 'like', 'yeah', 'yes', 'yep', 'no', 'hmm', 'right', 'and', 'but'];
+    const lowerTranscript = transcript.toLowerCase().trim();
+    const words = lowerTranscript.split(/\s+/).filter(w => w.length > 0);
+    const lastWord = words[words.length - 1];
+
+    // If entire transcript is just a leading word, wait for more
+    if (leadingWords.includes(lowerTranscript)) {
+      console.log(`[BrowserPipeline ${this.sessionId}] Detected standalone leading word "${transcript}", waiting for continuation...`);
+      // Don't trigger response - let the silence timer handle it with normal timeout
+      return;
+    }
+
+    // If transcript ends with a leading word (short utterance), also wait
+    if (leadingWords.includes(lastWord) && words.length <= 3) {
+      console.log(`[BrowserPipeline ${this.sessionId}] Utterance ends with leading word "${lastWord}", waiting...`);
+      return;
+    }
+
+    // Clear speech boundary - generate response immediately
+    clearTimeout(this.silenceTimer);
+    this.generateResponse();
+  }
+
   handleAudio(pcmBuffer) {
     if (this.deepgramReady && !this.isSpeaking) {
       this.deepgramWs.send(pcmBuffer);
+    }
+
+    // Feed audio to VAD (browser sends Int16 PCM, VAD needs Float32)
+    // IMPORTANT: Always process audio through VAD, even when AI is speaking,
+    // so we can detect interruptions
+    if (this.vad && this.vadEnabled) {
+      try {
+        // Convert Int16 to Float32 (-1.0 to 1.0)
+        const int16Array = new Int16Array(pcmBuffer.buffer, pcmBuffer.byteOffset, pcmBuffer.byteLength / 2);
+        const float32Array = new Float32Array(int16Array.length);
+        for (let i = 0; i < int16Array.length; i++) {
+          float32Array[i] = int16Array[i] / 32768.0;
+        }
+        this.vad.processAudio(float32Array);
+      } catch (err) {
+        if (!this.vadErrorLogged) {
+          console.error(`[BrowserPipeline ${this.sessionId}] VAD processing error:`, err.message);
+          this.vadErrorLogged = true;
+        }
+      }
     }
   }
 
@@ -1309,6 +1847,7 @@ class BrowserVoicePipeline {
 
     this.transcriptSegments.push(text);
     this.lastSpeechTime = Date.now();
+    this.lastUserActivityTime = Date.now(); // Track user activity for idle detection
 
     clearTimeout(this.silenceTimer);
     this.silenceTimer = setTimeout(() => this.onSilence(), 1200);
@@ -1327,10 +1866,65 @@ class BrowserVoicePipeline {
 
   async generateResponse() {
     try {
+      // PROMPT INJECTION POINT #1: System prompt + brevity instruction
+      // Location: BrowserVoicePipeline.generateResponse()
+      // Purpose: Base system prompt + instruction to keep responses brief
+      // Tunability: Can adjust brevity instruction, add context about interruptions
+
+      // Build system prompt with all context layers
+      let fullSystemPrompt = this.systemPrompt;
+
+      // LAYER 3: Add smartMemory context (relationship + admin context from PersonaDesigner UI)
+      if (this.smartMemory) {
+        fullSystemPrompt += `\n\nRELATIONSHIP CONTEXT:\n${this.smartMemory}`;
+      }
+
+      // Add callPretext context (reason for call + instructions from PersonaDesigner UI)
+      if (this.callPretext) {
+        fullSystemPrompt += `\n\nCALL CONTEXT: The user requested this call for the following reason: "${this.callPretext}". Keep this context in mind and be helpful with their situation.`;
+      }
+
+      // LAYER 4: USER KNOWLEDGE - Facts learned from previous calls
+      // These are automatically extracted after each call and stored in SmartMemory
+      if (this.longTermMemory) {
+        fullSystemPrompt += `\n\nWHAT YOU KNOW ABOUT THIS USER (from previous conversations):\n- ${this.longTermMemory}`;
+      }
+
+      // Phone call guidelines (always applied)
+      fullSystemPrompt += `\n\nIMPORTANT - PHONE CALL FORMAT:
+You are on a LIVE PHONE CALL with the user right now. This is a real-time voice conversation over the phone.
+- Keep responses brief and natural (1-2 short sentences max)
+- Respond to what the user actually says - stay grounded in the real conversation
+- Speak conversationally like you're on a phone call - no stage directions, no asterisks, no "(laughs)" or "(pauses)"
+- Don't narrate your actions - just speak naturally as if talking on the phone
+- If something's unclear, just ask!
+- Remember: they hear your voice, not text - keep it natural and flowing`;
+
+      // Phase 2: Build context from interrupted messages
+      const interruptedMessages = this.conversationHistory
+        .filter(msg => msg.interrupted)
+        .map(msg => `[You were saying: "${msg.content}" but user interrupted]`)
+        .join('\n');
+
+      // PROMPT INJECTION POINT #2: Interrupted context (Phase 2)
+      // Location: BrowserVoicePipeline.generateResponse()
+      // Purpose: Provide context about what AI was saying when interrupted
+      // Tunability: Can adjust instruction text, formatting, how many interrupted messages to include
+      const interruptionContext = interruptedMessages.length > 0
+        ? `\n\nContext: ${interruptedMessages}\nAcknowledge what you were saying if relevant, then respond to the user's new question.`
+        : '';
+
       const messages = [
-        { role: 'system', content: this.systemPrompt + '\n\nKeep responses brief (1-2 sentences).' },
-        ...this.conversationHistory.slice(-10)
+        { role: 'system', content: fullSystemPrompt + interruptionContext },
+        ...this.conversationHistory.slice(-10).map(msg => ({
+          role: msg.role,
+          content: msg.content
+          // Note: We don't include interrupted/timestamp in actual messages sent to LLM
+        }))
       ];
+
+      // DEBUG: Log system prompt being sent to Cerebras
+      console.log(`[BrowserPipeline ${this.sessionId}] 📝 System prompt (first 200 chars):`, messages[0]?.content?.substring(0, 200));
 
       const startTime = Date.now();
       const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
@@ -1344,6 +1938,13 @@ class BrowserVoicePipeline {
       const latencyMs = Date.now() - startTime;
 
       if (aiResponse) {
+        // Phase 2: Start tracking this response in case of interruption
+        this.partialResponse = aiResponse;
+
+        // Track cost: Cerebras tokens (estimate)
+        this.costTracking.cerebrasTokens += Math.ceil(aiResponse.length / 4);
+        this.costTracking.elevenLabsCharacters += aiResponse.length;
+
         this.conversationHistory.push({ role: 'assistant', content: aiResponse });
         this.send({ type: 'response_text', text: aiResponse, latency_ms: latencyMs });
         await this.speak(aiResponse);
@@ -1364,17 +1965,505 @@ class BrowserVoicePipeline {
     this.elevenLabsWs.send(JSON.stringify({ text: '' }));
   }
 
+  handleInterruption() {
+    console.log(`[BrowserPipeline ${this.sessionId}] Handling interruption - user spoke during AI response`);
+
+    // CRITICAL: Stop ElevenLabs from generating more audio!
+    if (this.elevenLabsWs && this.elevenLabsWs.readyState === WebSocket.OPEN) {
+      try {
+        // Send flush command to clear ElevenLabs queue
+        this.elevenLabsWs.send(JSON.stringify({ text: '', flush: true }));
+        console.log(`[BrowserPipeline ${this.sessionId}] Flushed ElevenLabs audio queue`);
+      } catch (err) {
+        console.error(`[BrowserPipeline ${this.sessionId}] Error flushing ElevenLabs:`, err.message);
+      }
+    }
+
+    // Phase 2: Save partial response to conversation history for context
+    if (this.partialResponse && this.partialResponse.length > 0) {
+      // Check if this response is already in history (to avoid duplicates)
+      const lastMessage = this.conversationHistory[this.conversationHistory.length - 1];
+      const alreadyInHistory = lastMessage?.role === 'assistant' && lastMessage?.content === this.partialResponse;
+
+      if (!alreadyInHistory) {
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: this.partialResponse,
+          interrupted: true,  // Mark as interrupted for context
+          timestamp: Date.now()
+        });
+        console.log(`[BrowserPipeline ${this.sessionId}] Saved interrupted response: "${this.partialResponse.substring(0, 50)}..."`);
+      }
+
+      // Clear partial response tracker
+      this.partialResponse = '';
+    }
+
+    // Mark AI as not speaking
+    this.isSpeaking = false;
+
+    // Clear transcript buffer (user will speak new question/comment)
+    this.transcriptSegments = [];
+
+    // Note: Frontend already stopped audio playback via interrupt message
+    // Note: For Phase 1, we let ElevenLabs TTS complete (safe approach)
+    // Phase 4 would add: this.elevenLabsWs.send(JSON.stringify({ text: '', flush: true }));
+  }
+
   send(msg) {
     if (this.browserWs.readyState === WebSocket.OPEN) {
       this.browserWs.send(JSON.stringify(msg));
     }
   }
 
+
+  // Session Management Safeguards
+  startSessionSafeguards() {
+    // Max session duration (15 minutes)
+    this.sessionTimeoutTimer = setTimeout(() => {
+      console.log(`[BrowserPipeline ${this.sessionId}] Max session duration reached (15 min) - terminating`);
+      this.forceTerminate('MAX_DURATION');
+    }, this.maxSessionDuration);
+
+    // Idle detection check (every 30 seconds)
+    this.idleCheckInterval = setInterval(() => {
+      const idleTime = Date.now() - this.lastUserActivityTime;
+      if (idleTime >= this.idleTimeout) {
+        console.log(`[BrowserPipeline ${this.sessionId}] Idle timeout (${(idleTime / 1000 / 60).toFixed(1)} min) - terminating`);
+        this.forceTerminate('IDLE');
+      }
+    }, 30000); // Check every 30 seconds
+
+    // Wind-down warning checker (every 30 seconds)
+    this.warningCheckInterval = setInterval(() => {
+      this.checkWindDownWarnings();
+    }, 30000);
+  }
+
+  checkWindDownWarnings() {
+    const elapsed = Date.now() - this.sessionStartTime;
+    const percentComplete = (elapsed / this.maxSessionDuration) * 100;
+
+    // First warning at 66% of max duration
+    if (percentComplete >= 66 && !this.warningsSent.firstWarning) {
+      this.warningsSent.firstWarning = true;
+      this.sendWindDownWarning('subtle');
+    }
+
+    // Second warning at 86% of max duration
+    if (percentComplete >= 86 && !this.warningsSent.secondWarning) {
+      this.warningsSent.secondWarning = true;
+      this.sendWindDownWarning('wrap-up');
+    }
+
+    // Final warning at 96% of max duration
+    if (percentComplete >= 96 && !this.warningsSent.finalWarning) {
+      this.warningsSent.finalWarning = true;
+      this.sendWindDownWarning('final');
+    }
+  }
+
+  async sendWindDownWarning(level) {
+    const elapsed = (Date.now() - this.sessionStartTime) / 1000 / 60; // minutes
+    const remaining = (this.maxSessionDuration / 1000 / 60) - elapsed; // minutes
+
+    const warnings = {
+      subtle: `Hey, just a heads up - we've been chatting for about ${Math.round(elapsed)} minutes.`,
+      'wrap-up': remaining > 1
+        ? `By the way, I should wrap up in about ${Math.round(remaining)} minutes. Was there anything else you needed?`
+        : "By the way, I should wrap up soon. Was there anything else you needed?",
+      final: this.getGoodbyePhrase()
+    };
+
+    const message = warnings[level];
+    console.log(`[BrowserPipeline ${this.sessionId}] Wind-down warning (${level}, ${elapsed.toFixed(1)}/${(this.maxSessionDuration/1000/60).toFixed(0)} min): ${message}`);
+
+    // Send to user as AI speech
+    this.send({ type: 'response_text', text: message, warning: true });
+    await this.speak(message);
+  }
+
+  getGoodbyePhrase() {
+    const goodbyes = [
+      "Alright, I need to let you go. It's been great talking! Take care.",
+      "Well, I should wrap this up. Thanks for chatting with me!",
+      "I've got to run now. Really enjoyed our conversation!",
+      "Time for me to sign off. Have a wonderful day!",
+      "I need to go now. Talk to you soon!"
+    ];
+    return goodbyes[Math.floor(Math.random() * goodbyes.length)];
+  }
+
+  async forceTerminate(reason) {
+    console.log(`[BrowserPipeline ${this.sessionId}] Force terminating session - Reason: ${reason}`);
+    this.send({ type: 'session_terminated', reason });
+
+    // Call cleanup IMMEDIATELY - don't rely on setTimeout or WebSocket close event
+    await this.cleanup();
+
+    // Close WebSocket after cleanup is done
+    try {
+      this.browserWs.close();
+    } catch (e) {
+      console.log(`[BrowserPipeline ${this.sessionId}] WebSocket close error (ignored): ${e.message}`);
+    }
+  }
+
+  calculateEstimatedCost() {
+    // Pricing (as of 2025)
+    const DEEPGRAM_COST_PER_MIN = 0.0043; // Nova-3 pricing
+    const ELEVENLABS_COST_PER_1K_CHARS = 0.18; // Turbo v2.5
+    const CEREBRAS_COST_PER_1M_TOKENS = 0.10; // Llama 3.1 8B
+
+    const deepgramCost = this.costTracking.deepgramMinutes * DEEPGRAM_COST_PER_MIN;
+    const elevenlabsCost = (this.costTracking.elevenLabsCharacters / 1000) * ELEVENLABS_COST_PER_1K_CHARS;
+    const cerebrasCost = (this.costTracking.cerebrasTokens / 1000000) * CEREBRAS_COST_PER_1M_TOKENS;
+
+    return {
+      deepgram: deepgramCost,
+      elevenlabs: elevenlabsCost,
+      cerebras: cerebrasCost,
+      total: deepgramCost + elevenlabsCost + cerebrasCost
+    };
+  }
+
   cleanup() {
+    // Guard against multiple cleanup calls
+    if (this.cleanedUp) {
+      console.log(`[BrowserPipeline ${this.sessionId}] Already cleaned up, skipping`);
+      return;
+    }
+    this.cleanedUp = true;
+
     clearTimeout(this.silenceTimer);
+    clearTimeout(this.sessionTimeoutTimer);
+    clearInterval(this.idleCheckInterval);
+    clearInterval(this.warningCheckInterval);
+
     this.deepgramWs?.close();
     this.elevenLabsWs?.close();
+
+    if (this.vad) {
+      this.vad.destroy();
+      this.vad = null;
+    }
+
+    // Calculate and log session costs
+    this.costTracking.sessionDuration = (Date.now() - this.sessionStartTime) / 1000 / 60; // minutes
+    this.costTracking.deepgramMinutes = this.costTracking.sessionDuration; // Approximate
+
+    const estimatedCost = this.calculateEstimatedCost();
+    const durationSeconds = Math.round(this.costTracking.sessionDuration * 60);
+    console.log(`[BrowserPipeline ${this.sessionId}] Session ended - Duration: ${this.costTracking.sessionDuration.toFixed(2)} min`);
+    console.log(`[BrowserPipeline ${this.sessionId}] Cost estimate: $${estimatedCost.total.toFixed(4)} (Deepgram: $${estimatedCost.deepgram.toFixed(4)}, ElevenLabs: $${estimatedCost.elevenlabs.toFixed(4)}, Cerebras: $${estimatedCost.cerebras.toFixed(4)})`);
+
+    // Save call completion data to database
+    if (this.callId) {
+      this.saveCallCompletion(durationSeconds, estimatedCost).catch(err => {
+        console.error(`[BrowserPipeline ${this.sessionId}] Failed to save call completion:`, err);
+      });
+    }
+
     console.log(`[BrowserPipeline ${this.sessionId}] Cleaned up`);
+  }
+
+  async saveCallCompletion(durationSeconds, costEstimate) {
+    try {
+      console.log(`[BrowserPipeline ${this.sessionId}] Saving call completion to database...`);
+
+      // Update call record with completion status, duration, and cost
+      const updateResult = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+        },
+        body: JSON.stringify({
+          sql: `UPDATE calls
+                SET status = 'completed',
+                    duration_seconds = $1,
+                    cost_usd = $2,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = $3`,
+          params: [durationSeconds, costEstimate.total, this.callId]
+        })
+      });
+
+      if (!updateResult.ok) {
+        console.error(`[BrowserPipeline ${this.sessionId}] Failed to update call:`, await updateResult.text());
+        return;
+      }
+
+      console.log(`[BrowserPipeline ${this.sessionId}] ✅ Call marked as completed - Duration: ${durationSeconds}s, Cost: $${costEstimate.total.toFixed(4)}`);
+
+      // Log individual service costs to api_call_events table
+      const services = [
+        { service: 'deepgram', cost: costEstimate.deepgram, operation: 'transcription', usageAmount: this.costTracking.deepgramMinutes, usageUnit: 'minutes', unitCost: 0.0043 },
+        { service: 'elevenlabs', cost: costEstimate.elevenlabs, operation: 'tts', usageAmount: this.costTracking.elevenLabsCharacters, usageUnit: 'characters', unitCost: 0.00003 },
+        { service: 'cerebras', cost: costEstimate.cerebras, operation: 'inference', usageAmount: this.costTracking.cerebrasTokens || 0, usageUnit: 'tokens', unitCost: 0.0000001 }
+      ];
+
+      for (const { service, cost, operation, usageAmount, usageUnit, unitCost } of services) {
+        if (cost > 0) {
+          await fetch(`${env.VULTR_DB_API_URL}/query`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+            },
+            body: JSON.stringify({
+              sql: `INSERT INTO api_call_events (call_id, service, operation, usage_amount, usage_unit, unit_cost, total_cost, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
+              params: [this.callId, service, operation, usageAmount, usageUnit, unitCost, cost]
+            })
+          });
+        }
+      }
+
+      console.log(`[BrowserPipeline ${this.sessionId}] ✅ Cost breakdown logged to api_call_events`);
+
+      // Run post-call evaluation to extract and store facts
+      await this.runPostCallEvaluation();
+
+    } catch (error) {
+      console.error(`[BrowserPipeline ${this.sessionId}] Error saving call completion:`, error);
+    }
+  }
+
+  /**
+   * Post-call evaluation: Extract facts from conversation and store to SmartMemory
+   * This enables the AI to learn and remember things about users across calls
+   */
+  async runPostCallEvaluation() {
+    const userId = this.adminId || 'browser-admin';
+    const personaId = this.personaId;
+
+    // Skip if conversation is too short (nothing meaningful to extract)
+    if (this.conversationHistory.length < 4) {
+      console.log(`[PostCallEval ${this.sessionId}] Skipping - conversation too short (${this.conversationHistory.length} turns)`);
+      return;
+    }
+
+    try {
+      console.log(`[PostCallEval ${this.sessionId}] Starting fact extraction...`);
+
+      // Fetch global extraction settings from SmartMemory
+      const extractionSettings = await this.getExtractionSettings();
+
+      // 1. Extract facts from conversation using Cerebras
+      const newFacts = await this.extractFactsFromConversation(extractionSettings);
+
+      if (newFacts.length === 0) {
+        console.log(`[PostCallEval ${this.sessionId}] No new facts extracted`);
+        return;
+      }
+
+      console.log(`[PostCallEval ${this.sessionId}] Extracted ${newFacts.length} facts:`, newFacts.map(f => f.content));
+
+      // 2. Store facts to SmartMemory via API Gateway
+      await this.updateLongTermMemory(userId, personaId, newFacts);
+
+      console.log(`[PostCallEval ${this.sessionId}] ✅ Post-call evaluation complete - ${newFacts.length} facts learned`);
+
+    } catch (err) {
+      console.error(`[PostCallEval ${this.sessionId}] Evaluation failed:`, err);
+      // Don't throw - evaluation failure shouldn't break call completion
+    }
+  }
+
+  /**
+   * Get global extraction settings from SmartMemory (configured via PersonaDesigner)
+   */
+  async getExtractionSettings() {
+    const defaults = {
+      enabled: true,
+      model: 'llama-3.3-70b',
+      temperature: 0.1,
+      maxTokens: 500,
+      extractionPrompt: null // Use default prompt if not set
+    };
+
+    try {
+      const response = await fetch(`${env.API_GATEWAY_URL}/api/memory/semantic/${encodeURIComponent('global:extraction_settings')}`, {
+        headers: { 'Authorization': `Bearer ${env.ADMIN_SECRET_TOKEN}` }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.document && !result.document.deleted) {
+          return { ...defaults, ...result.document };
+        }
+      }
+    } catch (err) {
+      console.log(`[PostCallEval ${this.sessionId}] Using default extraction settings`);
+    }
+
+    return defaults;
+  }
+
+  /**
+   * Extract facts from conversation using Cerebras LLM
+   */
+  async extractFactsFromConversation(settings) {
+    // Check if extraction is disabled
+    if (settings.enabled === false) {
+      console.log(`[PostCallEval ${this.sessionId}] Fact extraction disabled in settings`);
+      return [];
+    }
+
+    const transcript = this.conversationHistory
+      .map(turn => `${turn.role === 'user' ? 'User' : this.personaName}: ${turn.content}`)
+      .join('\n');
+
+    const defaultPrompt = `Analyze this phone conversation and extract NEW facts about the user.
+Only extract facts that are:
+1. Explicitly stated or strongly implied by the user
+2. Relevant to future conversations (not just this call)
+3. Personal information, preferences, life events, relationships, work, or interests
+
+Current date: ${new Date().toISOString().split('T')[0]}
+
+Conversation:
+${transcript}
+
+For each fact, provide:
+- content: The factual statement about the user
+- category: One of [personal, work, relationships, interests, health, goals, preferences]
+- importance: low, medium, or high
+
+Output ONLY a valid JSON array. If no new facts, return empty array [].
+
+Example:
+[
+  {"content": "User's name is Dave", "category": "personal", "importance": "high"},
+  {"content": "User works as a software engineer", "category": "work", "importance": "medium"}
+]`;
+
+    const extractionPrompt = settings.extractionPrompt || defaultPrompt;
+
+    try {
+      // Call Cerebras for fact extraction
+      const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.CEREBRAS_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: settings.model || 'llama-3.3-70b',
+          messages: [
+            { role: 'system', content: 'You are a fact extraction system. Output only valid JSON arrays.' },
+            { role: 'user', content: extractionPrompt }
+          ],
+          max_tokens: settings.maxTokens || 500,
+          temperature: settings.temperature || 0.1
+        })
+      });
+
+      if (!response.ok) {
+        console.error(`[PostCallEval ${this.sessionId}] Cerebras API error:`, await response.text());
+        return [];
+      }
+
+      const data = await response.json();
+      const text = data.choices?.[0]?.message?.content || '[]';
+
+      // Parse JSON - handle potential markdown code blocks
+      let jsonText = text.trim();
+      if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+      }
+
+      const facts = JSON.parse(jsonText);
+      return Array.isArray(facts) ? facts : [];
+
+    } catch (e) {
+      console.error(`[PostCallEval ${this.sessionId}] Failed to extract facts:`, e);
+      return [];
+    }
+  }
+
+  /**
+   * Update long-term memory with new facts via KV Storage
+   */
+  async updateLongTermMemory(userId, personaId, newFacts) {
+    const key = `long_term:${userId}:${personaId}`;
+
+    try {
+      // Load existing memory from KV
+      const getResponse = await fetch(`${env.API_GATEWAY_URL}/api/userdata/${encodeURIComponent(key)}`, {
+        headers: { 'Authorization': `Bearer ${env.ADMIN_SECRET_TOKEN}` }
+      });
+
+      let existing = { important_memories: [], facts: [], totalCallCount: 0 };
+      if (getResponse.ok) {
+        const result = await getResponse.json();
+        if (result.data && !result.data.deleted) {
+          existing = result.data;
+        }
+      }
+
+      // Add timestamps to new facts
+      const timestampedFacts = newFacts.map(fact => ({
+        ...fact,
+        learnedAt: new Date().toISOString()
+      }));
+
+      // Merge facts (avoid duplicates) - support both old (important_memories) and new (facts) format
+      const existingMemories = existing.important_memories || existing.facts || [];
+      const mergedFacts = [...existingMemories];
+
+      for (const newFact of timestampedFacts) {
+        // Simple duplicate check
+        const isDuplicate = existingMemories.some(f => {
+          const existingContent = (f.content || f.fact || '').toLowerCase();
+          const newContent = (newFact.content || '').toLowerCase();
+          return existingContent.includes(newContent.slice(0, 30)) ||
+                 newContent.includes(existingContent.slice(0, 30));
+        });
+        if (!isDuplicate) {
+          mergedFacts.push(newFact);
+        }
+      }
+
+      // Keep only most recent/important facts (max 50)
+      const sortedFacts = mergedFacts
+        .sort((a, b) => {
+          const importanceOrder = { high: 3, medium: 2, low: 1 };
+          const aImp = importanceOrder[a.importance] || 1;
+          const bImp = importanceOrder[b.importance] || 1;
+          if (aImp !== bImp) return bImp - aImp;
+          return new Date(b.learnedAt || 0) - new Date(a.learnedAt || 0);
+        })
+        .slice(0, 50);
+
+      // Store updated memory to KV
+      const putResponse = await fetch(`${env.API_GATEWAY_URL}/api/userdata`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.ADMIN_SECRET_TOKEN}`
+        },
+        body: JSON.stringify({
+          key,
+          value: {
+            facts: sortedFacts,  // Use 'facts' to match PersonaDesigner format
+            important_memories: sortedFacts,  // Keep for backward compat
+            totalCallCount: (existing.totalCallCount || 0) + 1,
+            lastUpdated: new Date().toISOString()
+          }
+        })
+      });
+
+      if (!putResponse.ok) {
+        console.error(`[PostCallEval ${this.sessionId}] Failed to store memory:`, await putResponse.text());
+      } else {
+        console.log(`[PostCallEval ${this.sessionId}] Stored ${sortedFacts.length} facts to KV storage`);
+      }
+
+    } catch (err) {
+      console.error(`[PostCallEval ${this.sessionId}] Memory update failed:`, err);
+    }
   }
 }
 
@@ -1384,16 +2473,31 @@ browserWss.on('connection', async (ws) => {
   let pipeline = null;
 
   ws.on('message', async (data) => {
-    // Check if binary audio or JSON
-    if (Buffer.isBuffer(data) && data[0] !== 123) {
+    // Try to parse as JSON first - more reliable than checking byte values
+    let isJson = false;
+    let msg;
+
+    try {
+      const str = data.toString('utf8');
+      // Quick check: JSON messages start with {
+      if (str[0] === '{') {
+        msg = JSON.parse(str);
+        isJson = true;
+      }
+    } catch (e) {
+      // Not JSON - will be treated as binary audio
+    }
+
+    if (!isJson) {
       // Binary PCM audio
-      if (pipeline) pipeline.handleAudio(data);
+      if (pipeline) {
+        pipeline.handleAudio(data);
+      }
       return;
     }
 
+    // Handle JSON messages
     try {
-      const msg = JSON.parse(data.toString());
-
       if (msg.type === 'init') {
         // Validate JWT (simple check - full validation would verify with log-query-service)
         if (!msg.token) {
@@ -1407,22 +2511,53 @@ browserWss.on('connection', async (ws) => {
           sessionId,
           personaId: msg.persona_id || 'brad_001',
           adminId: msg.admin_id || 'unknown',
-          overrides: msg.overrides || {}
+          overrides: msg.overrides || {},
+          // Accept context from PersonaDesigner UI for testing
+          smartMemory: msg.smart_memory || null,
+          callPretext: msg.call_pretext || null
         });
 
-        await pipeline.start();
+        try {
+          await pipeline.start();
+        } catch (startError) {
+          console.error('[Browser Pipeline] Failed to start pipeline:', startError);
+          ws.send(JSON.stringify({
+            type: 'error',
+            message: `Pipeline startup failed: ${startError.message}`,
+            details: startError.stack
+          }));
+          pipeline = null;
+          return;
+        }
+      } else if (msg.type === 'interrupt') {
+        // User interrupted AI speech
+        if (pipeline) {
+          console.log(`[BrowserPipeline ${pipeline.sessionId}] User interrupted AI speech`);
+          pipeline.handleInterruption();
+        }
       }
     } catch (error) {
-      console.error('[Browser Pipeline] Error:', error);
+      console.error('[Browser Pipeline] Error handling message:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        message: `Unexpected error: ${error.message}`
+      }));
     }
   });
 
-  ws.on('close', () => {
-    if (pipeline) pipeline.cleanup();
+  ws.on('close', (code, reason) => {
+    console.log(`[Browser Pipeline] WebSocket closed. Code: ${code}, Reason: ${reason.toString()}`);
+    if (pipeline) {
+      console.log(`[Browser Pipeline] Cleaning up pipeline for session: ${pipeline.sessionId}`);
+      pipeline.cleanup();
+    }
   });
 
   ws.on('error', (error) => {
     console.error('[Browser Pipeline] WebSocket error:', error);
+    if (pipeline) {
+      console.error(`[Browser Pipeline] Error occurred for session: ${pipeline.sessionId}`);
+    }
   });
 });
 
