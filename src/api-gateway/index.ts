@@ -45,6 +45,11 @@ export default class extends Service<Env> {
         return await this.handleAdminRoutes(request, path);
       }
 
+      // SmartMemory routes (for PersonaDesigner context persistence)
+      if (path.startsWith('/api/memory')) {
+        return await this.handleMemoryRoutes(request, path);
+      }
+
       // Debug endpoint - check env vars
       if (path === '/api/debug/env') {
         return new Response(JSON.stringify({
@@ -1475,6 +1480,136 @@ export default class extends Service<Env> {
       return new Response(JSON.stringify({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to cancel scheduled call'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  /**
+   * Handle SmartMemory routes - for PersonaDesigner context persistence
+   * Used by admin dashboard to save/load relationship context, user facts, call pretext, etc.
+   */
+  private async handleMemoryRoutes(request: Request, path: string): Promise<Response> {
+    try {
+      // CORS headers for admin dashboard
+      const allowedOrigins = [
+        'https://call-me-back.vercel.app',
+        'http://localhost:5173',
+        'http://localhost:3000'
+      ];
+      const origin = request.headers.get('Origin') || '';
+      const allowOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+
+      const corsHeaders = {
+        'Access-Control-Allow-Origin': allowOrigin,
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Vary': 'Origin'
+      };
+
+      // Handle CORS preflight
+      if (request.method === 'OPTIONS') {
+        return new Response(null, { status: 204, headers: corsHeaders });
+      }
+
+      // Validate admin auth (reuse pattern from handleAdminRoutes)
+      const authHeader = request.headers.get('Authorization');
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // GET /api/memory/semantic/:objectId - Get semantic memory document
+      const getMatch = path.match(/^\/api\/memory\/semantic\/(.+)$/);
+      if (request.method === 'GET' && getMatch && getMatch[1]) {
+        const objectId = decodeURIComponent(getMatch[1]);
+        this.env.logger.info('Getting semantic memory', { objectId });
+
+        const result = await this.env.CONVERSATION_MEMORY.getSemanticMemory(objectId);
+
+        return new Response(JSON.stringify(result), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // PUT /api/memory/semantic - Store semantic memory document
+      if (request.method === 'PUT' && path === '/api/memory/semantic') {
+        const body = await request.json() as { objectId: string; document: any };
+
+        if (!body.objectId || !body.document) {
+          return new Response(JSON.stringify({ error: 'objectId and document are required' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        this.env.logger.info('Storing semantic memory', { objectId: body.objectId });
+
+        const result = await this.env.CONVERSATION_MEMORY.putSemanticMemory({
+          objectId: body.objectId,
+          document: body.document
+        });
+
+        return new Response(JSON.stringify({ success: true, result }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // POST /api/memory/session/end - End a working memory session (flush to episodic)
+      if (request.method === 'POST' && path === '/api/memory/session/end') {
+        const body = await request.json() as { sessionId: string; flush?: boolean; systemPrompt?: string };
+
+        if (!body.sessionId) {
+          return new Response(JSON.stringify({ error: 'sessionId is required' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        this.env.logger.info('Ending memory session', { sessionId: body.sessionId, flush: body.flush });
+
+        // Get the working memory session first, then end it
+        const workingMemory = await this.env.CONVERSATION_MEMORY.getWorkingMemorySession(body.sessionId);
+        await workingMemory.endSession(body.flush ?? false);
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // DELETE /api/memory/semantic/:objectId - Delete semantic memory
+      const deleteMatch = path.match(/^\/api\/memory\/semantic\/(.+)$/);
+      if (request.method === 'DELETE' && deleteMatch && deleteMatch[1]) {
+        const objectId = decodeURIComponent(deleteMatch[1]);
+        this.env.logger.info('Deleting semantic memory', { objectId });
+
+        // SmartMemory doesn't have a direct delete, so we store an empty document
+        await this.env.CONVERSATION_MEMORY.putSemanticMemory({
+          objectId,
+          document: { deleted: true, deletedAt: new Date().toISOString() }
+        });
+
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      return new Response(JSON.stringify({ error: 'Not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    } catch (error) {
+      this.env.logger.error('Memory route error', {
+        error: error instanceof Error ? error.message : String(error),
+        path
+      });
+
+      return new Response(JSON.stringify({
+        error: error instanceof Error ? error.message : 'Memory operation failed'
       }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }

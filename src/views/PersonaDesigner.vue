@@ -1073,6 +1073,169 @@ const factPresets = [
   'Health-conscious',
 ];
 
+// SmartMemory persistence for context data (per persona)
+// Object ID pattern: admin_context:{personaId}
+const getMemoryObjectId = (personaId) => `admin_context:${personaId}`;
+const API_BASE = import.meta.env.VITE_API_URL || 'https://call-me-back-api-gateway.raindrop-dash.workers.dev';
+
+const saveContextToSmartMemory = async () => {
+  if (!selectedPersona.value?.id) return;
+
+  const objectId = getMemoryObjectId(selectedPersona.value.id);
+  const document = {
+    callPretext: callPretext.value,
+    customInstructions: customInstructions.value,
+    selectedScenarioId: selectedScenario.value?.id || null,
+    relationshipTypeId: relationshipType.value?.id || null,
+    relationshipDuration: relationshipDuration.value,
+    relationshipPrompt: relationshipPrompt.value,
+    mockUserFacts: mockUserFacts.value,
+    updatedAt: new Date().toISOString(),
+  };
+
+  try {
+    const token = localStorage.getItem('adminToken');
+    const response = await fetch(`${API_BASE}/api/memory/semantic`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ objectId, document }),
+    });
+
+    if (response.ok) {
+      console.log(`[PersonaDesigner] Saved context to SmartMemory for ${selectedPersona.value.id}`);
+    } else {
+      console.error('[PersonaDesigner] SmartMemory save failed:', await response.text());
+      // Fallback to localStorage
+      saveContextToLocalStorage();
+    }
+  } catch (e) {
+    console.error('[PersonaDesigner] SmartMemory save error:', e);
+    // Fallback to localStorage
+    saveContextToLocalStorage();
+  }
+};
+
+const loadContextFromSmartMemory = async () => {
+  if (!selectedPersona.value?.id) return;
+
+  const objectId = getMemoryObjectId(selectedPersona.value.id);
+
+  try {
+    const token = localStorage.getItem('adminToken');
+    const response = await fetch(`${API_BASE}/api/memory/semantic/${encodeURIComponent(objectId)}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      // SmartMemory returns { success: true, document: {...} } or similar
+      const data = result.document || result;
+
+      if (data && !data.deleted) {
+        callPretext.value = data.callPretext || '';
+        customInstructions.value = data.customInstructions || '';
+        selectedScenario.value = data.selectedScenarioId
+          ? scenarioPresets.find(s => s.id === data.selectedScenarioId) || null
+          : null;
+        relationshipType.value = data.relationshipTypeId
+          ? relationshipTypes.find(r => r.id === data.relationshipTypeId) || null
+          : null;
+        relationshipDuration.value = data.relationshipDuration || 6;
+        relationshipPrompt.value = data.relationshipPrompt || '';
+        mockUserFacts.value = data.mockUserFacts || [];
+        console.log(`[PersonaDesigner] Loaded context from SmartMemory for ${selectedPersona.value.id}`);
+        return;
+      }
+    }
+
+    // If SmartMemory fails or has no data, try localStorage fallback
+    loadContextFromLocalStorage();
+  } catch (e) {
+    console.error('[PersonaDesigner] SmartMemory load error:', e);
+    // Fallback to localStorage
+    loadContextFromLocalStorage();
+  }
+};
+
+// localStorage fallback functions
+const getStorageKey = (personaId) => `persona_context_${personaId}`;
+
+const saveContextToLocalStorage = () => {
+  if (!selectedPersona.value?.id) return;
+  const key = getStorageKey(selectedPersona.value.id);
+  const data = {
+    callPretext: callPretext.value,
+    customInstructions: customInstructions.value,
+    selectedScenarioId: selectedScenario.value?.id || null,
+    relationshipTypeId: relationshipType.value?.id || null,
+    relationshipDuration: relationshipDuration.value,
+    relationshipPrompt: relationshipPrompt.value,
+    mockUserFacts: mockUserFacts.value,
+  };
+  localStorage.setItem(key, JSON.stringify(data));
+  console.log(`[PersonaDesigner] Saved context to localStorage for ${selectedPersona.value.id}`);
+};
+
+const loadContextFromLocalStorage = () => {
+  if (!selectedPersona.value?.id) return;
+  const key = getStorageKey(selectedPersona.value.id);
+  const stored = localStorage.getItem(key);
+  if (stored) {
+    try {
+      const data = JSON.parse(stored);
+      callPretext.value = data.callPretext || '';
+      customInstructions.value = data.customInstructions || '';
+      selectedScenario.value = data.selectedScenarioId
+        ? scenarioPresets.find(s => s.id === data.selectedScenarioId) || null
+        : null;
+      relationshipType.value = data.relationshipTypeId
+        ? relationshipTypes.find(r => r.id === data.relationshipTypeId) || null
+        : null;
+      relationshipDuration.value = data.relationshipDuration || 6;
+      relationshipPrompt.value = data.relationshipPrompt || '';
+      mockUserFacts.value = data.mockUserFacts || [];
+      console.log(`[PersonaDesigner] Loaded context from localStorage for ${selectedPersona.value.id}`);
+    } catch (e) {
+      console.error('[PersonaDesigner] Failed to load context from localStorage:', e);
+      resetContextToDefaults();
+    }
+  } else {
+    resetContextToDefaults();
+  }
+};
+
+const resetContextToDefaults = () => {
+  callPretext.value = '';
+  customInstructions.value = '';
+  selectedScenario.value = null;
+  relationshipType.value = null;
+  relationshipDuration.value = 6;
+  relationshipPrompt.value = '';
+  mockUserFacts.value = [];
+};
+
+// Auto-save context when it changes (debounced)
+let saveTimeout = null;
+const debouncedSave = () => {
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(saveContextToSmartMemory, 1000); // 1 second debounce for API calls
+};
+
+// Watch all context fields for changes
+watch([callPretext, customInstructions, selectedScenario, relationshipType, relationshipDuration, relationshipPrompt, mockUserFacts], debouncedSave, { deep: true });
+
+// Load context when persona changes
+watch(selectedPersona, (newPersona) => {
+  if (newPersona) {
+    loadContextFromSmartMemory();
+  }
+});
+
 // Audio Settings State
 const audioInputDevices = ref([]);
 const audioOutputDevices = ref([]);
