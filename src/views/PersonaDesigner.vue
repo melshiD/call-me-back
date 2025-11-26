@@ -263,6 +263,7 @@
               <div class="flex items-center gap-3">
                 <div class="led-indicator bg-amber-500"></div>
                 <span class="font-mono text-xs uppercase tracking-[0.15em]">Core System Prompt</span>
+                <span class="text-[10px] text-[#555] font-mono">LAYER 1</span>
               </div>
               <button
                 @click="expandPromptEditor = !expandPromptEditor"
@@ -281,6 +282,205 @@
                 placeholder="Select a persona to edit..."
                 :disabled="!selectedPersona"
               ></textarea>
+            </div>
+          </div>
+
+          <!-- CALL CONTEXT SECTION - Layer 2 -->
+          <div class="console-panel">
+            <div class="console-header cursor-pointer" @click="expandCallContext = !expandCallContext">
+              <div class="flex items-center gap-3">
+                <div class="led-indicator bg-rose-500"></div>
+                <span class="font-mono text-xs uppercase tracking-[0.15em]">Call Context</span>
+                <span class="text-[10px] text-[#555] font-mono">LAYER 2</span>
+                <span v-if="callPretext || selectedScenario" class="text-[10px] text-rose-400 font-mono ml-2">● ACTIVE</span>
+              </div>
+              <svg class="w-4 h-4 transition-transform text-[#555]" :class="{ 'rotate-180': expandCallContext }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div v-show="expandCallContext" class="console-body space-y-5">
+              <!-- Scenario Presets -->
+              <div>
+                <label class="font-mono text-xs uppercase tracking-wider text-[#888] block mb-3">Scenario Preset</label>
+                <div class="grid grid-cols-2 gap-2">
+                  <button
+                    v-for="scenario in scenarioPresets"
+                    :key="scenario.id"
+                    @click="selectScenario(scenario)"
+                    class="scenario-chip"
+                    :class="{ 'active': selectedScenario?.id === scenario.id }"
+                  >
+                    <span class="scenario-icon">{{ scenario.icon }}</span>
+                    <span class="scenario-label">{{ scenario.name }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Call Pretext -->
+              <div>
+                <label class="font-mono text-xs uppercase tracking-wider text-[#888] block mb-3">Call Pretext</label>
+                <textarea
+                  v-model="callPretext"
+                  rows="3"
+                  class="prompt-textarea text-sm"
+                  placeholder="Why is the user calling? e.g., 'Save me from a boring meeting' or 'I need help processing a tough day'"
+                  :disabled="!selectedPersona"
+                ></textarea>
+                <div class="mt-2 text-[10px] text-[#555] font-mono">
+                  This context is provided to the AI at call start
+                </div>
+              </div>
+
+              <!-- Custom Instructions -->
+              <div>
+                <label class="font-mono text-xs uppercase tracking-wider text-[#888] block mb-3">Custom Instructions</label>
+                <textarea
+                  v-model="customInstructions"
+                  rows="2"
+                  class="prompt-textarea text-sm"
+                  placeholder="Additional behavior instructions for this call..."
+                  :disabled="!selectedPersona"
+                ></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- RELATIONSHIP CONTEXT SECTION - Layer 3 -->
+          <div class="console-panel">
+            <div class="console-header cursor-pointer" @click="expandRelationship = !expandRelationship">
+              <div class="flex items-center gap-3">
+                <div class="led-indicator bg-violet-500"></div>
+                <span class="font-mono text-xs uppercase tracking-[0.15em]">Relationship Context</span>
+                <span class="text-[10px] text-[#555] font-mono">LAYER 3</span>
+                <span v-if="relationshipType || relationshipPrompt" class="text-[10px] text-violet-400 font-mono ml-2">● ACTIVE</span>
+              </div>
+              <svg class="w-4 h-4 transition-transform text-[#555]" :class="{ 'rotate-180': expandRelationship }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div v-show="expandRelationship" class="console-body space-y-5">
+              <!-- Relationship Type -->
+              <div>
+                <label class="font-mono text-xs uppercase tracking-wider text-[#888] block mb-3">Relationship Type</label>
+                <div class="grid grid-cols-3 gap-2">
+                  <button
+                    v-for="rel in relationshipTypes"
+                    :key="rel.id"
+                    @click="selectRelationshipType(rel)"
+                    class="relationship-chip"
+                    :class="{ 'active': relationshipType?.id === rel.id }"
+                  >
+                    <span class="text-base">{{ rel.icon }}</span>
+                    <span class="text-[10px] uppercase tracking-wider">{{ rel.name }}</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Relationship Duration -->
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <label class="font-mono text-xs uppercase tracking-wider text-[#888]">Known Duration</label>
+                  <span class="font-mono text-sm text-violet-400">{{ relationshipDuration }} {{ relationshipDuration === 1 ? 'month' : 'months' }}</span>
+                </div>
+                <input
+                  type="range"
+                  v-model.number="relationshipDuration"
+                  min="1"
+                  max="60"
+                  step="1"
+                  class="slider-track-violet w-full"
+                />
+                <div class="flex justify-between mt-1 text-[10px] text-[#555] font-mono">
+                  <span>NEW</span>
+                  <span>5 YEARS</span>
+                </div>
+              </div>
+
+              <!-- Custom Relationship Prompt -->
+              <div>
+                <label class="font-mono text-xs uppercase tracking-wider text-[#888] block mb-3">Relationship Details</label>
+                <textarea
+                  v-model="relationshipPrompt"
+                  rows="3"
+                  class="prompt-textarea text-sm"
+                  placeholder="e.g., 'You've helped them through a career change. They tend to be self-critical and respond well to direct feedback.'"
+                  :disabled="!selectedPersona"
+                ></textarea>
+              </div>
+            </div>
+          </div>
+
+          <!-- USER KNOWLEDGE SECTION - Layer 4 -->
+          <div class="console-panel">
+            <div class="console-header cursor-pointer" @click="expandUserKnowledge = !expandUserKnowledge">
+              <div class="flex items-center gap-3">
+                <div class="led-indicator bg-cyan-500"></div>
+                <span class="font-mono text-xs uppercase tracking-[0.15em]">User Knowledge</span>
+                <span class="text-[10px] text-[#555] font-mono">LAYER 4</span>
+                <span v-if="mockUserFacts.length > 0" class="text-[10px] text-cyan-400 font-mono ml-2">{{ mockUserFacts.length }} FACTS</span>
+              </div>
+              <svg class="w-4 h-4 transition-transform text-[#555]" :class="{ 'rotate-180': expandUserKnowledge }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <div v-show="expandUserKnowledge" class="console-body space-y-4">
+              <div class="text-[11px] text-[#666] font-mono mb-2">
+                Mock user facts for testing. In production, these come from SmartMemory.
+              </div>
+
+              <!-- Existing Facts -->
+              <div class="space-y-2 max-h-48 overflow-y-auto">
+                <div
+                  v-for="(fact, idx) in mockUserFacts"
+                  :key="idx"
+                  class="fact-card group"
+                >
+                  <div class="flex items-start gap-3">
+                    <span class="fact-category" :class="getCategoryColor(fact.category)">{{ fact.category }}</span>
+                    <span class="flex-1 text-sm text-[#bbb]">{{ fact.content }}</span>
+                    <button @click="removeFact(idx)" class="text-[#444] hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Add New Fact -->
+              <div class="border-t border-[#2a2a2e] pt-4">
+                <div class="flex gap-2 mb-2">
+                  <select v-model="newFactCategory" class="bg-[#1a1a1e] border border-[#2a2a2e] rounded px-3 py-1.5 font-mono text-xs text-[#888] focus:border-cyan-500/50 focus:outline-none">
+                    <option value="personal">Personal</option>
+                    <option value="work">Work</option>
+                    <option value="interests">Interests</option>
+                    <option value="goals">Goals</option>
+                    <option value="health">Health</option>
+                    <option value="relationships">Relationships</option>
+                  </select>
+                  <input
+                    v-model="newFactContent"
+                    type="text"
+                    placeholder="Add a fact about the user..."
+                    class="flex-1 bg-[#1a1a1e] border border-[#2a2a2e] rounded px-3 py-1.5 font-mono text-sm text-[#ccc] placeholder:text-[#444] focus:border-cyan-500/50 focus:outline-none"
+                    @keyup.enter="addFact"
+                  />
+                  <button @click="addFact" class="px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/30 rounded text-cyan-400 font-mono text-xs uppercase hover:bg-cyan-500/20 transition-colors">
+                    Add
+                  </button>
+                </div>
+                <!-- Quick Add Presets -->
+                <div class="flex flex-wrap gap-1">
+                  <button
+                    v-for="preset in factPresets"
+                    :key="preset"
+                    @click="addPresetFact(preset)"
+                    class="text-[10px] px-2 py-1 bg-[#1a1a1e] border border-[#2a2a2e] rounded text-[#666] hover:text-cyan-400 hover:border-cyan-500/30 transition-colors font-mono"
+                  >
+                    + {{ preset }}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -397,48 +597,162 @@
 
         <!-- RIGHT: Preview Panel -->
         <div class="space-y-6">
+          <!-- Preview Mode Toggle -->
+          <div class="flex items-center justify-between bg-[#131318] border border-[#2a2a2e] rounded-xl px-5 py-3">
+            <div class="flex items-center gap-3">
+              <div class="led-indicator" :class="previewMode === 'full' ? 'bg-emerald-500' : 'bg-amber-500'"></div>
+              <span class="font-mono text-xs uppercase tracking-[0.15em] text-[#888]">Preview Mode</span>
+            </div>
+            <div class="flex items-center gap-1 bg-[#0d0d0f] p-1 rounded-lg">
+              <button
+                @click="previewMode = 'raw'"
+                class="preview-mode-btn"
+                :class="{ 'active': previewMode === 'raw' }"
+              >
+                <span class="text-[10px] uppercase tracking-wider">Raw Persona</span>
+              </button>
+              <button
+                @click="previewMode = 'full'"
+                class="preview-mode-btn"
+                :class="{ 'active': previewMode === 'full' }"
+              >
+                <span class="text-[10px] uppercase tracking-wider">Full Context</span>
+              </button>
+            </div>
+          </div>
+
           <!-- Compiled Prompt Preview -->
-          <div class="console-panel h-full">
+          <div class="console-panel">
             <div class="console-header">
               <div class="flex items-center gap-3">
                 <div class="led-indicator bg-emerald-500"></div>
-                <span class="font-mono text-xs uppercase tracking-[0.15em]">Compiled Final Prompt</span>
+                <span class="font-mono text-xs uppercase tracking-[0.15em]">{{ previewMode === 'full' ? 'Compiled Final Prompt' : 'Raw Persona Prompt' }}</span>
               </div>
-              <span class="font-mono text-[10px] text-[#555]">PREVIEW</span>
+              <div class="flex items-center gap-3">
+                <span class="font-mono text-[10px] text-[#555]">~{{ estimatedTokens }} TOKENS</span>
+                <button @click="copyPromptToClipboard" class="text-[#555] hover:text-emerald-400 transition-colors" title="Copy to clipboard">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div class="console-body">
               <div class="prompt-preview font-mono text-xs leading-relaxed overflow-auto max-h-[600px]">
-                <!-- Core Prompt Section -->
-                <div class="mb-4">
-                  <div class="text-amber-500/70 mb-1 uppercase tracking-wider text-[10px]">// CORE SYSTEM PROMPT</div>
-                  <div class="text-[#aaa] whitespace-pre-wrap">{{ editedPrompt || '(No prompt set)' }}</div>
-                </div>
-
-                <div class="border-t border-[#2a2a2e] my-4"></div>
-
-                <!-- Memory Context Section (Placeholder) -->
-                <div class="mb-4">
-                  <div class="text-cyan-500/70 mb-1 uppercase tracking-wider text-[10px]">// MEMORY CONTEXT (SmartMemory)</div>
-                  <div class="text-[#666] italic">
-                    <!-- Placeholder until SmartMemory integration -->
-                    [Memory context will be injected here during calls]
-                    <br/>• User preferences from past conversations
-                    <br/>• Recent interaction summaries
-                    <br/>• Relationship context
+                <!-- RAW MODE: Just core prompt -->
+                <template v-if="previewMode === 'raw'">
+                  <div class="mb-4">
+                    <div class="text-amber-500/70 mb-1 uppercase tracking-wider text-[10px]">// CORE SYSTEM PROMPT</div>
+                    <div class="text-[#aaa] whitespace-pre-wrap">{{ editedPrompt || '(No prompt set)' }}</div>
                   </div>
-                </div>
+                </template>
 
-                <div class="border-t border-[#2a2a2e] my-4"></div>
-
-                <!-- Conversation History Section -->
-                <div>
-                  <div class="text-emerald-500/70 mb-1 uppercase tracking-wider text-[10px]">// CONVERSATION HISTORY</div>
-                  <div class="text-[#666] italic">
-                    [Conversation turns appended here in real-time]
-                    <br/>User: "Hello!"
-                    <br/>Assistant: "Hey! Great to hear from you..."
+                <!-- FULL MODE: All layers -->
+                <template v-else>
+                  <!-- Layer 1: Core Prompt -->
+                  <div class="prompt-layer" :class="{ 'layer-active': editedPrompt }">
+                    <div class="layer-header">
+                      <span class="layer-number bg-amber-500/20 text-amber-400">1</span>
+                      <span class="text-amber-500/70 uppercase tracking-wider text-[10px]">CORE SYSTEM PROMPT</span>
+                    </div>
+                    <div class="text-[#aaa] whitespace-pre-wrap pl-6">{{ editedPrompt || '(No prompt set)' }}</div>
                   </div>
-                </div>
+
+                  <div class="layer-divider"></div>
+
+                  <!-- Layer 2: Call Context -->
+                  <div class="prompt-layer" :class="{ 'layer-active': callPretext || customInstructions, 'layer-inactive': !callPretext && !customInstructions }">
+                    <div class="layer-header">
+                      <span class="layer-number bg-rose-500/20 text-rose-400">2</span>
+                      <span class="text-rose-500/70 uppercase tracking-wider text-[10px]">CALL CONTEXT</span>
+                      <span v-if="!callPretext && !customInstructions" class="text-[10px] text-[#555] ml-2">(not set)</span>
+                    </div>
+                    <div v-if="callPretext || customInstructions" class="text-[#aaa] whitespace-pre-wrap pl-6">
+                      <template v-if="callPretext">
+                        <span class="text-rose-400/60">CALL PRETEXT: </span>{{ callPretext }}<br/>
+                      </template>
+                      <template v-if="customInstructions">
+                        <span class="text-rose-400/60">INSTRUCTIONS: </span>{{ customInstructions }}
+                      </template>
+                    </div>
+                    <div v-else class="text-[#444] italic pl-6">[No call context provided]</div>
+                  </div>
+
+                  <div class="layer-divider"></div>
+
+                  <!-- Layer 3: Relationship Context -->
+                  <div class="prompt-layer" :class="{ 'layer-active': relationshipType || relationshipPrompt, 'layer-inactive': !relationshipType && !relationshipPrompt }">
+                    <div class="layer-header">
+                      <span class="layer-number bg-violet-500/20 text-violet-400">3</span>
+                      <span class="text-violet-500/70 uppercase tracking-wider text-[10px]">RELATIONSHIP CONTEXT</span>
+                      <span v-if="!relationshipType && !relationshipPrompt" class="text-[10px] text-[#555] ml-2">(not set)</span>
+                    </div>
+                    <div v-if="relationshipType || relationshipPrompt" class="text-[#aaa] whitespace-pre-wrap pl-6">
+                      <template v-if="relationshipType">
+                        <span class="text-violet-400/60">RELATIONSHIP: </span>{{ relationshipType.name }} ({{ relationshipDuration }} months)<br/>
+                      </template>
+                      <template v-if="relationshipPrompt">
+                        <span class="text-violet-400/60">DETAILS: </span>{{ relationshipPrompt }}
+                      </template>
+                    </div>
+                    <div v-else class="text-[#444] italic pl-6">[No relationship context]</div>
+                  </div>
+
+                  <div class="layer-divider"></div>
+
+                  <!-- Layer 4: User Knowledge -->
+                  <div class="prompt-layer" :class="{ 'layer-active': mockUserFacts.length > 0, 'layer-inactive': mockUserFacts.length === 0 }">
+                    <div class="layer-header">
+                      <span class="layer-number bg-cyan-500/20 text-cyan-400">4</span>
+                      <span class="text-cyan-500/70 uppercase tracking-wider text-[10px]">USER KNOWLEDGE (SmartMemory)</span>
+                      <span v-if="mockUserFacts.length === 0" class="text-[10px] text-[#555] ml-2">(no facts)</span>
+                    </div>
+                    <div v-if="mockUserFacts.length > 0" class="text-[#aaa] pl-6">
+                      <div class="text-cyan-400/60 mb-1">What you know about this user:</div>
+                      <div v-for="(fact, idx) in mockUserFacts" :key="idx" class="flex items-start gap-2 mb-1">
+                        <span class="text-cyan-500/40">•</span>
+                        <span>{{ fact.content }}</span>
+                      </div>
+                    </div>
+                    <div v-else class="text-[#444] italic pl-6">[No user knowledge stored]</div>
+                  </div>
+
+                  <div class="layer-divider"></div>
+
+                  <!-- Layer 5: Phone Guidelines (always present) -->
+                  <div class="prompt-layer layer-active">
+                    <div class="layer-header">
+                      <span class="layer-number bg-emerald-500/20 text-emerald-400">5</span>
+                      <span class="text-emerald-500/70 uppercase tracking-wider text-[10px]">PHONE CALL FORMAT</span>
+                      <span class="text-[10px] text-emerald-500/50 ml-2">(always applied)</span>
+                    </div>
+                    <div class="text-[#aaa] whitespace-pre-wrap pl-6">
+                      <div class="text-emerald-400/80 text-[11px] mb-2">You are on a LIVE PHONE CALL with the user right now.</div>
+                      <span class="text-emerald-400/60">• </span>Keep responses brief and natural (1-2 short sentences max)<br/>
+                      <span class="text-emerald-400/60">• </span>Respond to what the user actually says - stay grounded<br/>
+                      <span class="text-emerald-400/60">• </span>Speak conversationally - no stage directions, asterisks, or "(laughs)"<br/>
+                      <span class="text-emerald-400/60">• </span>Don't narrate actions - just speak naturally<br/>
+                      <span class="text-emerald-400/60">• </span>If something's unclear, just ask!<br/>
+                      <span class="text-emerald-400/60">• </span>Remember: they hear your voice, not text
+                    </div>
+                  </div>
+
+                  <div class="layer-divider"></div>
+
+                  <!-- Conversation History (placeholder) -->
+                  <div class="prompt-layer layer-inactive">
+                    <div class="layer-header">
+                      <span class="layer-number bg-[#333] text-[#666]">∞</span>
+                      <span class="text-[#555] uppercase tracking-wider text-[10px]">CONVERSATION HISTORY</span>
+                      <span class="text-[10px] text-[#444] ml-2">(appended at runtime)</span>
+                    </div>
+                    <div class="text-[#444] italic pl-6">
+                      [Last 10 conversation turns appended here]<br/>
+                      User: "Hello!"<br/>
+                      Assistant: "Hey! Great to hear from you..."
+                    </div>
+                  </div>
+                </template>
               </div>
             </div>
           </div>
@@ -713,8 +1027,51 @@ const savedPhoneNumbers = ref([]);
 
 // UI State
 const expandPromptEditor = ref(false);
+const expandCallContext = ref(false);
+const expandRelationship = ref(false);
+const expandUserKnowledge = ref(false);
 const connectionStatus = ref('idle');
 const showSettingsModal = ref(false);
+const previewMode = ref('full'); // 'raw' or 'full'
+
+// Call Context State (Layer 2)
+const callPretext = ref('');
+const customInstructions = ref('');
+const selectedScenario = ref(null);
+const scenarioPresets = [
+  { id: 'escape', name: 'Escape Call', icon: '🚪', pretext: 'I need a convincing excuse to leave this situation', instructions: 'Be urgent but not alarming. Give the user a believable reason to step away.' },
+  { id: 'vent', name: 'Need to Vent', icon: '💨', pretext: 'I just need someone to listen while I process my thoughts', instructions: 'Be a supportive listener. Ask clarifying questions but let them lead.' },
+  { id: 'advice', name: 'Need Advice', icon: '💡', pretext: 'I have a decision to make and need help thinking it through', instructions: 'Help them weigh pros and cons. Ask questions to understand the full picture.' },
+  { id: 'celebrate', name: 'Good News!', icon: '🎉', pretext: 'Something great happened and I want to share it', instructions: 'Match their energy! Celebrate with them and ask for details.' },
+  { id: 'anxiety', name: 'Feeling Anxious', icon: '😰', pretext: 'I\'m feeling overwhelmed and need help calming down', instructions: 'Be calm and grounding. Help them breathe and take things one step at a time.' },
+  { id: 'practice', name: 'Practice Convo', icon: '🎭', pretext: 'I need to practice an important conversation before having it', instructions: 'Role-play the other person. Give constructive feedback on their approach.' },
+];
+
+// Relationship Context State (Layer 3)
+const relationshipType = ref(null);
+const relationshipDuration = ref(6);
+const relationshipPrompt = ref('');
+const relationshipTypes = [
+  { id: 'friend', name: 'Friend', icon: '👋', prompt: 'You\'re a trusted friend who knows them well.' },
+  { id: 'mentor', name: 'Mentor', icon: '🎓', prompt: 'You\'re a mentor who provides guidance and wisdom.' },
+  { id: 'coach', name: 'Coach', icon: '💪', prompt: 'You\'re a supportive coach focused on their growth.' },
+  { id: 'confidant', name: 'Confidant', icon: '🤫', prompt: 'You\'re someone they trust with their deepest thoughts.' },
+  { id: 'cheerleader', name: 'Cheerleader', icon: '📣', prompt: 'You\'re their biggest supporter and hype person.' },
+  { id: 'challenger', name: 'Challenger', icon: '⚔️', prompt: 'You push them to think critically and grow.' },
+];
+
+// User Knowledge State (Layer 4)
+const mockUserFacts = ref([]);
+const newFactCategory = ref('personal');
+const newFactContent = ref('');
+const factPresets = [
+  'Works in tech',
+  'Has a dog',
+  'Stressed about work',
+  'Recently moved',
+  'In a relationship',
+  'Health-conscious',
+];
 
 // Audio Settings State
 const audioInputDevices = ref([]);
@@ -941,6 +1298,156 @@ const getStatusColor = (status) => {
   return colors[status] || 'gray';
 };
 
+// Call Context Methods
+const selectScenario = (scenario) => {
+  if (selectedScenario.value?.id === scenario.id) {
+    // Deselect if already selected
+    selectedScenario.value = null;
+    callPretext.value = '';
+    customInstructions.value = '';
+  } else {
+    selectedScenario.value = scenario;
+    callPretext.value = scenario.pretext;
+    customInstructions.value = scenario.instructions;
+  }
+};
+
+// Relationship Context Methods
+const selectRelationshipType = (rel) => {
+  if (relationshipType.value?.id === rel.id) {
+    relationshipType.value = null;
+  } else {
+    relationshipType.value = rel;
+    if (!relationshipPrompt.value) {
+      relationshipPrompt.value = rel.prompt;
+    }
+  }
+};
+
+// User Knowledge Methods
+const addFact = () => {
+  if (!newFactContent.value.trim()) return;
+  mockUserFacts.value.push({
+    category: newFactCategory.value,
+    content: newFactContent.value.trim(),
+    importance: 'medium'
+  });
+  newFactContent.value = '';
+};
+
+const removeFact = (idx) => {
+  mockUserFacts.value.splice(idx, 1);
+};
+
+const addPresetFact = (preset) => {
+  // Map preset to category
+  const categoryMap = {
+    'Works in tech': 'work',
+    'Has a dog': 'personal',
+    'Stressed about work': 'work',
+    'Recently moved': 'personal',
+    'In a relationship': 'relationships',
+    'Health-conscious': 'health',
+  };
+  mockUserFacts.value.push({
+    category: categoryMap[preset] || 'personal',
+    content: preset,
+    importance: 'medium'
+  });
+};
+
+const getCategoryColor = (category) => {
+  const colors = {
+    'personal': 'cat-personal',
+    'work': 'cat-work',
+    'interests': 'cat-interests',
+    'goals': 'cat-goals',
+    'health': 'cat-health',
+    'relationships': 'cat-relationships',
+  };
+  return colors[category] || 'cat-personal';
+};
+
+// Token estimation (rough approximation: ~4 chars per token)
+const estimatedTokens = computed(() => {
+  let total = 0;
+
+  // Core prompt
+  total += Math.ceil((editedPrompt.value?.length || 0) / 4);
+
+  if (previewMode.value === 'full') {
+    // Call context
+    total += Math.ceil((callPretext.value?.length || 0) / 4);
+    total += Math.ceil((customInstructions.value?.length || 0) / 4);
+
+    // Relationship context
+    total += Math.ceil((relationshipPrompt.value?.length || 0) / 4);
+    if (relationshipType.value) total += 20;
+
+    // User facts
+    mockUserFacts.value.forEach(fact => {
+      total += Math.ceil(fact.content.length / 4) + 5;
+    });
+
+    // Phone guidelines (fixed ~60 tokens)
+    total += 60;
+  }
+
+  return total;
+});
+
+// Copy compiled prompt to clipboard
+const copyPromptToClipboard = async () => {
+  let prompt = '';
+
+  if (previewMode.value === 'raw') {
+    prompt = editedPrompt.value;
+  } else {
+    // Build full compiled prompt
+    prompt = editedPrompt.value + '\n\n';
+
+    if (callPretext.value || customInstructions.value) {
+      prompt += '=== CALL CONTEXT ===\n';
+      if (callPretext.value) prompt += `Call pretext: ${callPretext.value}\n`;
+      if (customInstructions.value) prompt += `Instructions: ${customInstructions.value}\n`;
+      prompt += '\n';
+    }
+
+    if (relationshipType.value || relationshipPrompt.value) {
+      prompt += '=== RELATIONSHIP CONTEXT ===\n';
+      if (relationshipType.value) {
+        prompt += `Relationship: ${relationshipType.value.name} (${relationshipDuration.value} months)\n`;
+      }
+      if (relationshipPrompt.value) prompt += `${relationshipPrompt.value}\n`;
+      prompt += '\n';
+    }
+
+    if (mockUserFacts.value.length > 0) {
+      prompt += '=== WHAT YOU KNOW ABOUT THIS USER ===\n';
+      mockUserFacts.value.forEach(fact => {
+        prompt += `• ${fact.content}\n`;
+      });
+      prompt += '\n';
+    }
+
+    prompt += '=== PHONE CALL FORMAT ===\n';
+    prompt += 'You are on a LIVE PHONE CALL with the user right now. This is a real-time voice conversation over the phone.\n';
+    prompt += '• Keep responses brief and natural (1-2 short sentences max)\n';
+    prompt += '• Respond to what the user actually says - stay grounded\n';
+    prompt += '• Speak conversationally - no stage directions, asterisks, or "(laughs)"\n';
+    prompt += '• Don\'t narrate actions - just speak naturally\n';
+    prompt += '• If something\'s unclear, just ask!\n';
+    prompt += '• Remember: they hear your voice, not text\n';
+  }
+
+  try {
+    await navigator.clipboard.writeText(prompt);
+    // Brief visual feedback could be added here
+  } catch (err) {
+    console.error('Failed to copy:', err);
+  }
+};
+
 // Browser Voice
 const toggleBrowserVoice = async () => {
   if (isBrowserVoiceActive.value) {
@@ -982,6 +1489,28 @@ const startBrowserVoice = async () => {
       connectionStatus.value = 'connecting';
       isBrowserVoiceActive.value = true;
 
+      // Build smart memory context from UI inputs
+      let smartMemoryContext = '';
+      if (relationshipType.value) {
+        smartMemoryContext += `RELATIONSHIP: ${relationshipType.value.name} (${relationshipDuration.value} months).\n`;
+        smartMemoryContext += `${relationshipType.value.prompt}\n`;
+      }
+      if (relationshipPrompt.value) {
+        smartMemoryContext += `${relationshipPrompt.value}\n`;
+      }
+      if (mockUserFacts.value.length > 0) {
+        smartMemoryContext += '\nWHAT YOU KNOW ABOUT THIS USER:\n';
+        mockUserFacts.value.forEach(fact => {
+          smartMemoryContext += `• ${fact.content}\n`;
+        });
+      }
+
+      // Build call pretext from UI inputs
+      let callPretextContext = callPretext.value || '';
+      if (customInstructions.value) {
+        callPretextContext += (callPretextContext ? '\n' : '') + customInstructions.value;
+      }
+
       // Send init message with token (required by browser-stream handler)
       const initMsg = {
         type: 'init',
@@ -994,7 +1523,10 @@ const startBrowserVoice = async () => {
           max_tokens: maxTokens.value,
           max_call_duration: maxCallDuration.value,
           default_voice_id: voiceId.value
-        }
+        },
+        // New context fields for testing
+        smart_memory: smartMemoryContext || null,
+        call_pretext: callPretextContext || null
       };
       console.log('[Browser Voice] Sending init message:', initMsg);
       voiceWebSocket.send(JSON.stringify(initMsg));
@@ -1617,5 +2149,104 @@ select {
   background-position: right 12px center;
   background-size: 16px;
   padding-right: 40px;
+}
+
+/* Scenario Chip Styles */
+.scenario-chip {
+  @apply flex items-center gap-2 px-3 py-2.5 bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg text-[#888] transition-all duration-200 hover:border-rose-500/30 hover:text-rose-400;
+}
+
+.scenario-chip.active {
+  @apply bg-rose-500/10 border-rose-500/50 text-rose-400;
+  box-shadow: 0 0 15px rgba(244, 63, 94, 0.15);
+}
+
+.scenario-icon {
+  @apply text-base;
+}
+
+.scenario-label {
+  @apply font-mono text-[10px] uppercase tracking-wider;
+}
+
+/* Relationship Chip Styles */
+.relationship-chip {
+  @apply flex flex-col items-center gap-1 px-3 py-3 bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg text-[#888] transition-all duration-200 hover:border-violet-500/30 hover:text-violet-400;
+}
+
+.relationship-chip.active {
+  @apply bg-violet-500/10 border-violet-500/50 text-violet-400;
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.15);
+}
+
+/* Violet Slider Track */
+.slider-track-violet {
+  @apply appearance-none bg-transparent cursor-pointer relative z-10;
+  height: 8px;
+}
+
+.slider-track-violet::-webkit-slider-thumb {
+  @apply appearance-none w-5 h-5 rounded-full bg-violet-500 cursor-pointer;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4), 0 0 0 2px #0d0d0f;
+}
+
+.slider-track-violet::-moz-range-thumb {
+  @apply w-5 h-5 rounded-full bg-violet-500 cursor-pointer border-none;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4), 0 0 0 2px #0d0d0f;
+}
+
+/* Fact Card Styles */
+.fact-card {
+  @apply bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg px-3 py-2 transition-colors hover:border-cyan-500/30;
+}
+
+.fact-category {
+  @apply font-mono text-[9px] uppercase tracking-wider px-2 py-0.5 rounded;
+}
+
+.cat-personal { @apply bg-blue-500/20 text-blue-400; }
+.cat-work { @apply bg-amber-500/20 text-amber-400; }
+.cat-interests { @apply bg-emerald-500/20 text-emerald-400; }
+.cat-goals { @apply bg-violet-500/20 text-violet-400; }
+.cat-health { @apply bg-rose-500/20 text-rose-400; }
+.cat-relationships { @apply bg-pink-500/20 text-pink-400; }
+
+/* Preview Mode Toggle */
+.preview-mode-btn {
+  @apply px-4 py-2 rounded-md font-mono text-[#666] transition-all duration-200;
+}
+
+.preview-mode-btn.active {
+  @apply bg-[#1a1a1e] text-emerald-400;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.1);
+}
+
+.preview-mode-btn:not(.active):hover {
+  @apply text-[#888];
+}
+
+/* Prompt Layer Styles */
+.prompt-layer {
+  @apply mb-3 pb-3 transition-opacity duration-200;
+}
+
+.prompt-layer.layer-inactive {
+  @apply opacity-50;
+}
+
+.prompt-layer.layer-active {
+  @apply opacity-100;
+}
+
+.layer-header {
+  @apply flex items-center gap-2 mb-2;
+}
+
+.layer-number {
+  @apply w-5 h-5 rounded flex items-center justify-center text-[10px] font-mono font-bold;
+}
+
+.layer-divider {
+  @apply border-t border-[#2a2a2e]/50 my-3;
 }
 </style>
