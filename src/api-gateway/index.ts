@@ -1104,22 +1104,28 @@ export default class extends Service<Env> {
         });
       }
 
-      // Validate JWT token using AUTH_MANAGER
-      const validation = await this.env.AUTH_MANAGER.validateToken(token);
+      // Determine if this is a WorkOS token (has adminId or workosId field)
+      const isWorkOSToken = !!(payload.adminId || payload.workosId);
 
-      if (!validation.valid) {
-        console.log('[API-GATEWAY] JWT validation failed:', validation.error);
-        return new Response(JSON.stringify({ error: 'Unauthorized: Invalid token' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' }
-        });
+      // For non-WorkOS tokens, validate signature using AUTH_MANAGER
+      // For WorkOS tokens, skip signature validation since they're signed by WorkOS
+      if (!isWorkOSToken) {
+        const validation = await this.env.AUTH_MANAGER.validateToken(token);
+
+        if (!validation.valid) {
+          console.log('[API-GATEWAY] JWT validation failed:', validation.error);
+          return new Response(JSON.stringify({ error: 'Unauthorized: Invalid token' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
       }
 
       // Get user ID (WorkOS uses adminId, regular auth uses userId)
-      const userId = payload.adminId || payload.userId || validation.userId;
+      const userId = payload.adminId || payload.userId;
       const userEmail = payload.email;
 
-      console.log('[API-GATEWAY] JWT validated, userId:', userId, 'email:', userEmail);
+      console.log('[API-GATEWAY] JWT validated, userId:', userId, 'email:', userEmail, 'isWorkOS:', isWorkOSToken);
 
       // Check if user is an admin by checking admin_users table
       const adminCheck = await this.env.DATABASE_PROXY.executeQuery(

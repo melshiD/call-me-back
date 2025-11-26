@@ -70,7 +70,7 @@ export const cors = createCorsHandler({
     'http://localhost:3000',                 // Local dev (alt)
     'http://localhost:5173',                 // Vite default
   ],
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   credentials: true,  // Allow cookies and auth headers
   maxAge: 86400       // Cache preflight requests for 24 hours

@@ -291,7 +291,7 @@
                   <td class="px-6 py-4 font-['JetBrains_Mono',monospace] text-xs text-[#999]">{{ call.id.substring(0, 12) }}...</td>
                   <td class="px-6 py-4 font-mono text-sm text-[#e8e6e3]">{{ call.persona_name || 'Unknown' }}</td>
                   <td class="px-6 py-4 font-['JetBrains_Mono',monospace] text-sm text-cyan-400">{{ formatSeconds(call.duration_seconds) }}</td>
-                  <td class="px-6 py-4 font-['JetBrains_Mono',monospace] text-sm text-amber-400">${{ (call.cost_usd || 0).toFixed(4) }}</td>
+                  <td class="px-6 py-4 font-['JetBrains_Mono',monospace] text-sm text-amber-400">${{ Number(call.cost_usd || 0).toFixed(4) }}</td>
                   <td class="px-6 py-4">
                     <span
                       class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider"

@@ -34,6 +34,9 @@ export default class extends Service<Env> {
         tags: row.category ? [row.category] : [],
         createdAt: row.created_at,
         updatedAt: row.updated_at,
+        temperature: row.temperature,
+        max_tokens: row.max_tokens,
+        max_call_duration: row.max_call_duration,
       }));
     } catch (error) {
       this.env.logger.error('Failed to fetch personas', { error: error instanceof Error ? error.message : String(error) });
