@@ -322,23 +322,43 @@ export const useCallsStore = defineStore('calls', () => {
    *   - Store in UTC timezone, convert for display
    *   - Limit to 50 active scheduled calls per user
    */
-  const scheduleCall = async (phoneNumber, personaId, scheduledTime, paymentIntentId) => {
-    // Mock implementation - replace with actual API call
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const newScheduledCall = {
-          id: 's' + Date.now(),
-          user_id: 'user-1',
-          persona_id: personaId,
-          phone_number: phoneNumber,
-          scheduled_time: scheduledTime,
-          status: 'scheduled',
-          created_at: new Date().toISOString()
-        }
-        scheduledCalls.value.push(newScheduledCall)
-        resolve({ scheduled_call: newScheduledCall })
-      }, 500)
-    })
+  const scheduleCall = async (phoneNumber, personaId, scheduledTime, options = {}) => {
+    const apiUrl = import.meta.env.VITE_API_URL
+
+    try {
+      const response = await fetch(`${apiUrl}/api/calls/schedule`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          phoneNumber,
+          personaId,
+          scheduledTime,
+          callPretext: options.callPretext,
+          callScenario: options.callScenario,
+          customInstructions: options.customInstructions,
+          maxDurationMinutes: options.maxDurationMinutes || 5
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || errorData.error || 'Failed to schedule call')
+      }
+
+      const data = await response.json()
+
+      // Add to local state
+      if (data.scheduled_call) {
+        scheduledCalls.value.push(data.scheduled_call)
+      }
+
+      return data
+    } catch (error) {
+      console.error('Schedule call error:', error)
+      throw error
+    }
   }
 
   /**
@@ -396,13 +416,31 @@ export const useCallsStore = defineStore('calls', () => {
    *   - Update call status to 'cancelled'
    */
   const cancelScheduledCall = async (callId) => {
-    // Mock implementation - replace with actual API call
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        scheduledCalls.value = scheduledCalls.value.filter(c => c.id !== callId)
-        resolve({ message: 'Scheduled call cancelled', refund: { amount: 0.25, status: 'refunded' } })
-      }, 300)
-    })
+    const apiUrl = import.meta.env.VITE_API_URL
+
+    try {
+      const response = await fetch(`${apiUrl}/api/calls/schedule/${callId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || errorData.error || 'Failed to cancel call')
+      }
+
+      const data = await response.json()
+
+      // Remove from local state
+      scheduledCalls.value = scheduledCalls.value.filter(c => c.id !== callId)
+
+      return data
+    } catch (error) {
+      console.error('Cancel scheduled call error:', error)
+      throw error
+    }
   }
 
   /**
@@ -458,12 +496,29 @@ export const useCallsStore = defineStore('calls', () => {
    *   - Cache for 30 seconds
    */
   const fetchScheduledCalls = async () => {
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ scheduled_calls: mockScheduledCalls })
-      }, 300)
-    })
+    const apiUrl = import.meta.env.VITE_API_URL
+
+    try {
+      const response = await fetch(`${apiUrl}/api/calls/scheduled`, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || errorData.error || 'Failed to fetch scheduled calls')
+      }
+
+      const data = await response.json()
+      scheduledCalls.value = data.scheduled_calls || []
+      return data
+    } catch (error) {
+      console.error('Fetch scheduled calls error:', error)
+      // Don't throw - just return empty list for UI
+      scheduledCalls.value = []
+      return { scheduled_calls: [] }
+    }
   }
 
   return {

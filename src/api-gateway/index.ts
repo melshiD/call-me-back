@@ -137,11 +137,11 @@ export default class extends Service<Env> {
 
       this.env.logger.info('Incoming call', { callSid, from, to });
 
-      // Extract userId and personaId from query params (passed by call-orchestrator)
+      // Extract callId, userId and personaId from query params (passed by call-orchestrator)
       const url = new URL(request.url);
+      const callId = url.searchParams.get('callId') || callSid; // Use our internal callId, fallback to Twilio SID
       const userId = url.searchParams.get('userId') || 'demo_user';
       const personaId = url.searchParams.get('personaId') || 'brad_001';
-      const callPretext = url.searchParams.get('callPretext') || '';
 
       // Build WebSocket URL for Media Streams (without query parameters)
       // Twilio Stream URLs do NOT support query parameters - use <Parameter> elements instead
@@ -150,19 +150,21 @@ export default class extends Service<Env> {
       // DNS: voice.ai-tools-marketplace.io must point to 144.202.15.249 (A record)
       const streamUrl = `wss://voice.ai-tools-marketplace.io/stream`;
 
-      this.env.logger.info('Generated stream URL (Vultr voice pipeline)', { streamUrl, callSid, userId, personaId, callPretext });
+      this.env.logger.info('Generated stream URL (Vultr voice pipeline)', { streamUrl, callId, callSid, userId, personaId });
 
       // Generate TwiML response with Media Streams
       // Use <Parameter> elements to pass custom data (sent in WebSocket "start" message)
-      // Voice pipeline will fetch full persona metadata from database using these IDs
+      // Voice pipeline will fetch full persona/call data from database using callId
+      // NOTE: Call context (pretext, scenario, etc.) is NOT passed via TwiML because <Parameter> has 500 char limit
+      //       Voice pipeline fetches context from calls table using callId
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
     <Connect>
         <Stream url="${streamUrl}">
-            <Parameter name="callId" value="${callSid}" />
+            <Parameter name="callId" value="${callId}" />
+            <Parameter name="twilioCallSid" value="${callSid}" />
             <Parameter name="userId" value="${userId}" />
             <Parameter name="personaId" value="${personaId}" />
-            <Parameter name="callPretext" value="${callPretext}" />
         </Stream>
     </Connect>
 </Response>`;
@@ -768,6 +770,21 @@ export default class extends Service<Env> {
       return await this.handleCallTrigger(request);
     }
 
+    // POST /api/calls/schedule - Schedule a future call
+    if (request.method === 'POST' && path === '/api/calls/schedule') {
+      return await this.handleScheduleCall(request);
+    }
+
+    // GET /api/calls/scheduled - List user's scheduled calls
+    if (request.method === 'GET' && path === '/api/calls/scheduled') {
+      return await this.handleListScheduledCalls(request);
+    }
+
+    // DELETE /api/calls/schedule/:id - Cancel a scheduled call
+    if (request.method === 'DELETE' && path.startsWith('/api/calls/schedule/')) {
+      return await this.handleCancelScheduledCall(request, path);
+    }
+
     return new Response('Not Found', { status: 404 });
   }
 
@@ -1222,6 +1239,242 @@ export default class extends Service<Env> {
       console.error('Admin route error:', error instanceof Error ? error.message : String(error), 'path:', path);
       return new Response(JSON.stringify({
         error: error instanceof Error ? error.message : 'Admin error'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  /**
+   * Handle schedule call - schedule a future call
+   */
+  private async handleScheduleCall(request: Request): Promise<Response> {
+    try {
+      const body = await request.json() as {
+        phoneNumber: string;
+        personaId: string;
+        userId?: string;
+        scheduledTime: string;
+        callPretext?: string;
+        callScenario?: string;
+        customInstructions?: string;
+        maxDurationMinutes?: number;
+        voiceId?: string;
+        aiParameters?: Record<string, any>;
+      };
+
+      if (!body.phoneNumber) {
+        return new Response(JSON.stringify({ error: 'Phone number is required' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (!body.scheduledTime) {
+        return new Response(JSON.stringify({ error: 'Scheduled time is required' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Validate scheduled time
+      const scheduledTime = new Date(body.scheduledTime);
+      const now = new Date();
+      const minTime = new Date(now.getTime() + 1 * 60 * 1000); // 1 min minimum (cron runs every minute)
+      const maxTime = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days max
+
+      if (scheduledTime < minTime) {
+        return new Response(JSON.stringify({
+          error: 'VALIDATION_ERROR',
+          message: 'Must schedule at least 1 minute in advance'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (scheduledTime > maxTime) {
+        return new Response(JSON.stringify({
+          error: 'VALIDATION_ERROR',
+          message: 'Cannot schedule more than 30 days in advance'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // For now, use demo user - TODO: implement proper auth
+      const userId = body.userId || 'demo_user';
+      const personaId = body.personaId || 'brad_001';
+
+      this.env.logger.info('Scheduling call', {
+        userId,
+        personaId,
+        scheduledTime: body.scheduledTime,
+        hasPretext: !!body.callPretext
+      });
+
+      const result = await this.env.CALL_ORCHESTRATOR.scheduleCall({
+        userId,
+        personaId,
+        phoneNumber: body.phoneNumber,
+        scheduledTime: body.scheduledTime,
+        callPretext: body.callPretext,
+        callScenario: body.callScenario,
+        customInstructions: body.customInstructions,
+        maxDurationMinutes: body.maxDurationMinutes,
+        voiceId: body.voiceId,
+        aiParameters: body.aiParameters
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        scheduled_call: result,
+        message: `Call scheduled for ${scheduledTime.toISOString()}`
+      }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      this.env.logger.error('Schedule call error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to schedule call'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  /**
+   * Handle list scheduled calls - get user's pending scheduled calls
+   */
+  private async handleListScheduledCalls(request: Request): Promise<Response> {
+    try {
+      // For now, use demo user - TODO: implement proper auth
+      const url = new URL(request.url);
+      const userId = url.searchParams.get('userId') || 'demo_user';
+
+      const result = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT sc.*, p.name as persona_name
+         FROM scheduled_calls sc
+         JOIN personas p ON sc.persona_id = p.id
+         WHERE sc.user_id = $1 AND sc.status = 'scheduled'
+         ORDER BY sc.scheduled_time ASC`,
+        [userId]
+      );
+
+      return new Response(JSON.stringify({
+        success: true,
+        scheduled_calls: result.rows || []
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      this.env.logger.error('List scheduled calls error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to list scheduled calls'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  /**
+   * Handle cancel scheduled call - cancel a pending scheduled call
+   */
+  private async handleCancelScheduledCall(request: Request, path: string): Promise<Response> {
+    try {
+      const callId = path.split('/').pop();
+
+      if (!callId) {
+        return new Response(JSON.stringify({ error: 'Call ID is required' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // For now, use demo user - TODO: implement proper auth
+      const url = new URL(request.url);
+      const userId = url.searchParams.get('userId') || 'demo_user';
+
+      // Verify ownership and get scheduled call
+      const existing = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT * FROM scheduled_calls WHERE id = $1 AND user_id = $2`,
+        [callId, userId]
+      );
+
+      if (!existing.rows || existing.rows.length === 0) {
+        return new Response(JSON.stringify({
+          error: 'NOT_FOUND',
+          message: 'Scheduled call not found'
+        }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      const scheduledCall = existing.rows[0];
+
+      // Check if already cancelled or executed
+      if (scheduledCall.status !== 'scheduled') {
+        return new Response(JSON.stringify({
+          error: 'INVALID_STATUS',
+          message: `Cannot cancel call with status: ${scheduledCall.status}`
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Check if too close to scheduled time
+      const scheduledTime = new Date(scheduledCall.scheduled_time);
+      const minCancelTime = new Date(Date.now() + 1 * 60 * 1000);
+
+      if (scheduledTime < minCancelTime) {
+        return new Response(JSON.stringify({
+          error: 'CANCELLATION_DENIED',
+          message: 'Cannot cancel within 1 minute of scheduled time'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Cancel the scheduled call
+      await this.env.DATABASE_PROXY.executeQuery(
+        `UPDATE scheduled_calls SET status = 'cancelled', updated_at = NOW() WHERE id = $1`,
+        [callId]
+      );
+
+      this.env.logger.info('Scheduled call cancelled', { callId, userId });
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Scheduled call cancelled successfully'
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      this.env.logger.error('Cancel scheduled call error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to cancel scheduled call'
       }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }

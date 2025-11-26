@@ -1,6 +1,6 @@
 import { Service } from '@liquidmetal-ai/raindrop-framework';
 import { Env } from './raindrop.gen';
-import type { Call, ScheduledCall } from './interfaces';
+import type { Call, ScheduledCall, ScheduleCallInput } from './interfaces';
 
 export default class extends Service<Env> {
   async fetch(request: Request): Promise<Response> {
@@ -15,21 +15,32 @@ export default class extends Service<Env> {
     paymentIntentId?: string;
     paymentStatus?: string;
     callPretext?: string;
+    callScenario?: string;
+    customInstructions?: string;
+    maxDurationMinutes?: number;
+    voiceId?: string;
+    scheduledCallId?: string;
   }): Promise<Call> {
     try {
-      this.env.logger.info('Initiating call', { 
+      this.env.logger.info('Initiating call', {
         userId: input.userId,
-        paymentMethod: input.paymentMethod || 'demo'
+        paymentMethod: input.paymentMethod || 'demo',
+        hasPretext: !!input.callPretext,
+        scheduledCallId: input.scheduledCallId
       });
 
       const callId = crypto.randomUUID();
 
-      // Store call in database with payment information
+      // Store call in database with payment information AND call context
+      // Context is stored here so voice pipeline can fetch it via callId
+      // (TwiML <Parameter> has 500 char limit, so we don't pass context through TwiML)
       await this.env.DATABASE_PROXY.executeQuery(
         `INSERT INTO calls (
           id, user_id, persona_id, phone_number, status,
-          payment_method, payment_intent_id, payment_status, estimated_cost_cents
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          payment_method, payment_intent_id, payment_status, estimated_cost_cents,
+          call_pretext, call_scenario, custom_instructions, max_duration_minutes,
+          voice_id_override, scheduled_call_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
         [
           callId,
           input.userId,
@@ -39,7 +50,13 @@ export default class extends Service<Env> {
           input.paymentMethod || 'demo',
           input.paymentIntentId || null,
           input.paymentStatus || 'pending',
-          500 // Estimated 5 dollars for a call
+          500, // Estimated 5 dollars for a call
+          input.callPretext || null,
+          input.callScenario || null,
+          input.customInstructions || null,
+          input.maxDurationMinutes || null,
+          input.voiceId || null,
+          input.scheduledCallId || null
         ]
       );
 
@@ -74,15 +91,15 @@ export default class extends Service<Env> {
 
       // Get the API gateway URL for webhooks
       // This should be the public API Gateway URL
-      // Pass persona, user IDs, and optional call pretext via query params so TwiML can include them
+      // Pass callId, userId, personaId via query params so TwiML can include them
+      // NOTE: Call context (pretext, scenario, etc.) is stored in DB and fetched by voice pipeline via callId
+      //       We don't pass context through TwiML because <Parameter> has 500 char limit
       const baseUrl = 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run';
       const params = new URLSearchParams({
+        callId: callId,
         userId: input.userId,
         personaId: input.personaId
       });
-      if (input.callPretext) {
-        params.set('callPretext', input.callPretext);
-      }
       const answerUrl = `${baseUrl}/api/voice/answer?${params.toString()}`;
 
       // Call Twilio API
@@ -138,15 +155,36 @@ export default class extends Service<Env> {
     }
   }
 
-  async scheduleCall(input: { userId: string; personaId: string; phoneNumber: string; scheduledTime: string }): Promise<ScheduledCall> {
+  async scheduleCall(input: ScheduleCallInput): Promise<ScheduledCall> {
     try {
-      this.env.logger.info('Scheduling call', { userId: input.userId });
+      this.env.logger.info('Scheduling call with context', {
+        userId: input.userId,
+        hasPretext: !!input.callPretext,
+        duration: input.maxDurationMinutes
+      });
 
       const callId = crypto.randomUUID();
 
       await this.env.DATABASE_PROXY.executeQuery(
-        'INSERT INTO scheduled_calls (id, user_id, persona_id, phone_number, scheduled_time, status) VALUES ($1, $2, $3, $4, $5, $6)',
-        [callId, input.userId, input.personaId, input.phoneNumber, input.scheduledTime, 'scheduled']
+        `INSERT INTO scheduled_calls (
+          id, user_id, persona_id, phone_number, scheduled_time, status,
+          call_pretext, call_scenario, custom_instructions,
+          max_duration_minutes, voice_id, ai_parameters
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        [
+          callId,
+          input.userId,
+          input.personaId,
+          input.phoneNumber,
+          input.scheduledTime,
+          'scheduled',
+          input.callPretext || null,
+          input.callScenario || null,
+          input.customInstructions || null,
+          input.maxDurationMinutes || 5,
+          input.voiceId || null,
+          input.aiParameters ? JSON.stringify(input.aiParameters) : null
+        ]
       );
 
       this.env.logger.info('Call scheduled', { callId });
@@ -159,6 +197,9 @@ export default class extends Service<Env> {
         scheduledTime: input.scheduledTime,
         status: 'scheduled',
         createdAt: new Date().toISOString(),
+        callPretext: input.callPretext,
+        callScenario: input.callScenario,
+        maxDurationMinutes: input.maxDurationMinutes,
       };
     } catch (error) {
       this.env.logger.error('Failed to schedule call', { error: error instanceof Error ? error.message : String(error) });
