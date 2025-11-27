@@ -1232,9 +1232,23 @@ const factPresets = [
   'Health-conscious',
 ];
 
-// SmartMemory persistence for context data (per persona)
-// Object ID pattern: admin_context:{personaId}
-const getMemoryObjectId = (personaId) => `admin_context:${personaId}`;
+// KV Storage persistence for user context data (per user + per persona)
+// Key pattern: user_context:{adminId}:{personaId}
+// This unified key stores all user-specific layers (2, 3, 4) together
+const getUserContextKey = (adminId, personaId) => `user_context:${adminId}:${personaId}`;
+
+// Helper to get adminId from token
+const getAdminIdFromToken = () => {
+  const token = localStorage.getItem('adminToken');
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.sub || payload.id || payload.adminId;
+  } catch (e) {
+    console.error('[PersonaDesigner] Could not decode admin token');
+    return null;
+  }
+};
 const API_BASE = import.meta.env.VITE_API_URL || 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run';
 
 // Fetch available Cerebras models (filtered to Llama and Qwen)
@@ -1329,25 +1343,41 @@ const loadExtractionSettings = async () => {
   }
 };
 
-const saveContextToSmartMemory = async () => {
-  console.log('[PersonaDesigner] saveContextToSmartMemory called');
+const saveContextToKV = async () => {
+  console.log('[PersonaDesigner] saveContextToKV called');
   if (!selectedPersona.value?.id) {
     console.log('[PersonaDesigner] No persona selected, skipping save');
     return;
   }
 
-  const key = getMemoryObjectId(selectedPersona.value.id);
+  const adminId = getAdminIdFromToken();
+  if (!adminId) {
+    console.error('[PersonaDesigner] No adminId, cannot save to KV');
+    saveContextToLocalStorage();
+    return;
+  }
+
+  const key = getUserContextKey(adminId, selectedPersona.value.id);
+  // Unified value containing all user-specific layers (2, 3, 4)
   const value = {
+    // Layer 2: Call Context
     callPretext: callPretext.value,
     customInstructions: customInstructions.value,
     selectedScenarioId: selectedScenario.value?.id || null,
+    // Layer 3: Relationship
     relationshipTypeId: relationshipType.value?.id || null,
     relationshipDuration: relationshipDuration.value,
     relationshipPrompt: relationshipPrompt.value,
-    userFacts: userFacts.value,
+    // Layer 4: Facts
+    facts: userFacts.value.map(f => ({
+      fact: f.content,
+      category: f.category,
+      importance: f.importance || 'medium',
+      timestamp: f.timestamp || new Date().toISOString()
+    })),
     updatedAt: new Date().toISOString(),
   };
-  console.log('[PersonaDesigner] Saving context to KV:', { key, callPretext: value.callPretext?.substring(0, 50) });
+  console.log('[PersonaDesigner] Saving unified context to KV:', { key, factsCount: value.facts.length });
 
   try {
     const token = localStorage.getItem('adminToken');
@@ -1362,7 +1392,7 @@ const saveContextToSmartMemory = async () => {
     });
 
     if (response.ok) {
-      console.log(`[PersonaDesigner] Saved context to KV for ${selectedPersona.value.id}`);
+      console.log(`[PersonaDesigner] Saved unified context to KV: ${key}`);
     } else {
       console.error('[PersonaDesigner] KV save failed:', await response.text());
       // Fallback to localStorage
@@ -1375,13 +1405,19 @@ const saveContextToSmartMemory = async () => {
   }
 };
 
-const loadContextFromSmartMemory = async () => {
+const loadContextFromKV = async () => {
   if (!selectedPersona.value?.id) return;
 
-  const key = getMemoryObjectId(selectedPersona.value.id);
+  const adminId = getAdminIdFromToken();
+  if (!adminId) {
+    console.error('[PersonaDesigner] No adminId, cannot load from KV');
+    return;
+  }
+
+  const token = localStorage.getItem('adminToken');
+  const key = getUserContextKey(adminId, selectedPersona.value.id);
 
   try {
-    const token = localStorage.getItem('adminToken');
     // Use KV storage endpoint: GET /api/userdata/:key
     const response = await fetch(`${API_BASE}/api/userdata/${encodeURIComponent(key)}`, {
       headers: {
@@ -1395,17 +1431,26 @@ const loadContextFromSmartMemory = async () => {
       const data = result.data;
 
       if (data && !data.deleted) {
+        // Layer 2: Call Context
         callPretext.value = data.callPretext || '';
         customInstructions.value = data.customInstructions || '';
         selectedScenario.value = data.selectedScenarioId
           ? scenarioPresets.find(s => s.id === data.selectedScenarioId) || null
           : null;
+        // Layer 3: Relationship
         relationshipType.value = data.relationshipTypeId
           ? relationshipTypes.find(r => r.id === data.relationshipTypeId) || null
           : null;
         relationshipDuration.value = data.relationshipDuration || 6;
         relationshipPrompt.value = data.relationshipPrompt || '';
-        // Note: userFacts are loaded separately via loadUserFacts()
+        // Layer 4: Facts (now unified in same key)
+        const facts = data.facts || [];
+        userFacts.value = facts.map(f => ({
+          category: f.category || 'personal',
+          content: f.fact || f.content || f,
+          importance: f.importance || 'medium',
+          timestamp: f.timestamp
+        }));
 
         // Store initial values for change detection
         initialContext.value = {
@@ -1415,156 +1460,110 @@ const loadContextFromSmartMemory = async () => {
           relationshipTypeId: data.relationshipTypeId || null,
           relationshipDuration: data.relationshipDuration || 6,
           relationshipPrompt: data.relationshipPrompt || '',
-          userFactsCount: 0  // Will be updated by loadUserFacts
+          userFactsCount: userFacts.value.length
         };
 
-        console.log(`[PersonaDesigner] Loaded context from KV for ${selectedPersona.value.id}`);
+        console.log(`[PersonaDesigner] Loaded unified context from KV: ${key} (${userFacts.value.length} facts)`);
         return;
       }
     }
 
-    // If KV fails or has no data, try localStorage fallback
-    loadContextFromLocalStorage();
+    // No data in new key - try migration from legacy keys
+    // TODO: Remove this migration code after 2025-12-15 (gives ~3 weeks for migration)
+    console.log(`[PersonaDesigner] No data in new key, attempting migration from legacy keys...`);
+    await migrateFromLegacyKeys(adminId, selectedPersona.value.id, token);
+
   } catch (e) {
     console.error('[PersonaDesigner] KV load error:', e);
-    // Fallback to localStorage
-    loadContextFromLocalStorage();
   }
 };
 
 /**
- * LAYER 4: Load user facts from long-term memory (KV Storage)
- * These include both auto-extracted facts from calls AND manually added facts
- * Key pattern: long_term:{adminId}:{personaId}
+ * MIGRATION: Load from legacy keys and save to new unified key
+ * Legacy keys: admin_context:{personaId} (Layer 2/3) + long_term:{adminId}:{personaId} (Layer 4)
+ * New key: user_context:{adminId}:{personaId} (all layers)
+ * TODO: Remove after 2025-12-15
  */
-const loadUserFacts = async () => {
-  if (!selectedPersona.value?.id) return;
+const migrateFromLegacyKeys = async (adminId, personaId, token) => {
+  let legacyContext = null;
+  let legacyFacts = [];
 
-  // Get adminId from token
-  const token = localStorage.getItem('adminToken');
-  if (!token) return;
-
-  // Decode JWT to get admin ID (simple base64 decode of payload)
-  let adminId;
+  // Try to load from legacy admin_context key (Layer 2/3)
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    adminId = payload.sub || payload.id || payload.adminId;
-  } catch (e) {
-    console.error('[PersonaDesigner] Could not decode admin token');
-    return;
-  }
-
-  if (!adminId) return;
-
-  const key = `long_term:${adminId}:${selectedPersona.value.id}`;
-  loadingUserFacts.value = true;
-
-  try {
-    // Use KV storage endpoint: GET /api/userdata/:key
-    const response = await fetch(`${API_BASE}/api/userdata/${encodeURIComponent(key)}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
+    const legacyContextKey = `admin_context:${personaId}`;
+    const response = await fetch(`${API_BASE}/api/userdata/${encodeURIComponent(legacyContextKey)}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
     });
-
     if (response.ok) {
       const result = await response.json();
-      // Response format: { success: true, data: { facts: [...], ... } }
-      const data = result.data || {};
-      const facts = data.facts || [];
-
-      if (facts.length > 0) {
-        // Map facts to the expected format for display
-        userFacts.value = facts.map(f => {
-          if (typeof f === 'string') {
-            return { category: 'personal', content: f, importance: 'medium' };
-          }
-          return {
-            category: f.category || 'personal',
-            content: f.fact || f.content || f,
-            importance: f.importance || 'medium',
-            timestamp: f.timestamp
-          };
-        });
-        // Update initial context with loaded facts count
-        initialContext.value.userFactsCount = userFacts.value.length;
-        console.log(`[PersonaDesigner] Loaded ${userFacts.value.length} facts from Layer 4 (KV: ${key})`);
-      } else {
-        userFacts.value = [];
-        initialContext.value.userFactsCount = 0;
-        console.log('[PersonaDesigner] No facts found in Layer 4');
+      if (result.data && !result.data.deleted) {
+        legacyContext = result.data;
+        console.log(`[PersonaDesigner] Found legacy context in ${legacyContextKey}`);
       }
-    } else if (response.status === 404) {
-      // No data exists yet - this is normal for new personas
-      userFacts.value = [];
-      initialContext.value.userFactsCount = 0;
-      console.log('[PersonaDesigner] No Layer 4 data exists yet (404)');
-    } else {
-      userFacts.value = [];
-      initialContext.value.userFactsCount = 0;
-      console.warn('[PersonaDesigner] Failed to load Layer 4:', response.status);
     }
   } catch (e) {
-    console.error('[PersonaDesigner] Error loading user facts:', e);
-    userFacts.value = [];
-  } finally {
-    loadingUserFacts.value = false;
-  }
-};
-
-/**
- * Save user facts to long-term memory (KV Storage)
- * Key pattern: long_term:{adminId}:{personaId}
- */
-const saveUserFacts = async () => {
-  if (!selectedPersona.value?.id) return;
-
-  const token = localStorage.getItem('adminToken');
-  if (!token) return;
-
-  let adminId;
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    adminId = payload.sub || payload.id || payload.adminId;
-  } catch (e) {
-    console.error('[PersonaDesigner] Could not decode admin token');
-    return;
+    console.log('[PersonaDesigner] No legacy admin_context found');
   }
 
-  if (!adminId) return;
-
-  const key = `long_term:${adminId}:${selectedPersona.value.id}`;
-
+  // Try to load from legacy long_term key (Layer 4 facts)
   try {
-    // Use KV storage endpoint: PUT /api/userdata
-    const response = await fetch(`${API_BASE}/api/userdata`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        key,
-        value: {
-          facts: userFacts.value.map(f => ({
-            fact: f.content,
-            category: f.category,
-            importance: f.importance || 'medium',
-            timestamp: f.timestamp || new Date().toISOString()
-          })),
-          updatedAt: new Date().toISOString()
-        }
-      }),
+    const legacyFactsKey = `long_term:${adminId}:${personaId}`;
+    const response = await fetch(`${API_BASE}/api/userdata/${encodeURIComponent(legacyFactsKey)}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
     });
-
     if (response.ok) {
-      console.log(`[PersonaDesigner] Saved ${userFacts.value.length} facts to Layer 4 (KV: ${key})`);
-    } else {
-      console.warn('[PersonaDesigner] Failed to save Layer 4:', response.status, await response.text());
+      const result = await response.json();
+      if (result.data && result.data.facts) {
+        legacyFacts = result.data.facts;
+        console.log(`[PersonaDesigner] Found ${legacyFacts.length} legacy facts in ${legacyFactsKey}`);
+      }
     }
   } catch (e) {
-    console.error('[PersonaDesigner] Error saving user facts:', e);
+    console.log('[PersonaDesigner] No legacy long_term facts found');
+  }
+
+  // If we found any legacy data, populate the UI
+  if (legacyContext || legacyFacts.length > 0) {
+    // Layer 2: Call Context
+    callPretext.value = legacyContext?.callPretext || '';
+    customInstructions.value = legacyContext?.customInstructions || '';
+    selectedScenario.value = legacyContext?.selectedScenarioId
+      ? scenarioPresets.find(s => s.id === legacyContext.selectedScenarioId) || null
+      : null;
+    // Layer 3: Relationship
+    relationshipType.value = legacyContext?.relationshipTypeId
+      ? relationshipTypes.find(r => r.id === legacyContext.relationshipTypeId) || null
+      : null;
+    relationshipDuration.value = legacyContext?.relationshipDuration || 6;
+    relationshipPrompt.value = legacyContext?.relationshipPrompt || '';
+    // Layer 4: Facts
+    userFacts.value = legacyFacts.map(f => ({
+      category: f.category || 'personal',
+      content: f.fact || f.content || f,
+      importance: f.importance || 'medium',
+      timestamp: f.timestamp
+    }));
+
+    // Store initial values
+    initialContext.value = {
+      callPretext: callPretext.value,
+      customInstructions: customInstructions.value,
+      selectedScenarioId: selectedScenario.value?.id || null,
+      relationshipTypeId: relationshipType.value?.id || null,
+      relationshipDuration: relationshipDuration.value,
+      relationshipPrompt: relationshipPrompt.value,
+      userFactsCount: userFacts.value.length
+    };
+
+    // Auto-save to new unified key to complete migration
+    console.log('[PersonaDesigner] Migrating legacy data to new unified key...');
+    await saveContextToKV();
+    console.log('[PersonaDesigner] Migration complete!');
+  } else {
+    // No legacy data - truly starting fresh
+    console.log('[PersonaDesigner] No legacy data found, starting fresh');
+    userFacts.value = [];
+    initialContext.value.userFactsCount = 0;
   }
 };
 
@@ -1654,8 +1653,7 @@ const resetContextToDefaults = () => {
 // Load context when persona changes
 watch(selectedPersona, (newPersona) => {
   if (newPersona) {
-    loadContextFromSmartMemory();
-    loadUserFacts();  // LAYER 4: Load user knowledge facts
+    loadContextFromKV();  // Loads all layers (2, 3, 4) from unified key
   }
 });
 
@@ -1823,9 +1821,8 @@ const savePersona = async () => {
     const idx = personas.value.findIndex(p => p.id === selectedPersona.value.id);
     if (idx !== -1) personas.value[idx] = { ...selectedPersona.value };
 
-    // Also save context (Layer 2, 3) and user facts (Layer 4) to SmartMemory
-    await saveContextToSmartMemory();
-    await saveUserFacts();
+    // Save all user-specific layers (2, 3, 4) to unified KV key
+    await saveContextToKV();
 
     // Update initialContext to reflect saved state (so hasChanges becomes false)
     initialContext.value = {

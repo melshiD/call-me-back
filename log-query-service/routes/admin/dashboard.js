@@ -168,7 +168,7 @@ router.get('/recent-calls', authMiddleware, async (req, res) => {
         c.actual_cost_cents,
         c.estimated_cost_cents,
         c.created_at,
-        c.ended_at
+        c.end_time
       FROM calls c
       LEFT JOIN personas p ON c.persona_id = p.id
       ORDER BY c.created_at DESC
@@ -185,22 +185,38 @@ router.get('/recent-calls', authMiddleware, async (req, res) => {
           call_id,
           service,
           SUM(calculated_cost_cents) / 100.0 as cost_usd,
-          SUM(usage_amount) as total_usage,
-          usage_unit
+          SUM(COALESCE(duration_seconds, 0)) as total_duration,
+          SUM(COALESCE(tokens_input, 0) + COALESCE(tokens_output, 0)) as total_tokens,
+          SUM(COALESCE(characters, 0)) as total_chars
         FROM call_cost_events
         WHERE call_id = ANY($1)
-        GROUP BY call_id, service, usage_unit
+        GROUP BY call_id, service
       `, [callIds]);
 
       costsQuery.rows.forEach(row => {
         if (!costBreakdowns[row.call_id]) {
           costBreakdowns[row.call_id] = [];
         }
+        // Determine usage based on service type
+        let usage, unit;
+        if (row.service === 'twilio' || row.service === 'deepgram') {
+          usage = parseFloat(row.total_duration || 0).toFixed(2);
+          unit = 'seconds';
+        } else if (row.service === 'cerebras') {
+          usage = parseInt(row.total_tokens || 0);
+          unit = 'tokens';
+        } else if (row.service === 'elevenlabs') {
+          usage = parseInt(row.total_chars || 0);
+          unit = 'characters';
+        } else {
+          usage = 0;
+          unit = '';
+        }
         costBreakdowns[row.call_id].push({
           service: row.service,
-          cost: parseFloat(row.cost_usd).toFixed(4),
-          usage: parseFloat(row.total_usage).toFixed(2),
-          unit: row.usage_unit
+          cost: parseFloat(row.cost_usd || 0).toFixed(4),
+          usage: usage,
+          unit: unit
         });
       });
     }
@@ -215,7 +231,7 @@ router.get('/recent-calls', authMiddleware, async (req, res) => {
       costCents: call.actual_cost_cents || call.estimated_cost_cents || 0,
       costUsd: ((call.actual_cost_cents || call.estimated_cost_cents || 0) / 100).toFixed(4),
       createdAt: call.created_at,
-      endedAt: call.ended_at,
+      endedAt: call.end_time,
       costBreakdown: costBreakdowns[call.id] || []
     }));
 

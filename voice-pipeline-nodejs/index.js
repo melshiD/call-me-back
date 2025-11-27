@@ -158,6 +158,7 @@ class VoicePipeline {
     this.voiceId = null;
     this.systemPrompt = null;
     this.smartMemory = null;
+    this.longTermMemory = null;  // Layer 4: User facts from KV storage
 
     // Service connections
     this.deepgramWs = null;
@@ -344,16 +345,78 @@ class VoicePipeline {
   }
 
   /**
+   * Load user-specific context from KV storage (Layers 2, 3, 4)
+   * Key pattern: user_context:{userId}:{personaId}
+   * Contains: callPretext (L2), relationshipPrompt (L3), facts (L4)
+   */
+  async loadUserContext() {
+    if (!this.userId || !this.personaId) {
+      console.log(`[VoicePipeline ${this.callId}] Skipping user context - no userId or personaId`);
+      return;
+    }
+
+    const key = `user_context:${this.userId}:${this.personaId}`;
+
+    try {
+      const response = await fetch(`${env.API_GATEWAY_URL}/api/userdata/${encodeURIComponent(key)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.ADMIN_SECRET_TOKEN}`
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const data = result.data;
+
+        if (data && !data.deleted) {
+          // Layer 2: Call context (only if not already set from call record)
+          if (!this.callPretext && data.callPretext) {
+            this.callPretext = data.callPretext;
+            console.log(`[VoicePipeline ${this.callId}] ✅ Layer 2: call pretext loaded`);
+          }
+
+          // Layer 3: Relationship context
+          if (data.relationshipPrompt) {
+            this.smartMemory = data.relationshipPrompt;
+            console.log(`[VoicePipeline ${this.callId}] ✅ Layer 3: relationship context loaded`);
+          }
+
+          // Layer 4: User facts
+          const facts = data.facts || [];
+          if (facts.length > 0) {
+            this.longTermMemory = facts
+              .map(f => typeof f === 'string' ? f : (f.fact || f.content))
+              .filter(Boolean)
+              .join('\n- ');
+            console.log(`[VoicePipeline ${this.callId}] ✅ Layer 4: ${facts.length} user facts loaded`);
+          }
+        }
+      } else if (response.status === 404) {
+        console.log(`[VoicePipeline ${this.callId}] No user context yet (first call)`);
+      } else {
+        console.log(`[VoicePipeline ${this.callId}] Failed to load user context (${response.status})`);
+      }
+    } catch (error) {
+      console.error(`[VoicePipeline ${this.callId}] Error loading user context:`, error.message);
+    }
+  }
+
+  /**
    * Start the voice pipeline
    */
   async start() {
     try {
       console.log(`[VoicePipeline ${this.callId}] Starting...`);
 
-      // STEP 1: Fetch persona metadata from database
+      // STEP 1: Fetch persona metadata from database (Layer 1: core_system_prompt)
       await this.fetchPersonaMetadata();
 
-      // STEP 2: Connect to Deepgram STT
+      // STEP 2: Load user-specific context from KV (Layers 2, 3, 4)
+      await this.loadUserContext();
+
+      // STEP 3: Connect to Deepgram STT
       await this.connectDeepgram();
 
       // STEP 3: Connect to ElevenLabs TTS (using persona's voiceId)
@@ -976,6 +1039,11 @@ Answer:`;
         systemPrompt += `\n\nCALL CONTEXT: The user requested this call for the following reason: "${this.callPretext}". Keep this context in mind and be helpful with their situation.`;
       }
 
+      // LAYER 4: Add user facts learned from previous calls
+      if (this.longTermMemory) {
+        systemPrompt += `\n\nWHAT YOU KNOW ABOUT THIS USER (from previous conversations):\n- ${this.longTermMemory}`;
+      }
+
       // CRITICAL: Enforce brevity and natural conversation
       systemPrompt += `\n\nPhone Call Guidelines:
 - Keep responses brief and natural (1-2 short sentences)
@@ -1557,22 +1625,19 @@ class BrowserVoicePipeline {
   }
 
   /**
-   * LAYER 4: USER KNOWLEDGE LAYER
-   * Load long-term memory (facts learned from previous calls) from KV Storage.
-   * These are facts extracted by post-call evaluation and stored per user/persona pair.
-   * Key format: long_term:{userId}:{personaId}
+   * Load user-specific context from KV storage (Layers 2, 3, 4)
+   * Key pattern: user_context:{userId}:{personaId}
+   * Contains: callPretext (L2), relationshipPrompt (L3), facts (L4)
    */
-  async loadLongTermMemory() {
-    // Need userId to load user-specific facts
+  async loadUserContext() {
     if (!this.adminId || !this.personaId) {
-      console.log(`[BrowserPipeline ${this.sessionId}] Skipping Layer 4 (User Knowledge) - no adminId or personaId`);
+      console.log(`[BrowserPipeline ${this.sessionId}] Skipping user context - no adminId or personaId`);
       return;
     }
 
-    const key = `long_term:${this.adminId}:${this.personaId}`;
+    const key = `user_context:${this.adminId}:${this.personaId}`;
 
     try {
-      // Use KV storage endpoint: GET /api/userdata/:key
       const response = await fetch(`${env.API_GATEWAY_URL}/api/userdata/${encodeURIComponent(key)}`, {
         method: 'GET',
         headers: {
@@ -1583,26 +1648,35 @@ class BrowserVoicePipeline {
 
       if (response.ok) {
         const result = await response.json();
-        // KV returns { success: true, data: {...} }
         const data = result.data;
-        const facts = data?.facts || data?.important_memories || [];
 
-        if (facts.length > 0) {
-          // Format facts for the AI
-          const factsList = facts
-            .map(f => typeof f === 'string' ? f : (f.fact || f.content))
-            .filter(Boolean)
-            .join('\n- ');
+        if (data && !data.deleted) {
+          // Layer 2: Call context (only if not already set from init message)
+          if (!this.callPretext && data.callPretext) {
+            this.callPretext = data.callPretext;
+            console.log(`[BrowserPipeline ${this.sessionId}] ✅ Layer 2: call pretext loaded`);
+          }
 
-          this.longTermMemory = factsList;
-          console.log(`[BrowserPipeline ${this.sessionId}] ✅ Layer 4 loaded: ${facts.length} facts from KV storage`);
-        } else {
-          console.log(`[BrowserPipeline ${this.sessionId}] Layer 4: No facts in KV storage`);
+          // Layer 3: Relationship context (only if not already set from init message)
+          if (!this.smartMemory && data.relationshipPrompt) {
+            this.smartMemory = data.relationshipPrompt;
+            console.log(`[BrowserPipeline ${this.sessionId}] ✅ Layer 3: relationship context loaded`);
+          }
+
+          // Layer 4: User facts
+          const facts = data.facts || [];
+          if (facts.length > 0) {
+            this.longTermMemory = facts
+              .map(f => typeof f === 'string' ? f : (f.fact || f.content))
+              .filter(Boolean)
+              .join('\n- ');
+            console.log(`[BrowserPipeline ${this.sessionId}] ✅ Layer 4: ${facts.length} user facts loaded`);
+          }
         }
       } else if (response.status === 404) {
-        console.log(`[BrowserPipeline ${this.sessionId}] Layer 4: No long-term memory exists yet (404)`);
+        console.log(`[BrowserPipeline ${this.sessionId}] No user context yet (first call)`);
       } else {
-        console.log(`[BrowserPipeline ${this.sessionId}] Layer 4: Failed to load (${response.status})`);
+        console.log(`[BrowserPipeline ${this.sessionId}] Failed to load user context (${response.status})`);
       }
     } catch (error) {
       console.error(`[BrowserPipeline ${this.sessionId}] Layer 4 error loading long-term memory:`, error.message);
@@ -1614,8 +1688,8 @@ class BrowserVoicePipeline {
     await this.fetchPersonaMetadata();
     console.log(`[BrowserPipeline ${this.sessionId}] Persona metadata fetched`);
 
-    // LAYER 4: Load facts learned from previous calls
-    await this.loadLongTermMemory();
+    // Load user-specific context (Layers 2, 3, 4) from KV
+    await this.loadUserContext();
 
     // Create call record in database
     await this.createCallRecord();
@@ -2384,10 +2458,12 @@ Example:
   }
 
   /**
-   * Update long-term memory with new facts via KV Storage
+   * Update user context with new facts via KV Storage
+   * Key pattern: user_context:{userId}:{personaId}
+   * Preserves existing Layer 2/3 data while updating Layer 4 facts
    */
   async updateLongTermMemory(userId, personaId, newFacts) {
-    const key = `long_term:${userId}:${personaId}`;
+    const key = `user_context:${userId}:${personaId}`;
 
     try {
       // Load existing memory from KV
@@ -2437,7 +2513,7 @@ Example:
         })
         .slice(0, 50);
 
-      // Store updated memory to KV
+      // Store updated user context to KV (preserve Layer 2/3, update Layer 4)
       const putResponse = await fetch(`${env.API_GATEWAY_URL}/api/userdata`, {
         method: 'PUT',
         headers: {
@@ -2447,8 +2523,16 @@ Example:
         body: JSON.stringify({
           key,
           value: {
-            facts: sortedFacts,  // Use 'facts' to match PersonaDesigner format
-            important_memories: sortedFacts,  // Keep for backward compat
+            // Preserve existing Layer 2 (call context)
+            callPretext: existing.callPretext || '',
+            customInstructions: existing.customInstructions || '',
+            selectedScenarioId: existing.selectedScenarioId || null,
+            // Preserve existing Layer 3 (relationship context)
+            relationshipTypeId: existing.relationshipTypeId || null,
+            relationshipDuration: existing.relationshipDuration || null,
+            relationshipPrompt: existing.relationshipPrompt || '',
+            // Update Layer 4 (facts)
+            facts: sortedFacts,
             totalCallCount: (existing.totalCallCount || 0) + 1,
             lastUpdated: new Date().toISOString()
           }

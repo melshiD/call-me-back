@@ -44,8 +44,25 @@ application "call-me-back" {
     secret = true
   }
 
+  env "LOG_QUERY_SERVICE_URL" {
+    # SECURE: Uses Caddy reverse proxy with SSL (see SECURE_REVERSE_PROXY_PATTERN.md)
+    default = "https://logs.ai-tools-marketplace.io"
+  }
+
+  env "ADMIN_SECRET_TOKEN" {
+    secret = true
+  }
+
   service "api-gateway" {
     visibility = "public"
+  }
+
+  service "admin-dashboard" {
+    visibility = "private"
+  }
+
+  service "cost-analytics" {
+    visibility = "private"
   }
 
   service "voice-pipeline" {
@@ -76,6 +93,12 @@ application "call-me-back" {
     visibility = "private"
   }
 
+  mcp_service "log-aggregator" {
+    visibility = "public"
+    # Temporarily public for testing - will re-enable OAuth after verification
+    # authorization_server = "https://giving-hay-85-staging.authkit.app"
+  }
+
   smartsql "call-me-back-db" {
   }
 
@@ -85,10 +108,21 @@ application "call-me-back" {
   smartbucket "call-transcripts" {
   }
 
+  smartbucket "call-me-back-logs" {
+  }
+
   kv_cache "token-blacklist" {
   }
 
+  task "scheduled-call-executor" {
+    type = "cron"
+    cron = "* * * * *"  # Every minute
+  }
+
   kv_cache "rate-limit-cache" {
+  }
+
+  kv_cache "user-data" {
   }
 
 }
