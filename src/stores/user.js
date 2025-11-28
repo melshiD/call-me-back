@@ -215,12 +215,39 @@ export const useUserStore = defineStore('user', () => {
    *   }
    */
   const fetchUsageStats = async (months = 3) => {
-    // Mock implementation
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({ usage: mockUsageStats })
-      }, 300)
-    })
+    const apiUrl = import.meta.env.VITE_API_URL
+    const token = localStorage.getItem('token')
+
+    if (!token) {
+      // Return mock data if not authenticated
+      return { usage: mockUsageStats }
+    }
+
+    try {
+      const response = await fetch(`${apiUrl}/api/user/usage?months=${months}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch usage stats: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        usageStats.value = data.usage
+        return { usage: data.usage }
+      } else {
+        throw new Error(data.error || 'Failed to fetch usage statistics')
+      }
+    } catch (error) {
+      console.error('Error fetching usage stats:', error)
+      // Fall back to mock data on error
+      return { usage: mockUsageStats }
+    }
   }
 
   /**

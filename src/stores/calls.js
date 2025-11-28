@@ -117,15 +117,48 @@ export const useCallsStore = defineStore('calls', () => {
    *   - Index database on user_id, status, and start_time
    */
   const fetchCalls = async (page = 1, limit = 20) => {
-    // Mock implementation - replace with actual API call
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve({
-          calls: mockCalls,
-          pagination: { page, limit, total: mockCalls.length, pages: 1 }
-        })
-      }, 300)
-    })
+    const apiUrl = import.meta.env.VITE_API_URL
+    const token = localStorage.getItem('token')
+
+    if (!token) {
+      // Return mock data if not authenticated
+      return {
+        calls: mockCalls,
+        pagination: { page, limit, total: mockCalls.length, pages: 1 }
+      }
+    }
+
+    try {
+      const response = await fetch(`${apiUrl}/api/calls/history?page=${page}&limit=${limit}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch calls: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        calls.value = data.calls
+        return {
+          calls: data.calls,
+          pagination: data.pagination
+        }
+      } else {
+        throw new Error(data.error || 'Failed to fetch call history')
+      }
+    } catch (error) {
+      console.error('Error fetching calls:', error)
+      // Fall back to mock data on error
+      return {
+        calls: mockCalls,
+        pagination: { page, limit, total: mockCalls.length, pages: 1 }
+      }
+    }
   }
 
   /**
@@ -207,6 +240,12 @@ export const useCallsStore = defineStore('calls', () => {
    *   - Connection fee: $0.25, Per-minute rate: $0.40
    */
   const triggerCall = async (phoneNumber, personaId, paymentIntentId, callPretext = null) => {
+    const token = localStorage.getItem('token')
+
+    if (!token) {
+      throw new Error('Authentication required. Please log in.')
+    }
+
     try {
       const requestBody = {
         phoneNumber,
@@ -222,7 +261,8 @@ export const useCallsStore = defineStore('calls', () => {
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/calls/trigger`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(requestBody)
       })
@@ -324,19 +364,24 @@ export const useCallsStore = defineStore('calls', () => {
    */
   const scheduleCall = async (phoneNumber, personaId, scheduledTime, options = {}) => {
     const apiUrl = import.meta.env.VITE_API_URL
+    const token = localStorage.getItem('token')
+
+    if (!token) {
+      throw new Error('Authentication required. Please log in.')
+    }
 
     try {
       const response = await fetch(`${apiUrl}/api/calls/schedule`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           phoneNumber,
           personaId,
           scheduledTime,
           callPretext: options.callPretext,
-          callScenario: options.callScenario,
           customInstructions: options.customInstructions,
           maxDurationMinutes: options.maxDurationMinutes || 5
         })
@@ -417,12 +462,18 @@ export const useCallsStore = defineStore('calls', () => {
    */
   const cancelScheduledCall = async (callId) => {
     const apiUrl = import.meta.env.VITE_API_URL
+    const token = localStorage.getItem('token')
+
+    if (!token) {
+      throw new Error('Authentication required. Please log in.')
+    }
 
     try {
       const response = await fetch(`${apiUrl}/api/calls/schedule/${callId}`, {
         method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         }
       })
 
@@ -497,11 +548,19 @@ export const useCallsStore = defineStore('calls', () => {
    */
   const fetchScheduledCalls = async () => {
     const apiUrl = import.meta.env.VITE_API_URL
+    const token = localStorage.getItem('token')
+
+    if (!token) {
+      console.warn('No auth token found, cannot fetch scheduled calls')
+      scheduledCalls.value = []
+      return { scheduled_calls: [] }
+    }
 
     try {
       const response = await fetch(`${apiUrl}/api/calls/scheduled`, {
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         }
       })
 
@@ -521,6 +580,76 @@ export const useCallsStore = defineStore('calls', () => {
     }
   }
 
+  /**
+   * Update a scheduled call's time
+   *
+   * API ENDPOINT: PATCH /api/calls/schedule/:id
+   *
+   * AUTHENTICATION: Required (JWT Bearer token)
+   *
+   * HEADERS:
+   *   Authorization: Bearer <JWT token>
+   *   Content-Type: application/json
+   *
+   * REQUEST BODY:
+   *   {
+   *     scheduledTime: string (required, ISO 8601 datetime)
+   *   }
+   *
+   * EXPECTED RESPONSE (200 OK):
+   *   {
+   *     success: true,
+   *     scheduled_call: { ...updated call object },
+   *     message: "Call rescheduled to <time>"
+   *   }
+   *
+   * ERROR RESPONSES:
+   *   400 Bad Request: Invalid time, not in future, call not in 'scheduled' status
+   *   401 Unauthorized: Authentication required
+   *   404 Not Found: Scheduled call not found
+   */
+  const updateScheduledCall = async (callId, newScheduledTime) => {
+    const apiUrl = import.meta.env.VITE_API_URL
+    const token = localStorage.getItem('token')
+
+    if (!token) {
+      throw new Error('Authentication required. Please log in.')
+    }
+
+    try {
+      const response = await fetch(`${apiUrl}/api/calls/schedule/${callId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          scheduledTime: newScheduledTime
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || errorData.error || 'Failed to update scheduled call')
+      }
+
+      const data = await response.json()
+
+      // Update local state
+      if (data.scheduled_call) {
+        const index = scheduledCalls.value.findIndex(c => c.id === callId)
+        if (index !== -1) {
+          scheduledCalls.value[index] = data.scheduled_call
+        }
+      }
+
+      return data
+    } catch (error) {
+      console.error('Update scheduled call error:', error)
+      throw error
+    }
+  }
+
   return {
     calls,
     scheduledCalls,
@@ -528,6 +657,7 @@ export const useCallsStore = defineStore('calls', () => {
     triggerCall,
     scheduleCall,
     cancelScheduledCall,
-    fetchScheduledCalls
+    fetchScheduledCalls,
+    updateScheduledCall
   }
 })

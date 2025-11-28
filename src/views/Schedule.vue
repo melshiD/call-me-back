@@ -1,348 +1,298 @@
 <template>
-  <div class="min-h-screen bg-midnight text-cream overflow-x-hidden font-[--font-body] pt-24 pb-16 px-6">
+  <div class="min-h-screen bg-[#0d0d0f] text-[#e8e6e3] font-['Inter',sans-serif] overflow-hidden">
     <!-- Ambient Background -->
-    <div class="fixed inset-0 -z-10 bg-midnight">
-      <div class="grain-overlay absolute inset-0 pointer-events-none mix-blend-overlay opacity-50"></div>
-      <div class="absolute w-[600px] h-[600px] top-[15%] right-[5%] opacity-12 pointer-events-none blur-[120px] animate-[float_20s_ease-in-out_infinite] bg-gradient-radial from-glow via-ember to-transparent"></div>
-      <div class="absolute w-[500px] h-[500px] bottom-[10%] -left-[150px] opacity-15 pointer-events-none blur-[120px] animate-[float_25s_ease-in-out_infinite_reverse] bg-gradient-radial from-solar to-transparent"></div>
+    <div class="fixed inset-0 -z-10">
+      <div class="absolute inset-0 bg-gradient-to-b from-[#0d0d0f] via-[#131318] to-[#0d0d0f]"></div>
+      <div class="grain-overlay absolute inset-0 pointer-events-none mix-blend-overlay opacity-30"></div>
+      <div class="absolute w-[600px] h-[500px] -top-[200px] -right-[150px] opacity-[0.04] pointer-events-none blur-[150px] bg-gradient-radial from-amber-500 to-transparent"></div>
+      <div class="absolute w-[500px] h-[400px] bottom-[-150px] -left-[150px] opacity-[0.03] pointer-events-none blur-[150px] bg-gradient-radial from-orange-500 to-transparent"></div>
     </div>
 
-    <div class="max-w-7xl mx-auto">
+    <div class="max-w-2xl mx-auto px-6 pt-24 pb-16">
       <!-- Header -->
-      <div class="mb-12 text-center opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards]">
-        <h1 class="text-5xl lg:text-6xl font-[--font-display] font-black mb-4 tracking-tight">
-          <span class="bg-gradient-to-r from-glow via-ember to-solar bg-clip-text text-transparent">Schedule a Call</span>
-        </h1>
-        <p class="text-lg text-cream/70">Instant or scheduled - your AI companions are ready</p>
+      <div class="mb-8 text-center">
+        <h1 class="font-['JetBrains_Mono',monospace] text-xs tracking-[0.3em] uppercase text-[#666] mb-3">Request a Call</h1>
+        <p class="text-[#999] text-sm">Instant or scheduled conversations with your AI companions</p>
       </div>
 
-      <div class="grid lg:grid-cols-2 gap-8 mb-12">
-        <!-- Quick Call Section -->
-        <div class="opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.1s]">
-          <div class="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/30 overflow-hidden">
-            <div class="absolute top-0 right-0 w-40 h-40 bg-glow/10 -mr-20 -mt-20 rounded-full blur-3xl"></div>
-
-            <div class="relative z-10">
-              <div class="flex items-center gap-3 mb-6">
-                <div class="text-4xl">⚡</div>
-                <h2 class="text-3xl font-[--font-display] font-bold">Quick Call Now</h2>
+      <!-- Unified Call Form -->
+      <div class="mb-10">
+        <div class="bg-[#1a1a1e] border border-[#2a2a2e] rounded-xl p-6 space-y-5">
+          <form @submit.prevent="handleSubmit" class="space-y-5">
+            <!-- Phone & Persona Row -->
+            <div class="grid md:grid-cols-2 gap-4">
+              <!-- Phone Number -->
+              <div class="space-y-1.5">
+                <label class="block font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">Phone Number</label>
+                <input
+                  v-model="callForm.phoneNumber"
+                  type="tel"
+                  class="w-full px-4 py-3 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#e8e6e3] placeholder-[#444] text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
+                  placeholder="+1234567890"
+                  required
+                />
               </div>
-              <p class="text-cream/60 mb-8">Get an immediate call from your chosen persona</p>
 
-              <form @submit.prevent="handleQuickCall" class="space-y-6">
-                <div class="space-y-2">
-                  <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Phone Number</label>
-                  <input
-                    v-model="quickCall.phoneNumber"
-                    type="tel"
-                    class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
-                    placeholder="+1234567890"
-                    required
-                  />
-                  <p class="text-xs text-cream/40 pl-1">E.164 format (e.g., +1234567890)</p>
-                </div>
-
-                <div class="space-y-2">
-                  <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Choose Persona</label>
+              <!-- Persona Selection -->
+              <div class="space-y-1.5">
+                <label class="block font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">Persona</label>
+                <div class="relative">
                   <select
-                    v-model="quickCall.personaId"
-                    class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
+                    v-model="callForm.personaId"
+                    class="w-full px-4 py-3 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#e8e6e3] text-sm focus:outline-none focus:border-amber-500/50 transition-colors appearance-none cursor-pointer"
                     required
                   >
-                    <option value="">Select a persona...</option>
+                    <option value="" class="bg-[#1a1a1e]">Select persona...</option>
                     <option
                       v-for="contact in personasStore.userContacts"
                       :key="contact.id"
                       :value="contact.id"
-                    >
-                      {{ contact.name }} - {{ contact.description }}
-                    </option>
-                  </select>
-                </div>
-
-                <div class="space-y-2">
-                  <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Duration (minutes)</label>
-                  <input
-                    v-model.number="quickCall.estimatedDuration"
-                    type="number"
-                    min="1"
-                    max="30"
-                    class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
-                    required
-                  />
-                </div>
-
-                <!-- Call Scenario Section -->
-                <div class="space-y-3 bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-                  <label class="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.1em] text-cream/80">
-                    <span class="text-2xl">🎭</span>
-                    Call Scenario (Optional)
-                  </label>
-                  <p class="text-sm text-cream/50">Set the context - what should your persona know about this call?</p>
-
-                  <div v-if="scenarioTemplates.length > 0" class="flex flex-wrap gap-2">
-                    <button
-                      v-for="template in scenarioTemplates"
-                      :key="template.id"
-                      type="button"
-                      class="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-sm font-semibold hover:bg-glow/20 hover:border-glow/40 transition-all duration-300"
-                      :class="{ 'bg-glow/20 border-glow/40': quickCall.selectedTemplate === template.id }"
-                      @click="useTemplate(template)"
-                    >
-                      {{ template.icon }} {{ template.name }}
-                    </button>
-                  </div>
-
-                  <textarea
-                    v-model="quickCall.scenario"
-                    class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300 resize-vertical"
-                    placeholder="Example: 'Call to save me from a bad date. Talk about an urgent work matter...'"
-                    rows="3"
-                  />
-
-                  <div v-if="quickCall.scenario" class="flex items-center justify-between text-xs">
-                    <span class="text-cream/40">~{{ estimateTokens(quickCall.scenario) }} tokens</span>
-                    <label class="flex items-center gap-2 cursor-pointer text-cream/60 hover:text-cream transition-colors">
-                      <input type="checkbox" v-model="quickCall.saveAsTemplate" class="rounded" />
-                      <span>Save as template</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div v-if="quickCall.cost" class="bg-glow/10 border border-glow/20 rounded-xl p-4">
-                  <div class="text-lg font-bold mb-1">Estimated Cost: <span class="text-glow">${{ quickCall.cost.toFixed(2) }}</span></div>
-                  <p class="text-xs text-cream/60">Connection fee: $0.25 + $0.40/min{{ quickCall.scenario ? ' + scenario context' : '' }}</p>
-                </div>
-
-                <div v-if="quickCallError" class="bg-solar/10 border border-solar/30 rounded-xl p-4">
-                  <p class="text-sm text-cream font-medium">{{ quickCallError }}</p>
-                </div>
-
-                <div v-if="quickCallSuccess" class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
-                  <p class="text-sm text-cream font-medium">Call initiated! You should receive a call shortly.</p>
-                </div>
-
-                <button
-                  type="submit"
-                  class="w-full px-8 py-5 bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-xl text-deep text-lg font-black uppercase tracking-wider hover:bg-[position:100%_0] transition-all duration-500 hover:scale-[1.02] shadow-[0_0_0_1px_rgba(251,191,36,0.5),0_16px_50px_rgba(251,191,36,0.4)] disabled:opacity-50"
-                  :disabled="quickCallLoading"
-                >
-                  {{ quickCallLoading ? 'Initiating Call...' : 'Call Me Now ⚡' }}
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-
-        <!-- Schedule Future Call Section -->
-        <div class="opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.2s]">
-          <div class="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-ember/30 overflow-hidden">
-            <div class="absolute top-0 right-0 w-40 h-40 bg-ember/10 -mr-20 -mt-20 rounded-full blur-3xl"></div>
-
-            <div class="relative z-10">
-              <div class="flex items-center gap-3 mb-6">
-                <div class="text-4xl">📅</div>
-                <h2 class="text-3xl font-[--font-display] font-bold">Schedule Future Call</h2>
-              </div>
-              <p class="text-cream/60 mb-8">Plan ahead for a specific time</p>
-
-              <form @submit.prevent="handleScheduleCall" class="space-y-6">
-                <div class="space-y-2">
-                  <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Phone Number</label>
-                  <input
-                    v-model="scheduledCall.phoneNumber"
-                    type="tel"
-                    class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-ember/50 focus:bg-white/10 transition-all duration-300"
-                    placeholder="+1234567890"
-                    required
-                  />
-                </div>
-
-                <div class="space-y-2">
-                  <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Choose Persona</label>
-                  <select
-                    v-model="scheduledCall.personaId"
-                    class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream focus:outline-none focus:border-ember/50 focus:bg-white/10 transition-all duration-300"
-                    required
-                  >
-                    <option value="">Select a persona...</option>
-                    <option
-                      v-for="contact in personasStore.userContacts"
-                      :key="contact.id"
-                      :value="contact.id"
+                      class="bg-[#1a1a1e]"
                     >
                       {{ contact.name }}
                     </option>
                   </select>
-                </div>
-
-                <div class="grid grid-cols-2 gap-4">
-                  <div class="space-y-2">
-                    <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Date</label>
-                    <input
-                      v-model="scheduledCall.date"
-                      type="date"
-                      class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream focus:outline-none focus:border-ember/50 focus:bg-white/10 transition-all duration-300"
-                      :min="minDate"
-                      required
-                    />
-                  </div>
-
-                  <div class="space-y-2">
-                    <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Time</label>
-                    <input
-                      v-model="scheduledCall.time"
-                      type="time"
-                      class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream focus:outline-none focus:border-ember/50 focus:bg-white/10 transition-all duration-300"
-                      required
-                    />
+                  <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <svg class="w-4 h-4 text-[#666]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
                   </div>
                 </div>
-
-                <!-- Call Context Section for Scheduled Calls -->
-                <div class="space-y-4 bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-6">
-                  <label class="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.1em] text-cream/80">
-                    <span class="text-2xl">🎯</span>
-                    Call Context (Optional)
-                  </label>
-                  <p class="text-sm text-cream/50">Give your persona context about why you're scheduling this call</p>
-
-                  <!-- Prefab Context Buttons -->
-                  <div class="space-y-2">
-                    <label class="block text-xs text-cream/50 uppercase tracking-wider">Quick Contexts</label>
-                    <div class="flex flex-wrap gap-2">
-                      <button
-                        v-for="prefab in scheduledPrefabs"
-                        :key="prefab.id"
-                        type="button"
-                        class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm font-medium hover:bg-ember/20 hover:border-ember/40 transition-all duration-300 flex items-center gap-2"
-                        :class="{ 'bg-ember/20 border-ember/40': scheduledCall.selectedPrefab === prefab.id }"
-                        @click="useScheduledPrefab(prefab)"
-                      >
-                        <span>{{ prefab.icon }}</span>
-                        <span>{{ prefab.name }}</span>
-                        <button
-                          v-if="prefab.isCustom"
-                          type="button"
-                          @click.stop="deletePrefab(prefab.id)"
-                          class="ml-1 text-red-400 hover:text-red-300 text-xs"
-                          title="Delete this prefab"
-                        >✕</button>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="space-y-2">
-                    <label class="block text-sm text-cream/70">What would you like to discuss?</label>
-                    <textarea
-                      v-model="scheduledCall.callPretext"
-                      class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-ember/50 focus:bg-white/10 transition-all duration-300 resize-vertical"
-                      placeholder="e.g., Help me prepare for my marathon training this week..."
-                      rows="3"
-                    />
-                    <!-- Save as prefab option -->
-                    <div v-if="scheduledCall.callPretext && scheduledCall.callPretext.length > 10" class="flex items-center justify-end">
-                      <button
-                        type="button"
-                        @click="savePrefab"
-                        class="text-xs text-ember/70 hover:text-ember transition-colors flex items-center gap-1"
-                      >
-                        <span>💾</span> Save as Quick Context
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="space-y-2">
-                    <label class="block text-sm text-cream/70">Call Type</label>
-                    <select
-                      v-model="scheduledCall.callScenario"
-                      class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream focus:outline-none focus:border-ember/50 focus:bg-white/10 transition-all duration-300"
-                    >
-                      <option value="">General Conversation</option>
-                      <option value="fitness_coaching">Fitness Coaching</option>
-                      <option value="interview_prep">Interview Prep</option>
-                      <option value="language_practice">Language Practice</option>
-                      <option value="therapy_session">Supportive Check-in</option>
-                      <option value="emergency_escape">Emergency Escape Call</option>
-                    </select>
-                  </div>
-
-                  <div class="space-y-2">
-                    <label class="block text-sm text-cream/70">Call Duration (minutes)</label>
-                    <input
-                      v-model.number="scheduledCall.maxDurationMinutes"
-                      type="number"
-                      min="1"
-                      max="60"
-                      class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-ember/50 focus:bg-white/10 transition-all duration-300"
-                      placeholder="5"
-                    />
-                    <p class="text-xs text-cream/40 pl-1">1-60 minutes</p>
-                  </div>
-                </div>
-
-                <div v-if="scheduleError" class="bg-solar/10 border border-solar/30 rounded-xl p-4">
-                  <p class="text-sm text-cream font-medium">{{ scheduleError }}</p>
-                </div>
-
-                <div v-if="scheduleSuccess" class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
-                  <p class="text-sm text-cream font-medium">Call scheduled successfully!</p>
-                </div>
-
-                <button
-                  type="submit"
-                  class="w-full px-8 py-5 bg-gradient-to-r from-ember to-solar rounded-xl text-deep text-lg font-black uppercase tracking-wider hover:scale-[1.02] transition-all duration-300 shadow-[0_8px_32px_rgba(255,140,66,0.4)] disabled:opacity-50"
-                  :disabled="scheduleLoading"
-                >
-                  {{ scheduleLoading ? 'Scheduling...' : 'Schedule Call 📅' }}
-                </button>
-              </form>
+              </div>
             </div>
-          </div>
+
+            <!-- Duration -->
+            <div class="space-y-1.5">
+              <label class="block font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">Estimated Duration</label>
+              <div class="relative max-w-[200px]">
+                <input
+                  v-model.number="callForm.duration"
+                  type="number"
+                  min="1"
+                  max="60"
+                  class="w-full px-4 py-3 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#e8e6e3] text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
+                  required
+                />
+                <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[#666] text-xs">min</span>
+              </div>
+            </div>
+
+            <!-- Call Context Section (Layer 2) -->
+            <div class="space-y-4 pt-2 border-t border-[#2a2a2e]">
+              <div class="flex items-center gap-2 pt-3">
+                <div class="w-1 h-1 rounded-full bg-amber-500/50"></div>
+                <label class="font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">Call Context <span class="text-[#444]">(Optional)</span></label>
+              </div>
+
+              <!-- Quick Context Prefabs -->
+              <div class="flex flex-wrap gap-1.5">
+                <button
+                  v-for="prefab in allPrefabs"
+                  :key="prefab.id"
+                  type="button"
+                  class="px-2.5 py-1.5 bg-[#0d0d0f] border rounded text-[11px] font-medium transition-all duration-200 flex items-center gap-1.5"
+                  :class="callForm.selectedPrefab === prefab.id
+                    ? 'border-amber-500/50 text-amber-400 bg-amber-500/10'
+                    : 'border-[#2a2a2e] text-[#888] hover:border-[#3a3a3e] hover:text-[#aaa]'"
+                  @click="usePrefab(prefab)"
+                >
+                  <span class="text-xs">{{ prefab.icon }}</span>
+                  <span>{{ prefab.name }}</span>
+                  <button
+                    v-if="prefab.isCustom"
+                    type="button"
+                    @click.stop="deletePrefab(prefab.id)"
+                    class="ml-0.5 text-red-400/60 hover:text-red-400 text-[10px]"
+                    title="Delete"
+                  >×</button>
+                </button>
+              </div>
+
+              <!-- Call Pretext -->
+              <div class="space-y-1.5">
+                <label class="block text-[11px] text-[#555]">What should your persona know about this call?</label>
+                <textarea
+                  v-model="callForm.callPretext"
+                  class="w-full px-4 py-3 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#e8e6e3] placeholder-[#444] text-sm focus:outline-none focus:border-amber-500/50 transition-colors resize-none"
+                  placeholder="e.g., I just got back from a tough day at work..."
+                  rows="2"
+                />
+              </div>
+
+              <!-- Custom Instructions -->
+              <div class="space-y-1.5">
+                <label class="block text-[11px] text-[#555]">Any special instructions for the persona?</label>
+                <textarea
+                  v-model="callForm.customInstructions"
+                  class="w-full px-4 py-3 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#e8e6e3] placeholder-[#444] text-sm focus:outline-none focus:border-amber-500/50 transition-colors resize-none"
+                  placeholder="e.g., Keep it light and funny, avoid work topics..."
+                  rows="2"
+                />
+              </div>
+
+              <!-- Save as prefab option -->
+              <div v-if="callForm.callPretext && callForm.callPretext.length > 10" class="flex justify-end">
+                <button
+                  type="button"
+                  @click="saveNewPrefab"
+                  class="text-[10px] text-[#666] hover:text-amber-400 transition-colors font-['JetBrains_Mono',monospace] uppercase tracking-wider"
+                >
+                  + Save as preset
+                </button>
+              </div>
+            </div>
+
+            <!-- Error/Success Messages -->
+            <div v-if="formError" class="py-3 px-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+              <p class="text-sm text-red-400">{{ formError }}</p>
+            </div>
+
+            <div v-if="formSuccess" class="py-3 px-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+              <p class="text-sm text-emerald-400">{{ formSuccess }}</p>
+            </div>
+
+            <!-- Action Buttons Section -->
+            <div class="pt-3 space-y-4">
+              <!-- Call Now / or / Schedule Row -->
+              <div v-if="!showSchedule" class="flex items-center gap-4">
+                <!-- Call Now Button -->
+                <button
+                  type="button"
+                  @click="handleCallNow"
+                  class="flex-1 px-6 py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg text-[#0d0d0f] text-sm font-bold uppercase tracking-wider hover:from-amber-400 hover:to-orange-400 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_20px_rgba(245,158,11,0.3)]"
+                  :disabled="formLoading || !isFormValid"
+                >
+                  <span v-if="formLoading && !showSchedule">Calling...</span>
+                  <span v-else>Call Now</span>
+                </button>
+
+                <!-- Stylized "or" divider -->
+                <div class="flex items-center">
+                  <div class="w-px h-8 bg-[#2a2a2e]"></div>
+                  <span class="px-3 font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#444]">or</span>
+                  <div class="w-px h-8 bg-[#2a2a2e]"></div>
+                </div>
+
+                <!-- Schedule Button (toggle) -->
+                <button
+                  type="button"
+                  @click="showSchedule = true"
+                  class="flex-1 px-6 py-3.5 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#999] text-sm font-bold uppercase tracking-wider hover:border-amber-500/30 hover:text-amber-400 transition-all duration-300 disabled:opacity-50"
+                  :disabled="!isFormValid"
+                >
+                  Schedule
+                </button>
+              </div>
+
+              <!-- Schedule Section (Expanded) -->
+              <div v-if="showSchedule" class="space-y-4 animate-[fadeIn_0.2s_ease-out]">
+                <!-- Back button -->
+                <button
+                  type="button"
+                  @click="showSchedule = false"
+                  class="flex items-center gap-2 text-[#666] hover:text-[#999] transition-colors text-sm"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                  </svg>
+                  <span class="font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em]">Back to instant call</span>
+                </button>
+
+                <!-- Schedule Date/Time -->
+                <div class="p-4 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg space-y-4">
+                  <div class="flex items-center gap-2 mb-3">
+                    <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>
+                    <span class="font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">Schedule Call</span>
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1.5">
+                      <label class="block font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">Date</label>
+                      <input
+                        v-model="callForm.date"
+                        type="date"
+                        class="w-full px-4 py-3 bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg text-[#e8e6e3] text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
+                        :min="minDate"
+                      />
+                    </div>
+
+                    <div class="space-y-1.5">
+                      <label class="block font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">Time</label>
+                      <input
+                        v-model="callForm.time"
+                        type="time"
+                        class="w-full px-4 py-3 bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg text-[#e8e6e3] text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Submit Scheduled Call Button -->
+                <button
+                  type="button"
+                  @click="handleScheduleSubmit"
+                  class="w-full px-6 py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg text-[#0d0d0f] text-sm font-bold uppercase tracking-wider hover:from-amber-400 hover:to-orange-400 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_20px_rgba(245,158,11,0.3)]"
+                  :disabled="formLoading || !isFormValid || !callForm.date || !callForm.time"
+                >
+                  <span v-if="formLoading">Scheduling...</span>
+                  <span v-else>Submit Scheduled Call</span>
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
       </div>
 
       <!-- Scheduled Calls List -->
-      <div v-if="callsStore.scheduledCalls.length > 0" class="opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.3s]">
-        <h2 class="text-3xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
-          <span class="w-2 h-2 bg-solar rounded-full animate-pulse"></span>
-          Upcoming Scheduled Calls
-        </h2>
+      <div v-if="callsStore.scheduledCalls.length > 0" class="mb-10">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></div>
+          <h2 class="font-['JetBrains_Mono',monospace] text-xs tracking-[0.3em] uppercase text-[#666]">Upcoming Scheduled Calls</h2>
+        </div>
 
-        <div class="space-y-4">
+        <div class="space-y-3">
           <div
             v-for="call in callsStore.scheduledCalls"
             :key="call.id"
-            class="relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl overflow-hidden hover:border-solar/30 transition-all duration-300"
+            class="bg-[#1a1a1e] border border-[#2a2a2e] rounded-xl overflow-hidden hover:border-amber-500/20 transition-all duration-300"
           >
             <!-- Main Call Info Row -->
-            <div class="p-6 flex items-center justify-between">
+            <div class="p-4 flex items-center justify-between">
               <div class="flex-1">
-                <div class="flex items-center gap-3 mb-2">
-                  <h3 class="text-xl font-bold">{{ getPersonaName(call.persona_id) }}</h3>
-                  <span v-if="call.call_scenario" class="px-2 py-1 bg-ember/20 border border-ember/30 rounded-lg text-xs font-medium text-ember">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <h3 class="text-sm font-semibold text-[#e8e6e3]">{{ getPersonaName(call.persona_id, call.persona_name) }}</h3>
+                  <span v-if="call.call_scenario" class="px-2 py-0.5 bg-amber-500/10 border border-amber-500/30 rounded text-[10px] font-medium text-amber-400">
                     {{ formatScenario(call.call_scenario) }}
                   </span>
-                  <span v-if="call.max_duration_minutes" class="px-2 py-1 bg-white/10 border border-white/20 rounded-lg text-xs text-cream/60">
+                  <span v-if="call.max_duration_minutes" class="px-2 py-0.5 bg-[#0d0d0f] border border-[#2a2a2e] rounded text-[10px] text-[#666]">
                     {{ call.max_duration_minutes }} min
                   </span>
                 </div>
-                <p class="text-cream/60 mb-1">{{ formatScheduledTime(call.scheduled_time) }}</p>
-                <p class="text-sm text-cream/40">To: {{ call.phone_number }}</p>
+                <p
+                  class="text-[#999] text-xs mb-0.5 cursor-pointer hover:text-amber-400 transition-colors inline-flex items-center gap-1"
+                  @click="openEditModal(call)"
+                  title="Click to reschedule"
+                >
+                  {{ formatScheduledTime(call.scheduled_time) }}
+                  <svg class="w-3 h-3 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </p>
+                <p class="text-[10px] text-[#666]">To: {{ call.phone_number }}</p>
               </div>
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2">
                 <!-- Expand/Collapse Button -->
                 <button
                   v-if="call.call_pretext || call.custom_instructions"
                   @click="toggleCallDetails(call.id)"
-                  class="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-cream/60 hover:bg-white/10 hover:text-cream transition-all duration-300 flex items-center gap-2"
+                  class="px-3 py-1.5 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#666] hover:border-[#3a3a3e] hover:text-[#999] transition-all duration-300 flex items-center gap-1.5 text-xs"
                 >
-                  <span class="text-sm">{{ expandedCalls[call.id] ? 'Hide' : 'Details' }}</span>
-                  <span class="transition-transform duration-300" :class="{ 'rotate-180': expandedCalls[call.id] }">▼</span>
+                  <span>{{ expandedCalls[call.id] ? 'Hide' : 'Details' }}</span>
+                  <span class="transition-transform duration-300 text-[10px]" :class="{ 'rotate-180': expandedCalls[call.id] }">▼</span>
                 </button>
                 <button
                   @click="cancelCall(call.id)"
-                  class="px-6 py-3 bg-red-500/20 border-2 border-red-500/30 rounded-xl text-red-400 font-bold hover:bg-red-500/30 transition-all duration-300"
+                  class="px-4 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs font-medium hover:bg-red-500/20 transition-all duration-300"
                   :disabled="cancelLoading[call.id]"
                 >
                   {{ cancelLoading[call.id] ? 'Cancelling...' : 'Cancel' }}
@@ -353,21 +303,17 @@
             <!-- Expandable Details Section -->
             <div
               v-if="expandedCalls[call.id] && (call.call_pretext || call.custom_instructions)"
-              class="px-6 pb-6 pt-2 border-t border-white/10 bg-white/[0.02] space-y-4 animate-[fadeIn_0.2s_ease-out]"
+              class="px-4 pb-4 pt-2 border-t border-[#2a2a2e] bg-[#0d0d0f]/50 space-y-3 animate-[fadeIn_0.2s_ease-out]"
             >
-              <div v-if="call.call_pretext" class="space-y-2">
-                <label class="text-xs font-bold uppercase tracking-wider text-cream/50 flex items-center gap-2">
-                  <span>🎯</span> Call Context
-                </label>
-                <p class="text-sm text-cream/80 bg-white/5 rounded-xl p-4 border border-white/10">
+              <div v-if="call.call_pretext" class="space-y-1.5">
+                <label class="font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">Call Context</label>
+                <p class="text-xs text-[#999] bg-[#1a1a1e] rounded-lg p-3 border border-[#2a2a2e]">
                   {{ call.call_pretext }}
                 </p>
               </div>
-              <div v-if="call.custom_instructions" class="space-y-2">
-                <label class="text-xs font-bold uppercase tracking-wider text-cream/50 flex items-center gap-2">
-                  <span>📝</span> Custom Instructions
-                </label>
-                <p class="text-sm text-cream/80 bg-white/5 rounded-xl p-4 border border-white/10">
+              <div v-if="call.custom_instructions" class="space-y-1.5">
+                <label class="font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">Custom Instructions</label>
+                <p class="text-xs text-[#999] bg-[#1a1a1e] rounded-lg p-3 border border-[#2a2a2e]">
                   {{ call.custom_instructions }}
                 </p>
               </div>
@@ -377,44 +323,44 @@
       </div>
 
       <!-- Recent Completed Calls -->
-      <div v-if="callsStore.calls && callsStore.calls.length > 0" class="mt-12 opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.4s]">
-        <h2 class="text-3xl font-[--font-display] font-bold mb-6 flex items-center gap-3">
-          <span class="w-2 h-2 bg-glow rounded-full"></span>
-          Recent Calls
-        </h2>
+      <div v-if="callsStore.calls && callsStore.calls.length > 0">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+          <h2 class="font-['JetBrains_Mono',monospace] text-xs tracking-[0.3em] uppercase text-[#666]">Recent Calls</h2>
+        </div>
 
-        <div class="space-y-4">
+        <div class="space-y-3">
           <div
             v-for="call in callsStore.calls.slice(0, 5)"
             :key="call.id"
-            class="relative bg-gradient-to-br from-white/[0.05] to-white/[0.01] backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden hover:border-glow/20 transition-all duration-300"
+            class="bg-[#1a1a1e] border border-[#2a2a2e] rounded-xl overflow-hidden hover:border-[#3a3a3e] transition-all duration-300"
           >
             <!-- Main Call Info Row -->
-            <div class="p-5 flex items-center justify-between">
+            <div class="p-4 flex items-center justify-between">
               <div class="flex-1">
-                <div class="flex items-center gap-3 mb-2">
-                  <h3 class="text-lg font-bold">{{ getPersonaName(call.persona_id) }}</h3>
+                <div class="flex items-center gap-2 mb-1.5">
+                  <h3 class="text-sm font-semibold text-[#e8e6e3]">{{ getPersonaName(call.persona_id, call.persona_name) }}</h3>
                   <span
-                    class="px-2 py-1 rounded-lg text-xs font-medium"
+                    class="px-2 py-0.5 rounded text-[10px] font-medium"
                     :class="getStatusClass(call.status)"
                   >
                     {{ call.status }}
                   </span>
-                  <span v-if="call.duration_seconds" class="text-xs text-cream/50">
-                    {{ formatDuration(call.duration_seconds) }}
+                  <span v-if="call.duration || call.duration_seconds" class="text-[10px] text-[#666]">
+                    {{ formatDuration(call.duration || call.duration_seconds) }}
                   </span>
                 </div>
-                <p class="text-sm text-cream/50">{{ formatScheduledTime(call.created_at) }}</p>
+                <p class="text-xs text-[#666]">{{ formatScheduledTime(call.start_time || call.created_at) }}</p>
               </div>
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2">
                 <!-- Expand/Collapse Button -->
                 <button
                   v-if="call.call_pretext || call.custom_instructions"
                   @click="toggleCallDetails(call.id)"
-                  class="px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-cream/50 hover:bg-white/10 hover:text-cream transition-all duration-300 flex items-center gap-2 text-sm"
+                  class="px-3 py-1.5 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#666] hover:border-[#3a3a3e] hover:text-[#999] transition-all duration-300 flex items-center gap-1.5 text-xs"
                 >
                   <span>{{ expandedCalls[call.id] ? 'Hide' : 'Details' }}</span>
-                  <span class="transition-transform duration-300 text-xs" :class="{ 'rotate-180': expandedCalls[call.id] }">▼</span>
+                  <span class="transition-transform duration-300 text-[10px]" :class="{ 'rotate-180': expandedCalls[call.id] }">▼</span>
                 </button>
               </div>
             </div>
@@ -422,21 +368,17 @@
             <!-- Expandable Details Section -->
             <div
               v-if="expandedCalls[call.id] && (call.call_pretext || call.custom_instructions)"
-              class="px-5 pb-5 pt-2 border-t border-white/10 bg-white/[0.02] space-y-3 animate-[fadeIn_0.2s_ease-out]"
+              class="px-4 pb-4 pt-2 border-t border-[#2a2a2e] bg-[#0d0d0f]/50 space-y-3 animate-[fadeIn_0.2s_ease-out]"
             >
-              <div v-if="call.call_pretext" class="space-y-1">
-                <label class="text-xs font-bold uppercase tracking-wider text-cream/40 flex items-center gap-2">
-                  <span>🎯</span> Call Context
-                </label>
-                <p class="text-sm text-cream/70 bg-white/5 rounded-lg p-3 border border-white/10">
+              <div v-if="call.call_pretext" class="space-y-1.5">
+                <label class="font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">Call Context</label>
+                <p class="text-xs text-[#999] bg-[#1a1a1e] rounded-lg p-3 border border-[#2a2a2e]">
                   {{ call.call_pretext }}
                 </p>
               </div>
-              <div v-if="call.custom_instructions" class="space-y-1">
-                <label class="text-xs font-bold uppercase tracking-wider text-cream/40 flex items-center gap-2">
-                  <span>📝</span> Custom Instructions
-                </label>
-                <p class="text-sm text-cream/70 bg-white/5 rounded-lg p-3 border border-white/10">
+              <div v-if="call.custom_instructions" class="space-y-1.5">
+                <label class="font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">Custom Instructions</label>
+                <p class="text-xs text-[#999] bg-[#1a1a1e] rounded-lg p-3 border border-[#2a2a2e]">
                   {{ call.custom_instructions }}
                 </p>
               </div>
@@ -445,11 +387,84 @@
         </div>
       </div>
     </div>
+
+    <!-- Edit Scheduled Call Modal -->
+    <div
+      v-if="editingCall"
+      class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      @click.self="closeEditModal"
+    >
+      <div class="bg-[#1a1a1e] border border-[#2a2a2e] rounded-xl p-6 w-full max-w-md animate-[fadeIn_0.2s_ease-out]">
+        <div class="flex items-center justify-between mb-6">
+          <h3 class="text-lg font-semibold text-[#e8e6e3]">Reschedule Call</h3>
+          <button
+            @click="closeEditModal"
+            class="text-[#666] hover:text-[#999] transition-colors"
+          >
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <!-- Current time display -->
+          <div class="p-3 bg-[#0d0d0f] rounded-lg border border-[#2a2a2e]">
+            <p class="text-[10px] font-['JetBrains_Mono',monospace] uppercase tracking-[0.2em] text-[#666] mb-1">Currently Scheduled</p>
+            <p class="text-sm text-[#999]">{{ editingCall ? formatScheduledTime(editingCall.scheduled_time) : '' }}</p>
+          </div>
+
+          <!-- New date/time inputs -->
+          <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <label class="block font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">New Date</label>
+              <input
+                v-model="editForm.date"
+                type="date"
+                class="w-full px-4 py-3 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#e8e6e3] text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
+                :min="minDate"
+              />
+            </div>
+
+            <div class="space-y-1.5">
+              <label class="block font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">New Time</label>
+              <input
+                v-model="editForm.time"
+                type="time"
+                class="w-full px-4 py-3 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#e8e6e3] text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
+              />
+            </div>
+          </div>
+
+          <!-- Error display -->
+          <div v-if="editError" class="py-2 px-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+            <p class="text-sm text-red-400">{{ editError }}</p>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="flex gap-3 pt-2">
+            <button
+              @click="closeEditModal"
+              class="flex-1 px-4 py-3 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#999] text-sm font-medium hover:border-[#3a3a3e] hover:text-[#e8e6e3] transition-all duration-300"
+            >
+              Cancel
+            </button>
+            <button
+              @click="saveEditedTime"
+              class="flex-1 px-4 py-3 bg-gradient-to-r from-amber-500 to-orange-500 rounded-lg text-[#0d0d0f] text-sm font-bold hover:from-amber-400 hover:to-orange-400 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="editLoading || !editForm.date || !editForm.time"
+            >
+              {{ editLoading ? 'Saving...' : 'Save Changes' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useCallsStore } from '../stores/calls'
 import { usePersonasStore } from '../stores/personas'
 import { useUserStore } from '../stores/user'
@@ -458,109 +473,40 @@ const callsStore = useCallsStore()
 const personasStore = usePersonasStore()
 const userStore = useUserStore()
 
-// Quick call form
-const quickCall = ref({
+// Unified call form state
+const callForm = ref({
   phoneNumber: '',
   personaId: '',
-  estimatedDuration: 5,
-  cost: 2.25,
-  scenario: '',
-  selectedTemplate: null,
-  saveAsTemplate: false
-})
-
-const quickCallLoading = ref(false)
-const quickCallError = ref('')
-const quickCallSuccess = ref(false)
-
-// Scenario templates
-const scenarioTemplates = ref([
-  {
-    id: 'default-1',
-    name: 'Save Me From Bad Date',
-    icon: '🆘',
-    scenario_text: 'You\'re calling to save me from a potentially lame date. Act like there\'s an emergency or important situation that requires my immediate attention. Be convincing but not too serious - maybe talk about movies and your mother to give me an excuse to leave gracefully.'
-  },
-  {
-    id: 'default-2',
-    name: 'Boss Emergency',
-    icon: '💼',
-    scenario_text: 'You\'re my boss calling about an urgent work matter. There\'s a critical issue that needs my immediate attention. Be professional and direct, but understanding of the interruption.'
-  },
-  {
-    id: 'default-3',
-    name: 'Party Planning',
-    icon: '🎉',
-    scenario_text: 'We\'re planning a surprise party together and you\'re calling to coordinate last-minute details. Be excited and conspiratorial, making sure to act natural if someone might be listening nearby.'
-  }
-])
-
-// Scheduled call form
-const scheduledCall = ref({
-  phoneNumber: '',
-  personaId: '',
-  date: '',
-  time: '',
+  duration: 5,
   callPretext: '',
-  callScenario: '',
-  maxDurationMinutes: 5,
-  selectedPrefab: null
+  customInstructions: '',
+  selectedPrefab: null,
+  date: '',
+  time: ''
 })
 
-// Default prefabs for scheduled calls
-const defaultScheduledPrefabs = [
-  {
-    id: 'sched-1',
-    name: 'Motivation Boost',
-    icon: '💪',
-    text: 'Give me a motivational pep talk to start my day strong. Remind me of my goals and help me feel energized and focused.',
-    isCustom: false
-  },
-  {
-    id: 'sched-2',
-    name: 'Escape Call',
-    icon: '🆘',
-    text: 'Call to rescue me from a situation. Pretend there\'s an urgent matter that needs my attention. Be convincing but natural.',
-    isCustom: false
-  },
-  {
-    id: 'sched-3',
-    name: 'Check-In',
-    icon: '💬',
-    text: 'Just calling to check in and see how I\'m doing. Be a supportive friend and listen to what\'s on my mind.',
-    isCustom: false
-  },
-  {
-    id: 'sched-4',
-    name: 'Accountability',
-    icon: '📋',
-    text: 'Help me stay accountable to my goals. Ask about my progress and encourage me to stay on track. Be supportive but firm.',
-    isCustom: false
-  },
-  {
-    id: 'sched-5',
-    name: 'Interview Prep',
-    icon: '🎯',
-    text: 'Help me prepare for an upcoming interview. Ask me practice questions and give me feedback on my answers.',
-    isCustom: false
-  },
-  {
-    id: 'sched-6',
-    name: 'Wind Down',
-    icon: '🌙',
-    text: 'Help me wind down and relax. Have a calm, soothing conversation to help me de-stress after a long day.',
-    isCustom: false
-  }
+const showSchedule = ref(false)
+const formLoading = ref(false)
+const formError = ref('')
+const formSuccess = ref('')
+
+// Default prefabs (unified)
+const defaultPrefabs = [
+  { id: 'prefab-1', name: 'Motivation', icon: '💪', text: 'Give me a motivational pep talk to start my day strong. Remind me of my goals and help me feel energized and focused.', isCustom: false },
+  { id: 'prefab-2', name: 'Escape Call', icon: '🆘', text: 'Call to rescue me from a situation. Pretend there\'s an urgent matter that needs my attention. Be convincing but natural.', isCustom: false },
+  { id: 'prefab-3', name: 'Check-In', icon: '💬', text: 'Just calling to check in and see how I\'m doing. Be a supportive friend and listen to what\'s on my mind.', isCustom: false },
+  { id: 'prefab-4', name: 'Accountability', icon: '📋', text: 'Help me stay accountable to my goals. Ask about my progress and encourage me to stay on track. Be supportive but firm.', isCustom: false },
+  { id: 'prefab-5', name: 'Interview Prep', icon: '🎯', text: 'Help me prepare for an upcoming interview. Ask me practice questions and give me feedback on my answers.', isCustom: false },
+  { id: 'prefab-6', name: 'Wind Down', icon: '🌙', text: 'Help me wind down and relax. Have a calm, soothing conversation to help me de-stress after a long day.', isCustom: false }
 ]
 
-// Load custom prefabs from localStorage
+// Custom prefabs from localStorage
 const customPrefabs = ref([])
+
 const loadCustomPrefabs = () => {
   try {
-    const saved = localStorage.getItem('cmb_scheduled_prefabs')
-    if (saved) {
-      customPrefabs.value = JSON.parse(saved)
-    }
+    const saved = localStorage.getItem('cmb_call_prefabs')
+    if (saved) customPrefabs.value = JSON.parse(saved)
   } catch (e) {
     console.warn('Failed to load custom prefabs:', e)
   }
@@ -568,186 +514,159 @@ const loadCustomPrefabs = () => {
 
 const saveCustomPrefabs = () => {
   try {
-    localStorage.setItem('cmb_scheduled_prefabs', JSON.stringify(customPrefabs.value))
+    localStorage.setItem('cmb_call_prefabs', JSON.stringify(customPrefabs.value))
   } catch (e) {
     console.warn('Failed to save custom prefabs:', e)
   }
 }
 
-// Combined prefabs (defaults + custom)
-const scheduledPrefabs = computed(() => [
-  ...defaultScheduledPrefabs,
-  ...customPrefabs.value
-])
+// All prefabs combined
+const allPrefabs = computed(() => [...defaultPrefabs, ...customPrefabs.value])
 
-const useScheduledPrefab = (prefab) => {
-  scheduledCall.value.callPretext = prefab.text
-  scheduledCall.value.selectedPrefab = prefab.id
+const usePrefab = (prefab) => {
+  callForm.value.callPretext = prefab.text
+  callForm.value.selectedPrefab = prefab.id
 }
 
-const savePrefab = () => {
+const saveNewPrefab = () => {
   const name = prompt('Enter a name for this quick context:')
   if (!name || !name.trim()) return
-
   const icon = prompt('Choose an emoji icon (or press Enter for default):', '⭐') || '⭐'
-
   const newPrefab = {
     id: 'custom-' + Date.now(),
     name: name.trim(),
-    icon: icon,
-    text: scheduledCall.value.callPretext,
+    icon,
+    text: callForm.value.callPretext,
     isCustom: true
   }
-
   customPrefabs.value.push(newPrefab)
   saveCustomPrefabs()
-  scheduledCall.value.selectedPrefab = newPrefab.id
+  callForm.value.selectedPrefab = newPrefab.id
 }
 
 const deletePrefab = (prefabId) => {
   if (!confirm('Delete this quick context?')) return
   customPrefabs.value = customPrefabs.value.filter(p => p.id !== prefabId)
   saveCustomPrefabs()
-  if (scheduledCall.value.selectedPrefab === prefabId) {
-    scheduledCall.value.selectedPrefab = null
+  if (callForm.value.selectedPrefab === prefabId) {
+    callForm.value.selectedPrefab = null
   }
 }
 
-const scheduleLoading = ref(false)
-const scheduleError = ref('')
-const scheduleSuccess = ref(false)
-
-const cancelLoading = ref({})
-const expandedCalls = ref({})
-
-// Calculate cost based on estimated duration and scenario
-watch(() => quickCall.value.estimatedDuration, (duration) => {
-  const baseCost = 0.25 + (duration * 0.40)
-  const scenarioTokens = quickCall.value.scenario ? estimateTokens(quickCall.value.scenario) : 0
-  const scenarioCost = (scenarioTokens / 1000000) * 0.10 * (duration * 4)
-  quickCall.value.cost = baseCost + scenarioCost
+// Form validation
+const isFormValid = computed(() => {
+  return callForm.value.phoneNumber && callForm.value.personaId && callForm.value.duration > 0
 })
-
-watch(() => quickCall.value.scenario, () => {
-  const duration = quickCall.value.estimatedDuration
-  const baseCost = 0.25 + (duration * 0.40)
-  const scenarioTokens = quickCall.value.scenario ? estimateTokens(quickCall.value.scenario) : 0
-  const scenarioCost = (scenarioTokens / 1000000) * 0.10 * (duration * 4)
-  quickCall.value.cost = baseCost + scenarioCost
-})
-
-const estimateTokens = (text) => {
-  if (!text) return 0
-  return Math.ceil(text.length / 4)
-}
-
-const useTemplate = (template) => {
-  quickCall.value.scenario = template.scenario_text
-  quickCall.value.selectedTemplate = template.id
-}
 
 const minDate = computed(() => {
   const today = new Date()
   return today.toISOString().split('T')[0]
 })
 
-const handleQuickCall = async () => {
-  quickCallLoading.value = true
-  quickCallError.value = ''
-  quickCallSuccess.value = false
+// Handle Call Now
+const handleCallNow = async () => {
+  formLoading.value = true
+  formError.value = ''
+  formSuccess.value = ''
 
   try {
-    if (quickCall.value.saveAsTemplate && quickCall.value.scenario) {
-      const templateName = prompt('Enter a name for this scenario template:')
-      if (templateName) {
-        console.log('Would save template:', templateName, quickCall.value.scenario)
-      }
-    }
-
-    const paymentIntent = await userStore.createPaymentIntent(quickCall.value.estimatedDuration)
+    const paymentIntent = await userStore.createPaymentIntent(callForm.value.duration)
 
     await callsStore.triggerCall(
-      quickCall.value.phoneNumber,
-      quickCall.value.personaId,
+      callForm.value.phoneNumber,
+      callForm.value.personaId,
       paymentIntent.payment_intent_id,
-      quickCall.value.scenario || null
+      callForm.value.callPretext || null
     )
 
-    quickCallSuccess.value = true
-
-    setTimeout(() => {
-      quickCall.value = {
-        phoneNumber: '',
-        personaId: '',
-        estimatedDuration: 5,
-        cost: 2.25,
-        scenario: '',
-        selectedTemplate: null,
-        saveAsTemplate: false
-      }
-      quickCallSuccess.value = false
-    }, 3000)
+    formSuccess.value = 'Call initiated! You should receive a call shortly.'
+    resetForm()
   } catch (err) {
-    quickCallError.value = err.message || 'Failed to initiate call'
+    formError.value = err.message || 'Failed to initiate call'
   } finally {
-    quickCallLoading.value = false
+    formLoading.value = false
   }
 }
 
-const handleScheduleCall = async () => {
-  scheduleLoading.value = true
-  scheduleError.value = ''
-  scheduleSuccess.value = false
+// Handle Schedule Submit (from expanded schedule section)
+const handleScheduleSubmit = async () => {
+  // Validate date/time
+  if (!callForm.value.date || !callForm.value.time) {
+    formError.value = 'Please select a date and time'
+    return
+  }
+
+  formLoading.value = true
+  formError.value = ''
+  formSuccess.value = ''
 
   try {
-    const scheduledTime = new Date(`${scheduledCall.value.date}T${scheduledCall.value.time}`)
+    const scheduledTime = new Date(`${callForm.value.date}T${callForm.value.time}`)
 
     if (scheduledTime <= new Date()) {
-      scheduleError.value = 'Scheduled time must be in the future'
-      scheduleLoading.value = false
+      formError.value = 'Scheduled time must be in the future'
+      formLoading.value = false
       return
     }
 
-    // Validate minimum 1 minute in the future (cron runs every minute)
     const minTime = new Date(Date.now() + 1 * 60 * 1000)
     if (scheduledTime < minTime) {
-      scheduleError.value = 'Must schedule at least 1 minute in advance'
-      scheduleLoading.value = false
+      formError.value = 'Must schedule at least 1 minute in advance'
+      formLoading.value = false
       return
     }
 
     await callsStore.scheduleCall(
-      scheduledCall.value.phoneNumber,
-      scheduledCall.value.personaId,
+      callForm.value.phoneNumber,
+      callForm.value.personaId,
       scheduledTime.toISOString(),
       {
-        callPretext: scheduledCall.value.callPretext || undefined,
-        callScenario: scheduledCall.value.callScenario || undefined,
-        maxDurationMinutes: scheduledCall.value.maxDurationMinutes || 5
+        callPretext: callForm.value.callPretext || undefined,
+        customInstructions: callForm.value.customInstructions || undefined,
+        maxDurationMinutes: callForm.value.duration || 5
       }
     )
 
-    scheduleSuccess.value = true
-
-    setTimeout(() => {
-      scheduledCall.value = {
-        phoneNumber: '',
-        personaId: '',
-        date: '',
-        time: '',
-        callPretext: '',
-        callScenario: '',
-        maxDurationMinutes: 5,
-        selectedPrefab: null
-      }
-      scheduleSuccess.value = false
-    }, 3000)
+    formSuccess.value = 'Call scheduled successfully!'
+    resetForm()
   } catch (err) {
-    scheduleError.value = err.message || 'Failed to schedule call'
+    formError.value = err.message || 'Failed to schedule call'
   } finally {
-    scheduleLoading.value = false
+    formLoading.value = false
   }
 }
+
+const resetForm = () => {
+  setTimeout(() => {
+    callForm.value = {
+      phoneNumber: '',
+      personaId: '',
+      duration: 5,
+      callPretext: '',
+      customInstructions: '',
+      selectedPrefab: null,
+      date: '',
+      time: ''
+    }
+    showSchedule.value = false
+    formSuccess.value = ''
+  }, 3000)
+}
+
+// Legacy compatibility for existing handlers
+const handleSubmit = () => {} // Form uses button handlers instead
+
+const cancelLoading = ref({})
+const expandedCalls = ref({})
+
+// Edit scheduled call state
+const editingCall = ref(null)
+const editForm = ref({
+  date: '',
+  time: ''
+})
+const editLoading = ref(false)
+const editError = ref('')
 
 const cancelCall = async (callId) => {
   if (!confirm('Are you sure you want to cancel this scheduled call?')) return
@@ -763,7 +682,70 @@ const cancelCall = async (callId) => {
   }
 }
 
-const getPersonaName = (personaId) => {
+// Open edit modal for a scheduled call
+const openEditModal = (call) => {
+  editingCall.value = call
+  editError.value = ''
+  // Parse existing scheduled_time into date and time parts
+  const scheduledDate = new Date(call.scheduled_time)
+  editForm.value.date = scheduledDate.toISOString().split('T')[0]
+  // Format time as HH:MM
+  const hours = scheduledDate.getHours().toString().padStart(2, '0')
+  const minutes = scheduledDate.getMinutes().toString().padStart(2, '0')
+  editForm.value.time = `${hours}:${minutes}`
+}
+
+// Close edit modal
+const closeEditModal = () => {
+  editingCall.value = null
+  editForm.value = { date: '', time: '' }
+  editError.value = ''
+}
+
+// Save edited scheduled time
+const saveEditedTime = async () => {
+  if (!editForm.value.date || !editForm.value.time) {
+    editError.value = 'Please select both date and time'
+    return
+  }
+
+  const newScheduledTime = new Date(`${editForm.value.date}T${editForm.value.time}`)
+
+  if (newScheduledTime <= new Date()) {
+    editError.value = 'Scheduled time must be in the future'
+    return
+  }
+
+  const minTime = new Date(Date.now() + 1 * 60 * 1000)
+  if (newScheduledTime < minTime) {
+    editError.value = 'Must schedule at least 1 minute in advance'
+    return
+  }
+
+  editLoading.value = true
+  editError.value = ''
+
+  try {
+    await callsStore.updateScheduledCall(editingCall.value.id, newScheduledTime.toISOString())
+    closeEditModal()
+  } catch (err) {
+    editError.value = err.message || 'Failed to update scheduled time'
+  } finally {
+    editLoading.value = false
+  }
+}
+
+const getPersonaName = (personaId, personaName = null) => {
+  // Use persona_name if provided (from API response)
+  if (personaName) {
+    return personaName
+  }
+  // Fallback to lookup in contacts
+  const contact = personasStore.userContacts.find(c => c.persona_id === personaId || c.id === personaId)
+  if (contact) {
+    return contact.persona_name || contact.name
+  }
+  // Fallback to personas store
   const persona = personasStore.personas.find(p => p.id === personaId)
   return persona ? persona.name : 'Unknown'
 }
@@ -804,19 +786,36 @@ const formatDuration = (seconds) => {
 
 const getStatusClass = (status) => {
   const classes = {
-    'completed': 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400',
-    'in-progress': 'bg-glow/20 border border-glow/30 text-glow',
-    'failed': 'bg-red-500/20 border border-red-500/30 text-red-400',
-    'cancelled': 'bg-white/10 border border-white/20 text-cream/50'
+    'completed': 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400',
+    'in-progress': 'bg-amber-500/10 border border-amber-500/30 text-amber-400',
+    'ringing': 'bg-blue-500/10 border border-blue-500/30 text-blue-400',
+    'failed': 'bg-red-500/10 border border-red-500/30 text-red-400',
+    'no-answer': 'bg-orange-500/10 border border-orange-500/30 text-orange-400',
+    'busy': 'bg-orange-500/10 border border-orange-500/30 text-orange-400',
+    'cancelled': 'bg-[#0d0d0f] border border-[#2a2a2e] text-[#666]',
+    'initiating': 'bg-blue-500/10 border border-blue-500/30 text-blue-400'
   }
-  return classes[status] || 'bg-white/10 border border-white/20 text-cream/60'
+  return classes[status] || 'bg-[#0d0d0f] border border-[#2a2a2e] text-[#666]'
 }
+
+// Track if component is still mounted to prevent state updates after unmount
+let isMounted = true
 
 onMounted(async () => {
   loadCustomPrefabs()
-  await personasStore.fetchContacts()
-  await callsStore.fetchScheduledCalls()
-  await callsStore.fetchCalls()
+  try {
+    await personasStore.fetchContacts()
+    if (!isMounted) return
+    await callsStore.fetchScheduledCalls()
+    if (!isMounted) return
+    await callsStore.fetchCalls()
+  } catch (error) {
+    console.error('Error loading schedule data:', error)
+  }
+})
+
+onUnmounted(() => {
+  isMounted = false
 })
 </script>
 

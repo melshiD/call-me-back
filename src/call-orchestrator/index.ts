@@ -106,11 +106,17 @@ export default class extends Service<Env> {
       const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Calls.json`;
       const auth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
 
+      // Status callback URL to receive call status updates (no-answer, busy, failed, completed)
+      const statusCallbackUrl = `${baseUrl}/api/voice/status?callId=${callId}`;
+
       const formBody = new URLSearchParams({
         To: input.phoneNumber,
         From: twilioPhoneNumber,
         Url: answerUrl,
-        Method: 'POST'
+        Method: 'POST',
+        StatusCallback: statusCallbackUrl,
+        StatusCallbackMethod: 'POST',
+        StatusCallbackEvent: 'initiated ringing answered completed'
       });
 
       const response = await fetch(twilioUrl, {

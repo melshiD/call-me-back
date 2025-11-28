@@ -39,10 +39,93 @@ export default class extends Task<Env> {
       for (const scheduledCall of dueCalls.rows) {
         await this.executeScheduledCall(scheduledCall);
       }
+
+      // Also clean up stale calls (runs every minute alongside scheduled call check)
+      await this.cleanupStaleCalls();
     } catch (error) {
       this.env.logger.error('Scheduled call executor error', {
         error: error instanceof Error ? error.message : String(error)
       });
+    }
+  }
+
+  /**
+   * Cleanup stale calls that have been stuck in 'in-progress' or 'ringing' for too long.
+   * This handles cases where:
+   * - WebSocket disconnected without proper cleanup
+   * - Twilio status callback was never received
+   * - Voice pipeline crashed before completing
+   *
+   * Marks calls as 'failed' with an appropriate error message.
+   */
+  private async cleanupStaleCalls(): Promise<void> {
+    try {
+      // Calls stuck in 'in-progress' for more than 30 minutes are considered stale
+      // (Max call duration is typically 60 minutes, but 30 min with no update suggests a problem)
+      const staleInProgressResult = await this.env.DATABASE_PROXY.executeQuery(
+        `UPDATE calls
+         SET status = 'failed',
+             error_message = 'Call timed out - no completion callback received',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE status = 'in-progress'
+         AND updated_at < CURRENT_TIMESTAMP - INTERVAL '30 minutes'
+         RETURNING id`,
+        []
+      );
+
+      const staleInProgressCount = staleInProgressResult.rows?.length || 0;
+      if (staleInProgressCount > 0) {
+        this.env.logger.info('Cleaned up stale in-progress calls', {
+          count: staleInProgressCount,
+          callIds: staleInProgressResult.rows?.map((r: any) => r.id)
+        });
+      }
+
+      // Calls stuck in 'ringing' for more than 5 minutes are considered stale
+      // (If nobody answered after 5 min, something went wrong with the no-answer callback)
+      const staleRingingResult = await this.env.DATABASE_PROXY.executeQuery(
+        `UPDATE calls
+         SET status = 'no-answer',
+             error_message = 'Call timed out while ringing - no status callback received',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE status = 'ringing'
+         AND updated_at < CURRENT_TIMESTAMP - INTERVAL '5 minutes'
+         RETURNING id`,
+        []
+      );
+
+      const staleRingingCount = staleRingingResult.rows?.length || 0;
+      if (staleRingingCount > 0) {
+        this.env.logger.info('Cleaned up stale ringing calls', {
+          count: staleRingingCount,
+          callIds: staleRingingResult.rows?.map((r: any) => r.id)
+        });
+      }
+
+      // Also cleanup 'initiating' calls stuck for more than 2 minutes
+      const staleInitiatingResult = await this.env.DATABASE_PROXY.executeQuery(
+        `UPDATE calls
+         SET status = 'failed',
+             error_message = 'Call failed to initiate - Twilio may have rejected',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE status = 'initiating'
+         AND updated_at < CURRENT_TIMESTAMP - INTERVAL '2 minutes'
+         RETURNING id`,
+        []
+      );
+
+      const staleInitiatingCount = staleInitiatingResult.rows?.length || 0;
+      if (staleInitiatingCount > 0) {
+        this.env.logger.info('Cleaned up stale initiating calls', {
+          count: staleInitiatingCount,
+          callIds: staleInitiatingResult.rows?.map((r: any) => r.id)
+        });
+      }
+    } catch (error) {
+      this.env.logger.error('Error cleaning up stale calls', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      // Don't throw - this is a housekeeping task, shouldn't break scheduled call execution
     }
   }
 

@@ -193,7 +193,7 @@
               <div class="text-sm text-cream/60 uppercase tracking-wider font-bold">Total Minutes</div>
             </div>
             <div class="bg-gradient-to-br from-glow/20 to-ember/20 border-2 border-glow/40 rounded-2xl p-6 text-center">
-              <div class="text-4xl font-[--font-display] font-black mb-2">${{ userStore.usageStats.total_spent.toFixed(2) }}</div>
+              <div class="text-4xl font-[--font-display] font-black mb-2">${{ parseFloat(userStore.usageStats.total_spent || 0).toFixed(2) }}</div>
               <div class="text-sm uppercase tracking-wider font-bold">Total Spent</div>
             </div>
           </div>
@@ -211,7 +211,7 @@
                 <div class="text-sm text-cream/60">minutes</div>
               </div>
               <div>
-                <div class="text-3xl font-black mb-1">${{ userStore.usageStats.current_month.spent.toFixed(2) }}</div>
+                <div class="text-3xl font-black mb-1">${{ parseFloat(userStore.usageStats.current_month?.spent || 0).toFixed(2) }}</div>
                 <div class="text-sm text-cream/60">spent</div>
               </div>
             </div>
@@ -235,7 +235,7 @@
                 <div class="font-semibold">{{ month.month }}</div>
                 <div class="text-center">{{ month.calls }}</div>
                 <div class="text-center">{{ month.minutes }}</div>
-                <div class="text-right font-semibold text-glow">${{ month.spent.toFixed(2) }}</div>
+                <div class="text-right font-semibold text-glow">${{ parseFloat(month.spent || 0).toFixed(2) }}</div>
               </div>
             </div>
           </div>
@@ -270,7 +270,7 @@
               <div class="font-semibold">{{ call.persona_name }}</div>
               <div class="text-sm">{{ formatDateTime(call.start_time) }}</div>
               <div class="text-center">{{ formatDuration(call.duration) }}</div>
-              <div class="text-center font-semibold text-glow">${{ call.cost.toFixed(2) }}</div>
+              <div class="text-center font-semibold text-glow">${{ parseFloat(call.cost || 0).toFixed(2) }}</div>
               <div class="text-center">
                 <span
                   class="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase"

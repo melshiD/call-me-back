@@ -62,13 +62,13 @@
             <div class="text-sm text-cream/60 uppercase tracking-wider font-bold">Total Minutes</div>
           </div>
           <div class="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-6">
-            <div class="text-4xl font-[--font-display] font-black mb-2 text-solar">${{ userStore.usageStats.total_spent.toFixed(2) }}</div>
+            <div class="text-4xl font-[--font-display] font-black mb-2 text-solar">${{ parseFloat(userStore.usageStats.total_spent || 0).toFixed(2) }}</div>
             <div class="text-sm text-cream/60 uppercase tracking-wider font-bold">Total Spent</div>
           </div>
           <div class="bg-gradient-to-r from-glow/20 to-ember/20 backdrop-blur-xl border-2 border-glow/40 rounded-2xl p-6">
             <div class="text-4xl font-[--font-display] font-black mb-2">{{ userStore.usageStats.current_month.calls }}</div>
             <div class="text-sm uppercase tracking-wider font-bold mb-1">This Month</div>
-            <div class="text-xs text-cream/70">${{ userStore.usageStats.current_month.spent.toFixed(2) }}</div>
+            <div class="text-xs text-cream/70">${{ parseFloat(userStore.usageStats.current_month?.spent || 0).toFixed(2) }}</div>
           </div>
         </div>
       </div>
@@ -93,12 +93,14 @@
                   :class="{
                     'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30': call.status === 'completed',
                     'bg-red-500/20 text-red-400 border border-red-500/30': call.status === 'failed',
-                    'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30': call.status === 'in-progress'
+                    'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30': call.status === 'in-progress',
+                    'bg-orange-500/20 text-orange-400 border border-orange-500/30': call.status === 'no-answer' || call.status === 'busy',
+                    'bg-blue-500/20 text-blue-400 border border-blue-500/30': call.status === 'ringing' || call.status === 'initiating'
                   }">
                   {{ call.status }}
                 </span>
               </div>
-              <div class="text-2xl font-black text-glow">${{ call.cost.toFixed(2) }}</div>
+              <div class="text-2xl font-black text-glow">${{ parseFloat(call.cost || 0).toFixed(2) }}</div>
             </div>
 
             <div v-if="call.call_scenario" class="bg-white/5 border-l-4 border-glow p-4 rounded-lg mb-4">
@@ -109,7 +111,7 @@
             </div>
 
             <div class="grid grid-cols-3 gap-4 text-sm text-cream/60">
-              <div><strong class="text-cream">Duration:</strong> {{ Math.floor(call.duration / 60) }}m {{ call.duration % 60 }}s</div>
+              <div><strong class="text-cream">Duration:</strong> {{ Math.floor((call.duration || 0) / 60) }}m {{ (call.duration || 0) % 60 }}s</div>
               <div><strong class="text-cream">Started:</strong> {{ formatDate(call.start_time) }}</div>
               <div v-if="call.sid" class="truncate"><strong class="text-cream">ID:</strong> {{ call.sid }}</div>
             </div>
@@ -131,7 +133,7 @@
         <div class="space-y-4">
           <div v-for="call in callsStore.scheduledCalls" :key="call.id" class="bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-2xl p-6 flex items-center justify-between hover:border-solar/30 transition-all duration-300">
             <div>
-              <h3 class="text-xl font-bold mb-2">{{ getPersonaName(call.persona_id) }}</h3>
+              <h3 class="text-xl font-bold mb-2">{{ getPersonaName(call.persona_id, call.persona_name) }}</h3>
               <p class="text-cream/60">{{ formatScheduledTime(call.scheduled_time) }}</p>
             </div>
             <router-link to="/schedule" class="px-6 py-3 bg-gradient-to-r from-solar to-ember rounded-xl text-deep font-bold hover:scale-105 transition-transform duration-300">
@@ -145,7 +147,7 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { useCallsStore } from '../stores/calls'
 import { useUserStore } from '../stores/user'
 import { usePersonasStore } from '../stores/personas'
@@ -180,16 +182,32 @@ const formatScheduledTime = (isoString) => {
   })
 }
 
-const getPersonaName = (personaId) => {
+const getPersonaName = (personaId, personaName = null) => {
+  // Use persona_name if provided (from API response)
+  if (personaName) return personaName
   const persona = personasStore.personas.find(p => p.id === personaId)
   return persona ? persona.name : 'Unknown'
 }
 
+// Track if component is still mounted to prevent state updates after unmount
+let isMounted = true
+
 onMounted(async () => {
-  await callsStore.fetchCalls()
-  await callsStore.fetchScheduledCalls()
-  await userStore.fetchUsageStats()
-  await personasStore.fetchPersonas()
+  try {
+    await callsStore.fetchCalls()
+    if (!isMounted) return
+    await callsStore.fetchScheduledCalls()
+    if (!isMounted) return
+    await userStore.fetchUsageStats()
+    if (!isMounted) return
+    await personasStore.fetchPersonas()
+  } catch (error) {
+    console.error('Error loading dashboard data:', error)
+  }
+})
+
+onUnmounted(() => {
+  isMounted = false
 })
 </script>
 

@@ -45,6 +45,11 @@ export default class extends Service<Env> {
         return await this.handleAdminRoutes(request, path);
       }
 
+      // User routes (usage stats, billing, etc.)
+      if (path.startsWith('/api/user')) {
+        return await this.handleUserRoutes(request, path);
+      }
+
       // SmartMemory routes (for PersonaDesigner context persistence)
       // Also handles /api/userdata for KV storage
       if (path.startsWith('/api/memory') || path.startsWith('/api/userdata')) {
@@ -110,6 +115,11 @@ export default class extends Service<Env> {
     // POST /api/voice/answer - Return TwiML for incoming calls
     if (request.method === 'POST' && path === '/api/voice/answer') {
       return await this.handleVoiceAnswer(request);
+    }
+
+    // POST /api/voice/status - Handle Twilio call status callbacks
+    if (request.method === 'POST' && path === '/api/voice/status') {
+      return await this.handleVoiceStatus(request, url);
     }
 
     // WebSocket /api/voice/stream - Handle Twilio Media Streams
@@ -205,6 +215,99 @@ export default class extends Service<Env> {
           'Content-Type': 'text/xml'
         }
       });
+    }
+  }
+
+  /**
+   * Handle Twilio call status callbacks
+   * Twilio sends status updates: initiated, ringing, answered, completed (with CallStatus)
+   * CallStatus can be: queued, ringing, in-progress, completed, busy, failed, no-answer, canceled
+   */
+  private async handleVoiceStatus(request: Request, url: URL): Promise<Response> {
+    try {
+      // Get callId from query params
+      const callId = url.searchParams.get('callId');
+      if (!callId) {
+        this.env.logger.warn('Voice status callback missing callId');
+        return new Response('OK', { status: 200 }); // Still return 200 to Twilio
+      }
+
+      // Parse Twilio form data
+      const formData = await request.formData();
+      const callStatus = formData.get('CallStatus') as string;
+      const callSid = formData.get('CallSid') as string;
+      const callDuration = formData.get('CallDuration') as string;
+
+      this.env.logger.info('Voice status callback', { callId, callSid, callStatus, callDuration });
+
+      // Map Twilio status to our status
+      let ourStatus: string;
+      switch (callStatus) {
+        case 'queued':
+        case 'ringing':
+          ourStatus = 'ringing';
+          break;
+        case 'in-progress':
+          ourStatus = 'in-progress';
+          break;
+        case 'completed':
+          // Only update to completed if voice pipeline hasn't already done it
+          // Voice pipeline sets completed with duration/cost, we don't want to overwrite
+          ourStatus = 'completed';
+          break;
+        case 'busy':
+          ourStatus = 'busy';
+          break;
+        case 'failed':
+          ourStatus = 'failed';
+          break;
+        case 'no-answer':
+          ourStatus = 'no-answer';
+          break;
+        case 'canceled':
+          ourStatus = 'cancelled';
+          break;
+        default:
+          ourStatus = callStatus || 'unknown';
+      }
+
+      // For terminal states (busy, failed, no-answer, canceled), always update
+      // For completed, only update if there's no duration_seconds set (voice pipeline handles that)
+      if (['busy', 'failed', 'no-answer', 'cancelled'].includes(ourStatus)) {
+        await this.env.DATABASE_PROXY.executeQuery(
+          `UPDATE calls
+           SET status = $1,
+               error_message = $2,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $3`,
+          [ourStatus, `Call ended with status: ${callStatus}`, callId]
+        );
+        this.env.logger.info('Updated call status to terminal state', { callId, status: ourStatus });
+      } else if (ourStatus === 'completed') {
+        // Only update to completed if voice pipeline hasn't set duration
+        await this.env.DATABASE_PROXY.executeQuery(
+          `UPDATE calls
+           SET status = $1,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $2 AND duration_seconds IS NULL`,
+          [ourStatus, callId]
+        );
+      } else if (ourStatus === 'ringing') {
+        // Update to ringing status
+        await this.env.DATABASE_PROXY.executeQuery(
+          `UPDATE calls SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+          [ourStatus, callId]
+        );
+      }
+
+      // Return 200 OK to Twilio (required)
+      return new Response('OK', { status: 200 });
+    } catch (error) {
+      this.env.logger.error('Voice status callback error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      // Still return 200 to Twilio to prevent retries
+      return new Response('OK', { status: 200 });
     }
   }
 
@@ -621,11 +724,27 @@ export default class extends Service<Env> {
    * Handle contact routes (user's favorited personas)
    */
   private async handleContactRoutes(request: Request, path: string): Promise<Response> {
+    // CORS headers
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': request.headers.get('Origin') || 'https://call-me-back.vercel.app',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
+    };
+
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
     try {
       // Get user ID from auth token
       const userId = await this.getUserIdFromAuth(request);
       if (!userId) {
-        return new Response('Unauthorized', { status: 401 });
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
       }
 
       // GET /api/contacts - Get user's contacts
@@ -633,7 +752,7 @@ export default class extends Service<Env> {
         this.env.logger.info('Fetching contacts for user', { userId });
         const contacts = await this.env.PERSONA_MANAGER.getContacts(userId!);
         return new Response(JSON.stringify(contacts), {
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
@@ -643,7 +762,7 @@ export default class extends Service<Env> {
         if (!body.personaId) {
           return new Response(JSON.stringify({ error: 'personaId is required' }), {
             status: 400,
-            headers: { 'Content-Type': 'application/json' }
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
           });
         }
 
@@ -654,7 +773,7 @@ export default class extends Service<Env> {
         });
         return new Response(JSON.stringify(contact), {
           status: 201,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
@@ -665,11 +784,11 @@ export default class extends Service<Env> {
         this.env.logger.info('Removing contact', { userId, personaId });
         await this.env.PERSONA_MANAGER.removeContact({ userId: userId!, personaId });
         return new Response(JSON.stringify({ message: 'Contact removed' }), {
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
-      return new Response('Not Found', { status: 404 });
+      return new Response('Not Found', { status: 404, headers: corsHeaders });
     } catch (error) {
       this.env.logger.error('Contact route error', {
         error: error instanceof Error ? error.message : String(error)
@@ -678,7 +797,7 @@ export default class extends Service<Env> {
         error: error instanceof Error ? error.message : 'Internal server error'
       }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
   }
@@ -776,38 +895,60 @@ export default class extends Service<Env> {
    * Handle call trigger routes
    */
   private async handleCallRoutes(request: Request, path: string): Promise<Response> {
+    // CORS headers
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': request.headers.get('Origin') || 'https://call-me-back.vercel.app',
+      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
+    };
+
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    // GET /api/calls/history - Get user's call history
+    if (request.method === 'GET' && path === '/api/calls/history') {
+      return await this.handleGetCallHistory(request, corsHeaders);
+    }
+
     // POST /api/calls/trigger - Initiate an outbound call
     if (request.method === 'POST' && path === '/api/calls/trigger') {
-      return await this.handleCallTrigger(request);
+      return await this.handleCallTrigger(request, corsHeaders);
     }
 
     // POST /api/calls/schedule - Schedule a future call
     if (request.method === 'POST' && path === '/api/calls/schedule') {
-      return await this.handleScheduleCall(request);
+      return await this.handleScheduleCall(request, corsHeaders);
     }
 
     // GET /api/calls/scheduled - List user's scheduled calls
     if (request.method === 'GET' && path === '/api/calls/scheduled') {
-      return await this.handleListScheduledCalls(request);
+      return await this.handleListScheduledCalls(request, corsHeaders);
     }
 
     // DELETE /api/calls/schedule/:id - Cancel a scheduled call
     if (request.method === 'DELETE' && path.startsWith('/api/calls/schedule/')) {
-      return await this.handleCancelScheduledCall(request, path);
+      return await this.handleCancelScheduledCall(request, path, corsHeaders);
     }
 
-    return new Response('Not Found', { status: 404 });
+    // PATCH /api/calls/schedule/:id - Update a scheduled call's time
+    if (request.method === 'PATCH' && path.startsWith('/api/calls/schedule/')) {
+      return await this.handleUpdateScheduledCall(request, path, corsHeaders);
+    }
+
+    return new Response('Not Found', { status: 404, headers: corsHeaders });
   }
 
   /**
    * Handle call trigger - initiate outbound call via Twilio
    */
-  private async handleCallTrigger(request: Request): Promise<Response> {
+  private async handleCallTrigger(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
     try {
       const body = await request.json() as {
         phoneNumber: string;
         personaId?: string;
-        userId?: string;
         paymentIntentId?: string; // For one-time Stripe payments
         useCredits?: boolean; // To use account credits instead
         callPretext?: string; // Optional scenario/context for this specific call
@@ -816,12 +957,19 @@ export default class extends Service<Env> {
       if (!body.phoneNumber) {
         return new Response(JSON.stringify({ error: 'Phone number is required' }), {
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
-      // For now, use demo user - TODO: implement proper auth
-      const userId = body.userId || 'demo_user';
+      // Get userId from JWT auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
       const personaId = body.personaId || 'brad_001';
 
       // Determine payment method
@@ -842,18 +990,10 @@ export default class extends Service<Env> {
         // TODO: Check user credits balance
         // For now, assume they have credits
         paymentStatus = 'credit_used';
-      } else if (userId === 'demo_user') {
-        // Demo mode - free calls for testing
+      } else {
+        // Demo mode - free calls for hackathon
         paymentMethod = 'demo';
         paymentStatus = 'paid';
-      } else {
-        // No payment method provided
-        return new Response(JSON.stringify({ 
-          error: 'Payment method required. Please provide paymentIntentId or set useCredits to true' 
-        }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' }
-        });
       }
 
       this.env.logger.info('Triggering call', {
@@ -890,7 +1030,7 @@ export default class extends Service<Env> {
         message: 'Call initiated successfully. You should receive a call shortly.'
       }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     } catch (error) {
       this.env.logger.error('Call trigger error', {
@@ -902,7 +1042,7 @@ export default class extends Service<Env> {
         error: error instanceof Error ? error.message : 'Failed to initiate call'
       }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
   }
@@ -1260,12 +1400,11 @@ export default class extends Service<Env> {
   /**
    * Handle schedule call - schedule a future call
    */
-  private async handleScheduleCall(request: Request): Promise<Response> {
+  private async handleScheduleCall(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
     try {
       const body = await request.json() as {
         phoneNumber: string;
         personaId: string;
-        userId?: string;
         scheduledTime: string;
         callPretext?: string;
         callScenario?: string;
@@ -1278,14 +1417,23 @@ export default class extends Service<Env> {
       if (!body.phoneNumber) {
         return new Response(JSON.stringify({ error: 'Phone number is required' }), {
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
       if (!body.scheduledTime) {
         return new Response(JSON.stringify({ error: 'Scheduled time is required' }), {
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Get userId from JWT auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
@@ -1301,7 +1449,7 @@ export default class extends Service<Env> {
           message: 'Must schedule at least 1 minute in advance'
         }), {
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
@@ -1311,12 +1459,10 @@ export default class extends Service<Env> {
           message: 'Cannot schedule more than 30 days in advance'
         }), {
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
-      // For now, use demo user - TODO: implement proper auth
-      const userId = body.userId || 'demo_user';
       const personaId = body.personaId || 'brad_001';
 
       this.env.logger.info('Scheduling call', {
@@ -1345,7 +1491,7 @@ export default class extends Service<Env> {
         message: `Call scheduled for ${scheduledTime.toISOString()}`
       }), {
         status: 201,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     } catch (error) {
       this.env.logger.error('Schedule call error', {
@@ -1357,7 +1503,7 @@ export default class extends Service<Env> {
         error: error instanceof Error ? error.message : 'Failed to schedule call'
       }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
   }
@@ -1365,11 +1511,16 @@ export default class extends Service<Env> {
   /**
    * Handle list scheduled calls - get user's pending scheduled calls
    */
-  private async handleListScheduledCalls(request: Request): Promise<Response> {
+  private async handleListScheduledCalls(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
     try {
-      // For now, use demo user - TODO: implement proper auth
-      const url = new URL(request.url);
-      const userId = url.searchParams.get('userId') || 'demo_user';
+      // Get userId from JWT auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
 
       const result = await this.env.DATABASE_PROXY.executeQuery(
         `SELECT sc.*, p.name as persona_name
@@ -1385,7 +1536,7 @@ export default class extends Service<Env> {
         scheduled_calls: result.rows || []
       }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     } catch (error) {
       this.env.logger.error('List scheduled calls error', {
@@ -1397,7 +1548,7 @@ export default class extends Service<Env> {
         error: error instanceof Error ? error.message : 'Failed to list scheduled calls'
       }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
   }
@@ -1405,20 +1556,25 @@ export default class extends Service<Env> {
   /**
    * Handle cancel scheduled call - cancel a pending scheduled call
    */
-  private async handleCancelScheduledCall(request: Request, path: string): Promise<Response> {
+  private async handleCancelScheduledCall(request: Request, path: string, corsHeaders: Record<string, string>): Promise<Response> {
     try {
       const callId = path.split('/').pop();
 
       if (!callId) {
         return new Response(JSON.stringify({ error: 'Call ID is required' }), {
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
-      // For now, use demo user - TODO: implement proper auth
-      const url = new URL(request.url);
-      const userId = url.searchParams.get('userId') || 'demo_user';
+      // Get userId from JWT auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
 
       // Verify ownership and get scheduled call
       const existing = await this.env.DATABASE_PROXY.executeQuery(
@@ -1432,7 +1588,7 @@ export default class extends Service<Env> {
           message: 'Scheduled call not found'
         }), {
           status: 404,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
@@ -1445,7 +1601,7 @@ export default class extends Service<Env> {
           message: `Cannot cancel call with status: ${scheduledCall.status}`
         }), {
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
@@ -1459,7 +1615,7 @@ export default class extends Service<Env> {
           message: 'Cannot cancel within 1 minute of scheduled time'
         }), {
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }
 
@@ -1476,7 +1632,7 @@ export default class extends Service<Env> {
         message: 'Scheduled call cancelled successfully'
       }), {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     } catch (error) {
       this.env.logger.error('Cancel scheduled call error', {
@@ -1488,7 +1644,353 @@ export default class extends Service<Env> {
         error: error instanceof Error ? error.message : 'Failed to cancel scheduled call'
       }), {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+  }
+
+  /**
+   * Handle update scheduled call - reschedule a pending call to a new time
+   * PATCH /api/calls/schedule/:id
+   */
+  private async handleUpdateScheduledCall(request: Request, path: string, corsHeaders: Record<string, string>): Promise<Response> {
+    try {
+      const callId = path.split('/').pop();
+
+      if (!callId) {
+        return new Response(JSON.stringify({ error: 'Call ID required' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Get userId from JWT auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Parse request body
+      const body = await request.json() as { scheduledTime: string };
+
+      if (!body.scheduledTime) {
+        return new Response(JSON.stringify({
+          error: 'VALIDATION_ERROR',
+          message: 'scheduledTime is required'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Validate new scheduled time
+      const newScheduledTime = new Date(body.scheduledTime);
+      if (isNaN(newScheduledTime.getTime())) {
+        return new Response(JSON.stringify({
+          error: 'VALIDATION_ERROR',
+          message: 'Invalid datetime format. Use ISO 8601'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const now = new Date();
+      const minTime = new Date(now.getTime() + 1 * 60 * 1000); // 1 min minimum
+      const maxTime = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days max
+
+      if (newScheduledTime < minTime) {
+        return new Response(JSON.stringify({
+          error: 'VALIDATION_ERROR',
+          message: 'Must schedule at least 1 minute in advance'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      if (newScheduledTime > maxTime) {
+        return new Response(JSON.stringify({
+          error: 'VALIDATION_ERROR',
+          message: 'Cannot schedule more than 30 days in advance'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Verify ownership and get scheduled call
+      const existing = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT * FROM scheduled_calls WHERE id = $1 AND user_id = $2`,
+        [callId, userId]
+      );
+
+      if (!existing.rows || existing.rows.length === 0) {
+        return new Response(JSON.stringify({
+          error: 'NOT_FOUND',
+          message: 'Scheduled call not found'
+        }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const scheduledCall = existing.rows[0];
+
+      // Check if call is still in 'scheduled' status
+      if (scheduledCall.status !== 'scheduled') {
+        return new Response(JSON.stringify({
+          error: 'INVALID_STATUS',
+          message: `Cannot update call with status: ${scheduledCall.status}`
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Update the scheduled time
+      const updateResult = await this.env.DATABASE_PROXY.executeQuery(
+        `UPDATE scheduled_calls
+         SET scheduled_time = $1, updated_at = NOW()
+         WHERE id = $2
+         RETURNING *`,
+        [newScheduledTime.toISOString(), callId]
+      );
+
+      const updatedCall = updateResult.rows?.[0];
+
+      this.env.logger.info('Scheduled call updated', {
+        callId,
+        userId,
+        oldTime: scheduledCall.scheduled_time,
+        newTime: newScheduledTime.toISOString()
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        scheduled_call: updatedCall,
+        message: `Call rescheduled to ${newScheduledTime.toISOString()}`
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    } catch (error) {
+      this.env.logger.error('Update scheduled call error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to update scheduled call'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+  }
+
+  /**
+   * Get user's call history with pagination
+   * GET /api/calls/history?page=1&limit=20
+   */
+  private async handleGetCallHistory(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
+    try {
+      // Get userId from JWT auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const url = new URL(request.url);
+      const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
+      const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '20')));
+      const offset = (page - 1) * limit;
+
+      // Get total count
+      const countResult = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT COUNT(*) as total FROM calls WHERE user_id = $1`,
+        [userId]
+      );
+      const total = parseInt(countResult.rows?.[0]?.total || '0');
+
+      // Get paginated calls with persona name
+      const result = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT 
+          c.id,
+          c.user_id,
+          c.persona_id,
+          p.name as persona_name,
+          c.status,
+          c.start_time,
+          c.end_time,
+          c.duration_seconds as duration,
+          c.cost_usd as cost,
+          c.twilio_call_sid as sid,
+          c.error_message
+        FROM calls c
+        LEFT JOIN personas p ON c.persona_id = p.id
+        WHERE c.user_id = $1
+        ORDER BY c.start_time DESC
+        LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
+      );
+
+      return new Response(JSON.stringify({
+        success: true,
+        calls: result.rows || [],
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit)
+        }
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    } catch (error) {
+      this.env.logger.error('Get call history error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch call history'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+  }
+
+
+  /**
+   * Handle user routes (usage stats, billing, etc.)
+   */
+  private async handleUserRoutes(request: Request, path: string): Promise<Response> {
+    // CORS headers
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': request.headers.get('Origin') || 'https://call-me-back.vercel.app',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Max-Age': '86400',
+    };
+
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    // GET /api/user/usage - Get usage statistics
+    if (request.method === 'GET' && path === '/api/user/usage') {
+      return await this.handleGetUsageStats(request, corsHeaders);
+    }
+
+    return new Response('Not Found', { status: 404, headers: corsHeaders });
+  }
+
+  /**
+   * Get user's usage statistics
+   * GET /api/user/usage?months=3
+   */
+  private async handleGetUsageStats(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
+    try {
+      // Get userId from JWT auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const url = new URL(request.url);
+      const months = Math.min(12, Math.max(1, parseInt(url.searchParams.get('months') || '3')));
+
+      // Get overall totals
+      const totalsResult = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT 
+          COUNT(*) as total_calls,
+          COALESCE(SUM(duration_seconds), 0) as total_seconds,
+          COALESCE(SUM(cost_usd), 0) as total_spent
+        FROM calls 
+        WHERE user_id = $1 AND status = 'completed'`,
+        [userId]
+      );
+      const totals = totalsResult.rows?.[0] || { total_calls: 0, total_seconds: 0, total_spent: 0 };
+
+      // Get current month stats
+      const now = new Date();
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      
+      const currentMonthResult = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT 
+          COUNT(*) as calls,
+          COALESCE(SUM(duration_seconds), 0) as seconds,
+          COALESCE(SUM(cost_usd), 0) as spent
+        FROM calls 
+        WHERE user_id = $1 AND status = 'completed' AND start_time >= $2`,
+        [userId, firstOfMonth]
+      );
+      const currentMonth = currentMonthResult.rows?.[0] || { calls: 0, seconds: 0, spent: 0 };
+
+      // Get monthly breakdown
+      const monthsAgo = new Date(now.getFullYear(), now.getMonth() - months + 1, 1).toISOString();
+      
+      const breakdownResult = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT 
+          TO_CHAR(start_time, 'Mon YYYY') as month,
+          COUNT(*) as calls,
+          COALESCE(SUM(duration_seconds), 0) as seconds,
+          COALESCE(SUM(cost_usd), 0) as spent
+        FROM calls 
+        WHERE user_id = $1 AND status = 'completed' AND start_time >= $2
+        GROUP BY TO_CHAR(start_time, 'Mon YYYY'), DATE_TRUNC('month', start_time)
+        ORDER BY DATE_TRUNC('month', start_time) DESC`,
+        [userId, monthsAgo]
+      );
+
+      const monthlyBreakdown = (breakdownResult.rows || []).map((row: any) => ({
+        month: row.month,
+        calls: parseInt(row.calls),
+        minutes: Math.round(parseInt(row.seconds) / 60),
+        spent: parseFloat(row.spent)
+      }));
+
+      return new Response(JSON.stringify({
+        success: true,
+        usage: {
+          total_calls: parseInt(totals.total_calls),
+          total_minutes: Math.round(parseInt(totals.total_seconds) / 60),
+          total_spent: parseFloat(totals.total_spent),
+          current_month: {
+            calls: parseInt(currentMonth.calls),
+            minutes: Math.round(parseInt(currentMonth.seconds) / 60),
+            spent: parseFloat(currentMonth.spent)
+          },
+          monthly_breakdown: monthlyBreakdown
+        }
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    } catch (error) {
+      this.env.logger.error('Get usage stats error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch usage statistics'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
   }

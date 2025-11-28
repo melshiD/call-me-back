@@ -87,6 +87,12 @@ const routes = [
     name: 'PersonaDesigner',
     component: () => import('../views/PersonaDesigner.vue'),
     meta: { requiresAdminAuth: true }
+  },
+  {
+    path: '/admin/schedule',
+    name: 'AdminSchedule',
+    component: () => import('../views/AdminSchedule.vue'),
+    meta: { requiresAdminAuth: true }
   }
 ]
 
