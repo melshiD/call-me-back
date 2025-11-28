@@ -45,15 +45,15 @@ export default class extends Service<Env> {
         return await this.handleAdminRoutes(request, path);
       }
 
+      // KV userdata routes - must be checked BEFORE /api/user to avoid prefix collision
+      // Also handles SmartMemory routes for PersonaDesigner context persistence
+      if (path.startsWith('/api/userdata') || path.startsWith('/api/memory')) {
+        return await this.handleMemoryRoutes(request, path);
+      }
+
       // User routes (usage stats, billing, etc.)
       if (path.startsWith('/api/user')) {
         return await this.handleUserRoutes(request, path);
-      }
-
-      // SmartMemory routes (for PersonaDesigner context persistence)
-      // Also handles /api/userdata for KV storage
-      if (path.startsWith('/api/memory') || path.startsWith('/api/userdata')) {
-        return await this.handleMemoryRoutes(request, path);
       }
 
       // Cerebras models endpoint - proxy to Cerebras API to list available models
