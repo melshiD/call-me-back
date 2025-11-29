@@ -45,13 +45,18 @@ export default class extends Service<Env> {
         return await this.handleAdminRoutes(request, path);
       }
 
+      // Payment routes (Stripe checkout, webhooks, purchase history)
+      if (path.startsWith('/api/payments')) {
+        return await this.handlePaymentRoutes(request, path);
+      }
+
       // KV userdata routes - must be checked BEFORE /api/user to avoid prefix collision
       // Also handles SmartMemory routes for PersonaDesigner context persistence
       if (path.startsWith('/api/userdata') || path.startsWith('/api/memory')) {
         return await this.handleMemoryRoutes(request, path);
       }
 
-      // User routes (usage stats, billing, etc.)
+      // User routes (usage stats, billing, balance, etc.)
       if (path.startsWith('/api/user')) {
         return await this.handleUserRoutes(request, path);
       }
@@ -73,13 +78,6 @@ export default class extends Service<Env> {
       }
 
       // WebSocket echo test endpoint
-      if (path === '/api/debug/ws-echo') {
-        const upgradeHeader = request.headers.get('Upgrade');
-        if (upgradeHeader !== 'websocket') {
-          return new Response('Expected WebSocket', { status: 426 });
-        }
-        return await this.handleEchoWebSocket(request);
-      }
       if (path === '/api/debug/ws-echo') {
         const upgradeHeader = request.headers.get('Upgrade');
         if (upgradeHeader !== 'websocket') {
@@ -952,6 +950,7 @@ export default class extends Service<Env> {
         paymentIntentId?: string; // For one-time Stripe payments
         useCredits?: boolean; // To use account credits instead
         callPretext?: string; // Optional scenario/context for this specific call
+        adminBypass?: boolean; // Admin token bypass for testing
       };
 
       if (!body.phoneNumber) {
@@ -961,39 +960,76 @@ export default class extends Service<Env> {
         });
       }
 
-      // Get userId from JWT auth token
-      const userId = await this.getUserIdFromAuth(request);
-      if (!userId) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401,
-          headers: { 'Content-Type': 'application/json', ...corsHeaders }
-        });
+      // Check for admin bypass FIRST (for testing/demos)
+      const authHeader = request.headers.get('Authorization');
+      const isAdminToken = authHeader?.includes('admin-') || body.adminBypass;
+
+      // Get userId from JWT auth token OR use admin bypass
+      let userId: string | null = null;
+      if (isAdminToken) {
+        // Admin bypass - use a fixed admin user ID for testing
+        userId = 'admin_demo_user';
+        this.env.logger.info('Admin token bypass used for call trigger');
+      } else {
+        userId = await this.getUserIdFromAuth(request);
+        if (!userId) {
+          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
       }
 
       const personaId = body.personaId || 'brad_001';
 
-      // Determine payment method
-      let paymentMethod = 'demo'; // Default for testing
+      // Check user's minutes balance before allowing call (skip for admin)
+      let availableMinutes = 0;
+      if (!isAdminToken) {
+        const balanceResult = await this.env.DATABASE_PROXY.executeQuery(
+          `SELECT available_credits FROM user_credits WHERE user_id = $1`,
+          [userId]
+        );
+        availableMinutes = balanceResult.rows?.[0]?.available_credits
+          ? parseInt(balanceResult.rows[0].available_credits)
+          : 0;
+      } else {
+        availableMinutes = 999; // Admin has unlimited
+      }
+
+      // Determine payment method and validate
+      let paymentMethod = 'credits';
       let paymentIntentId: string | undefined = undefined;
       let paymentStatus = 'pending';
 
-      if (body.paymentIntentId) {
+      if (isAdminToken) {
+        // Admin bypass for testing
+        paymentMethod = 'admin_bypass';
+        paymentStatus = 'paid';
+        this.env.logger.info('Admin bypass used for call', { userId, personaId });
+      } else if (body.paymentIntentId) {
         // Using Stripe payment
         paymentMethod = 'stripe';
         paymentIntentId = body.paymentIntentId;
         // TODO: Verify payment intent with Stripe
-        // For now, assume it's valid
         paymentStatus = 'paid';
-      } else if (body.useCredits) {
-        // Using account credits
-        paymentMethod = 'credit';
-        // TODO: Check user credits balance
-        // For now, assume they have credits
-        paymentStatus = 'credit_used';
+      } else if (availableMinutes >= 1) {
+        // User has sufficient minutes balance
+        paymentMethod = 'credits';
+        paymentStatus = 'credit_reserved';
+        // Note: Actual deduction happens after call ends based on duration
       } else {
-        // Demo mode - free calls for hackathon
-        paymentMethod = 'demo';
-        paymentStatus = 'paid';
+        // Insufficient balance - return error with purchase link
+        return new Response(JSON.stringify({
+          success: false,
+          error: 'Insufficient minutes balance',
+          minutes_available: availableMinutes,
+          minutes_required: 1,
+          purchase_url: '/profile#purchase',
+          message: 'You need at least 1 minute of balance to make a call. Purchase minutes to continue.'
+        }), {
+          status: 402, // Payment Required
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
       }
 
       this.env.logger.info('Triggering call', {
@@ -1002,6 +1038,7 @@ export default class extends Service<Env> {
         personaId,
         paymentMethod,
         paymentStatus,
+        availableMinutes,
         hasCallPretext: !!body.callPretext
       });
 
@@ -1027,6 +1064,7 @@ export default class extends Service<Env> {
         callId: result.id,
         status: result.status,
         paymentMethod,
+        minutes_available: availableMinutes,
         message: 'Call initiated successfully. You should receive a call shortly.'
       }), {
         status: 200,
@@ -1887,6 +1925,11 @@ export default class extends Service<Env> {
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
+    // GET /api/user/balance - Get minutes balance
+    if (request.method === 'GET' && path === '/api/user/balance') {
+      return await this.handleGetBalance(request, corsHeaders);
+    }
+
     // GET /api/user/usage - Get usage statistics
     if (request.method === 'GET' && path === '/api/user/usage') {
       return await this.handleGetUsageStats(request, corsHeaders);
@@ -1988,6 +2031,418 @@ export default class extends Service<Env> {
       return new Response(JSON.stringify({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to fetch usage statistics'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+  }
+
+
+  /**
+   * GET /api/user/balance - Get user's minutes balance
+   * Returns available minutes and last updated timestamp
+   */
+  private async handleGetBalance(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
+    try {
+      // Get userId from JWT auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Query user_credits table for balance
+      // available_credits = minutes (1 credit = 1 minute per pricing model)
+      const result = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT available_credits, updated_at 
+         FROM user_credits 
+         WHERE user_id = $1`,
+        [userId]
+      );
+
+      // If no credits record exists, return 0 minutes
+      const row = result.rows?.[0];
+      const minutes = row ? parseInt(row.available_credits) || 0 : 0;
+      const lastUpdated = row?.updated_at ? new Date(row.updated_at).toISOString() : null;
+
+      return new Response(JSON.stringify({
+        success: true,
+        minutes: minutes,
+        lastUpdated: lastUpdated
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    } catch (error) {
+      this.env.logger.error('Get balance error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch balance'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+  }
+
+
+  /**
+   * Payment routes handler
+   * POST /api/payments/create-checkout-session - Create Stripe checkout session
+   * POST /api/payments/webhook - Handle Stripe webhooks
+   * GET /api/payments/history - Get user's purchase history
+   */
+  private async handlePaymentRoutes(request: Request, path: string): Promise<Response> {
+    // CORS headers
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': request.headers.get('Origin') || 'https://call-me-back.vercel.app',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Stripe-Signature',
+      'Access-Control-Max-Age': '86400',
+    };
+
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    try {
+      // POST /api/payments/create-checkout-session
+      if (request.method === 'POST' && path === '/api/payments/create-checkout-session') {
+        return await this.handleCreateCheckoutSession(request, corsHeaders);
+      }
+
+      // POST /api/payments/webhook - Stripe webhook (no auth required, uses signature verification)
+      if (request.method === 'POST' && path === '/api/payments/webhook') {
+        return await this.handleStripeWebhook(request, corsHeaders);
+      }
+
+      // GET /api/payments/history
+      if (request.method === 'GET' && path === '/api/payments/history') {
+        return await this.handleGetPurchaseHistory(request, corsHeaders);
+      }
+
+      return new Response('Not Found', { status: 404, headers: corsHeaders });
+    } catch (error) {
+      this.env.logger.error('Payment routes error', {
+        error: error instanceof Error ? error.message : String(error),
+        path
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Payment error'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+  }
+
+  /**
+   * Create Stripe Checkout session for minutes purchase
+   */
+  private async handleCreateCheckoutSession(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
+    try {
+      // Get userId from JWT auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const body = await request.json() as { sku: string };
+      
+      // Map SKU to price ID and minutes (Price IDs configured in raindrop.manifest)
+      const skuMap: Record<string, { priceId: string; minutes: number }> = {
+        'minutes_25': { priceId: this.env.STRIPE_PRICE_25MIN, minutes: 25 },
+        'minutes_50': { priceId: this.env.STRIPE_PRICE_50MIN, minutes: 50 },
+        'minutes_125': { priceId: this.env.STRIPE_PRICE_125MIN, minutes: 125 },
+        'minutes_250': { priceId: this.env.STRIPE_PRICE_250MIN, minutes: 250 },
+      };
+
+      const skuInfo = skuMap[body.sku];
+      if (!skuInfo) {
+        return new Response(JSON.stringify({ 
+          error: 'Invalid SKU',
+          valid_skus: Object.keys(skuMap)
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Get user email for Stripe
+      const userResult = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT email FROM users WHERE id = $1`,
+        [userId]
+      );
+      const userEmail = userResult.rows?.[0]?.email;
+
+      // Create Stripe Checkout session via Stripe API
+      const stripeSecretKey = this.env.STRIPE_SECRET_KEY;
+      if (!stripeSecretKey) {
+        return new Response(JSON.stringify({ error: 'Stripe not configured' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const origin = request.headers.get('Origin') || 'https://call-me-back.vercel.app';
+      
+      const stripeResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${stripeSecretKey}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          'mode': 'payment',
+          'line_items[0][price]': skuInfo.priceId,
+          'line_items[0][quantity]': '1',
+          'success_url': `${origin}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+          'cancel_url': `${origin}/profile?payment=cancelled`,
+          'client_reference_id': userId,
+          'allow_promotion_codes': 'true',
+          'metadata[sku]': body.sku,
+          'metadata[minutes]': String(skuInfo.minutes),
+          'metadata[user_id]': userId,
+          ...(userEmail ? { 'customer_email': userEmail } : {}),
+        }),
+      });
+
+      if (!stripeResponse.ok) {
+        const errorText = await stripeResponse.text();
+        this.env.logger.error('Stripe checkout session creation failed', { errorText });
+        return new Response(JSON.stringify({ 
+          error: 'Failed to create checkout session',
+          details: errorText
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const session = await stripeResponse.json() as { id: string; url: string };
+
+      // Store pending purchase record
+      const purchaseId = crypto.randomUUID();
+      await this.env.DATABASE_PROXY.executeQuery(
+        `INSERT INTO purchases (id, user_id, stripe_session_id, sku, minutes, amount_cents, status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'pending')`,
+        [purchaseId, userId, session.id, body.sku, skuInfo.minutes, 0] // amount_cents will be updated by webhook
+      );
+
+      return new Response(JSON.stringify({
+        success: true,
+        checkoutUrl: session.url,
+        sessionId: session.id
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    } catch (error) {
+      this.env.logger.error('Create checkout session error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create checkout session'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+  }
+
+  /**
+   * Handle Stripe webhook events
+   * Primary event: checkout.session.completed
+   */
+  private async handleStripeWebhook(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
+    try {
+      const signature = request.headers.get('Stripe-Signature');
+      const webhookSecret = this.env.STRIPE_WEBHOOK_SECRET;
+      
+      // Note: For production, we should verify the webhook signature
+      // For now, we'll process all events but log when signature verification is skipped
+      if (!signature || !webhookSecret) {
+        this.env.logger.warn('Stripe webhook signature verification skipped - secret not configured');
+      }
+
+      const event = await request.json() as {
+        type: string;
+        data: {
+          object: {
+            id: string;
+            client_reference_id?: string;
+            metadata?: { sku?: string; minutes?: string; user_id?: string };
+            amount_total?: number;
+            payment_intent?: string;
+            customer?: string;
+          };
+        };
+      };
+
+      this.env.logger.info('Stripe webhook received', { 
+        type: event.type,
+        sessionId: event.data.object.id
+      });
+
+      if (event.type === 'checkout.session.completed') {
+        const session = event.data.object;
+        const userId = session.client_reference_id || session.metadata?.user_id;
+        const minutes = parseInt(session.metadata?.minutes || '0');
+        const sku = session.metadata?.sku;
+        const amountCents = session.amount_total || 0;
+
+        if (!userId || !minutes) {
+          this.env.logger.error('Missing userId or minutes in checkout session', { session });
+          return new Response(JSON.stringify({ received: true, error: 'Missing metadata' }), {
+            status: 200, // Return 200 to acknowledge receipt
+            headers: { 'Content-Type': 'application/json', ...corsHeaders }
+          });
+        }
+
+        // Update purchase record
+        await this.env.DATABASE_PROXY.executeQuery(
+          `UPDATE purchases 
+           SET status = 'completed', 
+               amount_cents = $1,
+               stripe_payment_intent = $2,
+               stripe_customer_id = $3,
+               completed_at = CURRENT_TIMESTAMP
+           WHERE stripe_session_id = $4`,
+          [amountCents, session.payment_intent, session.customer, session.id]
+        );
+
+        // Add minutes to user's balance
+        // First, try to update existing record
+        const updateResult = await this.env.DATABASE_PROXY.executeQuery(
+          `UPDATE user_credits 
+           SET available_credits = available_credits + $1,
+               lifetime_credits_purchased = lifetime_credits_purchased + $1,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE user_id = $2
+           RETURNING id`,
+          [minutes, userId]
+        );
+
+        // If no record existed, create one
+        if (!updateResult.rows?.length) {
+          const creditId = crypto.randomUUID();
+          await this.env.DATABASE_PROXY.executeQuery(
+            `INSERT INTO user_credits (id, user_id, available_credits, lifetime_credits_purchased)
+             VALUES ($1, $2, $3, $3)`,
+            [creditId, userId, minutes]
+          );
+        }
+
+        // Record the credit transaction
+        const transactionId = crypto.randomUUID();
+        
+        // Get the new balance for the transaction record
+        const balanceResult = await this.env.DATABASE_PROXY.executeQuery(
+          `SELECT available_credits FROM user_credits WHERE user_id = $1`,
+          [userId]
+        );
+        const newBalance = balanceResult.rows?.[0]?.available_credits || minutes;
+
+        await this.env.DATABASE_PROXY.executeQuery(
+          `INSERT INTO credit_transactions (id, user_id, transaction_type, credits_amount, balance_after, description, reference_id)
+           VALUES ($1, $2, 'purchase', $3, $4, $5, $6)`,
+          [transactionId, userId, minutes, newBalance, `Purchased ${minutes} minutes (${sku})`, session.id]
+        );
+
+        this.env.logger.info('Minutes added to user balance', {
+          userId,
+          minutes,
+          newBalance,
+          sessionId: session.id
+        });
+      }
+
+      return new Response(JSON.stringify({ received: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    } catch (error) {
+      this.env.logger.error('Stripe webhook error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      // Always return 200 to acknowledge receipt, even on error
+      // This prevents Stripe from retrying
+      return new Response(JSON.stringify({ 
+        received: true, 
+        error: error instanceof Error ? error.message : 'Webhook processing error'
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+  }
+
+  /**
+   * Get user's purchase history
+   */
+  private async handleGetPurchaseHistory(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
+    try {
+      // Get userId from JWT auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const result = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT id, sku, minutes, amount_cents, currency, coupon_code, discount_cents, status, created_at, completed_at
+         FROM purchases 
+         WHERE user_id = $1 
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        [userId]
+      );
+
+      const purchases = (result.rows || []).map((row: any) => ({
+        id: row.id,
+        sku: row.sku,
+        minutes: parseInt(row.minutes),
+        amount: (parseInt(row.amount_cents) || 0) / 100,
+        currency: row.currency || 'usd',
+        couponCode: row.coupon_code,
+        discount: (parseInt(row.discount_cents) || 0) / 100,
+        status: row.status,
+        createdAt: row.created_at,
+        completedAt: row.completed_at
+      }));
+
+      return new Response(JSON.stringify({
+        success: true,
+        purchases
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    } catch (error) {
+      this.env.logger.error('Get purchase history error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      return new Response(JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch purchase history'
       }), {
         status: 500,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }

@@ -116,7 +116,7 @@ export default class extends Service<Env> {
         Method: 'POST',
         StatusCallback: statusCallbackUrl,
         StatusCallbackMethod: 'POST',
-        StatusCallbackEvent: 'initiated ringing answered completed'
+        StatusCallbackEvent: 'initiated ringing answered completed no-answer busy failed canceled'
       });
 
       const response = await fetch(twilioUrl, {
