@@ -16,6 +16,77 @@
         <p class="text-lg text-cream/70">Manage your account and view activity</p>
       </div>
 
+      <!-- Minutes Balance Hero Card -->
+      <div class="mb-10 opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.05s]">
+        <div class="relative overflow-hidden bg-gradient-to-br from-glow/20 via-ember/15 to-solar/20 backdrop-blur-xl border-2 border-glow/40 rounded-[32px] p-8">
+          <div class="flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div class="flex items-center gap-6">
+              <!-- Icon with status indicator -->
+              <div class="relative">
+                <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-glow to-ember flex items-center justify-center shadow-[0_0_40px_rgba(255,170,51,0.4)]">
+                  <svg class="w-10 h-10 text-deep" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div v-if="minutesBalance > 0" class="absolute -top-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-deep animate-[pulse_3s_ease-in-out_infinite]"></div>
+                <div v-else class="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-deep"></div>
+              </div>
+
+              <div>
+                <div class="text-sm font-bold uppercase tracking-[0.15em] text-cream/60 mb-1">Available Minutes</div>
+                <div class="flex items-baseline gap-2">
+                  <span class="text-5xl sm:text-6xl font-[--font-display] font-black tabular-nums"
+                        :class="minutesBalance > 0 ? 'text-glow' : 'text-red-400'">
+                    {{ minutesBalance ?? '—' }}
+                  </span>
+                  <span class="text-xl text-cream/50 font-semibold">min</span>
+                </div>
+                <div class="text-sm text-cream/50 mt-1" v-if="balanceLastUpdated">
+                  Updated {{ formatRelativeTime(balanceLastUpdated) }}
+                </div>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-3 w-full sm:w-auto">
+              <button
+                @click="refreshBalance"
+                :disabled="balanceLoading"
+                class="px-6 py-3 bg-white/10 border border-white/20 rounded-xl font-bold text-sm hover:bg-white/20 hover:border-glow/40 transition-all duration-300 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <svg class="w-4 h-4" :class="{ 'animate-spin': balanceLoading }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {{ balanceLoading ? 'Refreshing...' : 'Refresh' }}
+              </button>
+              <router-link
+                to="/pricing"
+                class="px-6 py-3 bg-gradient-to-r from-glow to-ember rounded-xl text-deep font-bold text-sm hover:scale-[1.02] transition-all duration-300 text-center shadow-[0_4px_20px_rgba(255,170,51,0.3)]"
+              >
+                + Buy Minutes
+              </router-link>
+            </div>
+          </div>
+
+          <!-- Warning banner when low/zero balance -->
+          <div v-if="minutesBalance !== null && minutesBalance < 5"
+               class="mt-6 p-4 rounded-xl border"
+               :class="minutesBalance === 0
+                 ? 'bg-red-500/10 border-red-500/30'
+                 : 'bg-amber-500/10 border-amber-500/30'">
+            <div class="flex items-center gap-3">
+              <svg class="w-5 h-5 flex-shrink-0" :class="minutesBalance === 0 ? 'text-red-400' : 'text-amber-400'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span class="text-sm font-semibold" :class="minutesBalance === 0 ? 'text-red-300' : 'text-amber-300'">
+                {{ minutesBalance === 0
+                   ? 'No minutes remaining. Purchase minutes to make calls.'
+                   : 'Low balance! Consider purchasing more minutes.' }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Grid Layout -->
       <div class="grid lg:grid-cols-2 gap-8">
         <!-- Profile Info Card -->
@@ -383,6 +454,59 @@ const authStore = useAuthStore()
 const userStore = useUserStore()
 const callsStore = useCallsStore()
 
+// Minutes balance
+const minutesBalance = ref(null)
+const balanceLastUpdated = ref(null)
+const balanceLoading = ref(false)
+
+const fetchBalance = async () => {
+  balanceLoading.value = true
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) return
+
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/user/balance`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      minutesBalance.value = data.minutes ?? 0
+      balanceLastUpdated.value = data.last_updated ? new Date(data.last_updated) : new Date()
+    } else {
+      console.error('Failed to fetch balance:', response.status)
+      minutesBalance.value = 0
+    }
+  } catch (err) {
+    console.error('Error fetching balance:', err)
+    minutesBalance.value = 0
+  } finally {
+    balanceLoading.value = false
+  }
+}
+
+const refreshBalance = () => {
+  fetchBalance()
+}
+
+const formatRelativeTime = (date) => {
+  if (!date) return ''
+  const now = new Date()
+  const diffMs = now - date
+  const diffMins = Math.floor(diffMs / 60000)
+
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
+
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays}d ago`
+}
+
 // Profile editing
 const editingProfile = ref(false)
 const profileForm = ref({
@@ -515,6 +639,9 @@ onMounted(async () => {
       phone: authStore.user.phone
     }
   }
+
+  // Fetch balance first (most important for debugging)
+  await fetchBalance()
 
   await userStore.fetchBillingInfo()
   await userStore.fetchUsageStats()

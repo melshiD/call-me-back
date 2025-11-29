@@ -570,19 +570,23 @@ const handleCallNow = async () => {
   formSuccess.value = ''
 
   try {
-    const paymentIntent = await userStore.createPaymentIntent(callForm.value.duration)
-
+    // Use credits-based calling (no payment intent needed)
     await callsStore.triggerCall(
       callForm.value.phoneNumber,
       callForm.value.personaId,
-      paymentIntent.payment_intent_id,
+      null, // No payment intent - use credits
       callForm.value.callPretext || null
     )
 
     formSuccess.value = 'Call initiated! You should receive a call shortly.'
     resetForm()
   } catch (err) {
-    formError.value = err.message || 'Failed to initiate call'
+    // Check for insufficient credits error
+    if (err.message?.includes('Insufficient') || err.message?.includes('402')) {
+      formError.value = 'Insufficient minutes balance. Please purchase more minutes to make calls.'
+    } else {
+      formError.value = err.message || 'Failed to initiate call'
+    }
   } finally {
     formLoading.value = false
   }

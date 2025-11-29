@@ -109,16 +109,17 @@ export default class extends Service<Env> {
       // Status callback URL to receive call status updates (no-answer, busy, failed, completed)
       const statusCallbackUrl = `${baseUrl}/api/voice/status?callId=${callId}`;
 
-      const formBody = new URLSearchParams({
-        To: input.phoneNumber,
-        From: twilioPhoneNumber,
-        Url: answerUrl,
-        Method: 'POST',
-        Timeout: '15', // Ring for 15 seconds max before giving up (prevents voicemail from answering)
-        StatusCallback: statusCallbackUrl,
-        StatusCallbackMethod: 'POST',
-        StatusCallbackEvent: 'initiated ringing answered completed no-answer busy failed canceled'
-      });
+      const formBody = new URLSearchParams();
+      formBody.append('To', input.phoneNumber);
+      formBody.append('From', twilioPhoneNumber);
+      formBody.append('Url', answerUrl);
+      formBody.append('Method', 'POST');
+      formBody.append('Timeout', '15'); // Ring for 15 seconds max before giving up (prevents voicemail from answering)
+      formBody.append('StatusCallback', statusCallbackUrl);
+      formBody.append('StatusCallbackMethod', 'POST');
+      // StatusCallbackEvent must be passed as multiple parameters for the REST API
+      const statusEvents = ['initiated', 'ringing', 'answered', 'completed', 'no-answer', 'busy', 'failed', 'canceled'];
+      statusEvents.forEach(event => formBody.append('StatusCallbackEvent', event));
 
       const response = await fetch(twilioUrl, {
         method: 'POST',

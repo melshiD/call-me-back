@@ -249,9 +249,13 @@ export const useCallsStore = defineStore('calls', () => {
     try {
       const requestBody = {
         phoneNumber,
-        personaId,
-        paymentIntentId
+        personaId
       };
+
+      // Only include paymentIntentId if provided (for Stripe payments)
+      if (paymentIntentId) {
+        requestBody.paymentIntentId = paymentIntentId;
+      }
 
       // Add callPretext if provided (scenario/context for this specific call)
       if (callPretext) {
