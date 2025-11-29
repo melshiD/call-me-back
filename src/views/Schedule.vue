@@ -583,7 +583,7 @@ const handleCallNow = async () => {
   } catch (err) {
     // Check for insufficient credits error
     if (err.message?.includes('Insufficient') || err.message?.includes('402')) {
-      formError.value = 'Insufficient minutes balance. Please purchase more minutes to make calls.'
+      formError.value = 'Insufficient minutes balance. Please purchase more minutes to trigger calls.'
     } else {
       formError.value = err.message || 'Failed to initiate call'
     }

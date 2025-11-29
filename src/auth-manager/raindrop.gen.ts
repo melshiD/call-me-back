@@ -27,8 +27,7 @@ export interface Env {
   PAYMENT_PROCESSOR: ServiceStub<import('../payment-processor/index.js').default>;
   PERSONA_MANAGER: ServiceStub<import('../persona-manager/index.js').default>;
   RATE_LIMIT_CACHE: KvCache;
-  STRIPE_PRICE_125MIN: string;
-  STRIPE_PRICE_250MIN: string;
+  STRIPE_PRICE_100MIN: string;
   STRIPE_PRICE_25MIN: string;
   STRIPE_PRICE_50MIN: string;
   STRIPE_SECRET_KEY: string;
