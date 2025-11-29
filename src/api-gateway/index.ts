@@ -962,14 +962,33 @@ export default class extends Service<Env> {
 
       // Check for admin bypass FIRST (for testing/demos)
       const authHeader = request.headers.get('Authorization');
-      const isAdminToken = authHeader?.includes('admin-') || body.adminBypass;
+      let isAdminToken = body.adminBypass || false;
+      let adminUserId: string | null = null;
+
+      // Check if this is an admin JWT (has adminId in payload)
+      if (authHeader?.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.substring(7);
+          const parts = token.split('.');
+          if (parts.length === 3 && parts[1]) {
+            const payload = JSON.parse(atob(parts[1]));
+            if (payload.adminId) {
+              isAdminToken = true;
+              adminUserId = payload.adminId;
+              this.env.logger.info('Admin JWT detected', { adminId: payload.adminId });
+            }
+          }
+        } catch (e) {
+          // Not a valid JWT, continue with normal auth
+        }
+      }
 
       // Get userId from JWT auth token OR use admin bypass
       let userId: string | null = null;
       if (isAdminToken) {
-        // Admin bypass - use a fixed admin user ID for testing
-        userId = 'admin_demo_user';
-        this.env.logger.info('Admin token bypass used for call trigger');
+        // Admin bypass - use admin user ID from token or fallback
+        userId = adminUserId || 'admin_demo_user';
+        this.env.logger.info('Admin token bypass used for call trigger', { userId });
       } else {
         userId = await this.getUserIdFromAuth(request);
         if (!userId) {

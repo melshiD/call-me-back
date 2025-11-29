@@ -114,6 +114,7 @@ export default class extends Service<Env> {
         From: twilioPhoneNumber,
         Url: answerUrl,
         Method: 'POST',
+        Timeout: '15', // Ring for 15 seconds max before giving up (prevents voicemail from answering)
         StatusCallback: statusCallbackUrl,
         StatusCallbackMethod: 'POST',
         StatusCallbackEvent: 'initiated ringing answered completed no-answer busy failed canceled'
