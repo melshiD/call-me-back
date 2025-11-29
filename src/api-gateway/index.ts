@@ -2215,8 +2215,9 @@ export default class extends Service<Env> {
         });
       }
 
-      const origin = request.headers.get('Origin') || 'https://call-me-back.vercel.app';
-      
+      // Use configured frontend URL - don't trust Origin header (could be spoofed)
+      const frontendUrl = this.env.FRONTEND_URL || 'https://call-me-back.vercel.app';
+
       const stripeResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
         method: 'POST',
         headers: {
@@ -2227,8 +2228,8 @@ export default class extends Service<Env> {
           'mode': 'payment',
           'line_items[0][price]': skuInfo.priceId,
           'line_items[0][quantity]': '1',
-          'success_url': `${origin}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-          'cancel_url': `${origin}/profile?payment=cancelled`,
+          'success_url': `${frontendUrl}/pricing?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+          'cancel_url': `${frontendUrl}/pricing?payment=cancelled`,
           'client_reference_id': userId,
           'allow_promotion_codes': 'true',
           'metadata[sku]': body.sku,
@@ -2284,128 +2285,239 @@ export default class extends Service<Env> {
   }
 
   /**
+   * Verify Stripe webhook signature using HMAC-SHA256
+   * Returns the raw body if valid, throws if invalid
+   */
+  private async verifyStripeSignature(request: Request, webhookSecret: string): Promise<{ body: string; event: any }> {
+    const signature = request.headers.get('Stripe-Signature');
+    if (!signature) {
+      throw new Error('Missing Stripe-Signature header');
+    }
+
+    const body = await request.text();
+
+    // Parse signature header (format: t=timestamp,v1=signature)
+    const sigParts = signature.split(',').reduce((acc, part) => {
+      const [key, value] = part.split('=');
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+
+    const timestamp = sigParts['t'];
+    const expectedSig = sigParts['v1'];
+
+    if (!timestamp || !expectedSig) {
+      throw new Error('Invalid Stripe-Signature format');
+    }
+
+    // Check timestamp is within tolerance (5 minutes)
+    const timestampAge = Math.floor(Date.now() / 1000) - parseInt(timestamp);
+    if (timestampAge > 300) {
+      throw new Error('Webhook timestamp too old');
+    }
+
+    // Compute expected signature
+    const signedPayload = `${timestamp}.${body}`;
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(webhookSecret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(signedPayload));
+    const computedSig = Array.from(new Uint8Array(signatureBuffer))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    // Constant-time comparison
+    if (computedSig.length !== expectedSig.length) {
+      throw new Error('Invalid webhook signature');
+    }
+    let match = true;
+    for (let i = 0; i < computedSig.length; i++) {
+      if (computedSig[i] !== expectedSig[i]) match = false;
+    }
+    if (!match) {
+      throw new Error('Invalid webhook signature');
+    }
+
+    return { body, event: JSON.parse(body) };
+  }
+
+  /**
    * Handle Stripe webhook events
    * Primary event: checkout.session.completed
+   *
+   * Key features:
+   * - Signature verification for security
+   * - Idempotency check to prevent duplicate credit additions
+   * - Proper error handling (500 for transient errors to allow retries)
    */
   private async handleStripeWebhook(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
-    try {
-      const signature = request.headers.get('Stripe-Signature');
-      const webhookSecret = this.env.STRIPE_WEBHOOK_SECRET;
-      
-      // Note: For production, we should verify the webhook signature
-      // For now, we'll process all events but log when signature verification is skipped
-      if (!signature || !webhookSecret) {
-        this.env.logger.warn('Stripe webhook signature verification skipped - secret not configured');
-      }
+    const webhookSecret = this.env.STRIPE_WEBHOOK_SECRET;
 
-      const event = await request.json() as {
-        type: string;
-        data: {
-          object: {
-            id: string;
-            client_reference_id?: string;
-            metadata?: { sku?: string; minutes?: string; user_id?: string };
-            amount_total?: number;
-            payment_intent?: string;
-            customer?: string;
-          };
+    // Verify signature if webhook secret is configured
+    let event: {
+      id: string;
+      type: string;
+      data: {
+        object: {
+          id: string;
+          client_reference_id?: string;
+          metadata?: { sku?: string; minutes?: string; user_id?: string };
+          amount_total?: number;
+          payment_intent?: string;
+          customer?: string;
         };
       };
+    };
 
-      this.env.logger.info('Stripe webhook received', { 
-        type: event.type,
-        sessionId: event.data.object.id
-      });
-
-      if (event.type === 'checkout.session.completed') {
-        const session = event.data.object;
-        const userId = session.client_reference_id || session.metadata?.user_id;
-        const minutes = parseInt(session.metadata?.minutes || '0');
-        const sku = session.metadata?.sku;
-        const amountCents = session.amount_total || 0;
-
-        if (!userId || !minutes) {
-          this.env.logger.error('Missing userId or minutes in checkout session', { session });
-          return new Response(JSON.stringify({ received: true, error: 'Missing metadata' }), {
-            status: 200, // Return 200 to acknowledge receipt
-            headers: { 'Content-Type': 'application/json', ...corsHeaders }
-          });
-        }
-
-        // Update purchase record
-        await this.env.DATABASE_PROXY.executeQuery(
-          `UPDATE purchases 
-           SET status = 'completed', 
-               amount_cents = $1,
-               stripe_payment_intent = $2,
-               stripe_customer_id = $3,
-               completed_at = CURRENT_TIMESTAMP
-           WHERE stripe_session_id = $4`,
-          [amountCents, session.payment_intent, session.customer, session.id]
-        );
-
-        // Add minutes to user's balance
-        // First, try to update existing record
-        const updateResult = await this.env.DATABASE_PROXY.executeQuery(
-          `UPDATE user_credits 
-           SET available_credits = available_credits + $1,
-               lifetime_credits_purchased = lifetime_credits_purchased + $1,
-               updated_at = CURRENT_TIMESTAMP
-           WHERE user_id = $2
-           RETURNING id`,
-          [minutes, userId]
-        );
-
-        // If no record existed, create one
-        if (!updateResult.rows?.length) {
-          const creditId = crypto.randomUUID();
-          await this.env.DATABASE_PROXY.executeQuery(
-            `INSERT INTO user_credits (id, user_id, available_credits, lifetime_credits_purchased)
-             VALUES ($1, $2, $3, $3)`,
-            [creditId, userId, minutes]
-          );
-        }
-
-        // Record the credit transaction
-        const transactionId = crypto.randomUUID();
-        
-        // Get the new balance for the transaction record
-        const balanceResult = await this.env.DATABASE_PROXY.executeQuery(
-          `SELECT available_credits FROM user_credits WHERE user_id = $1`,
-          [userId]
-        );
-        const newBalance = balanceResult.rows?.[0]?.available_credits || minutes;
-
-        await this.env.DATABASE_PROXY.executeQuery(
-          `INSERT INTO credit_transactions (id, user_id, transaction_type, credits_amount, balance_after, description, reference_id)
-           VALUES ($1, $2, 'purchase', $3, $4, $5, $6)`,
-          [transactionId, userId, minutes, newBalance, `Purchased ${minutes} minutes (${sku})`, session.id]
-        );
-
-        this.env.logger.info('Minutes added to user balance', {
-          userId,
-          minutes,
-          newBalance,
-          sessionId: session.id
-        });
+    try {
+      if (webhookSecret) {
+        const verified = await this.verifyStripeSignature(request, webhookSecret);
+        event = verified.event;
+        this.env.logger.info('Stripe webhook signature verified');
+      } else {
+        // Development fallback - log warning but process anyway
+        this.env.logger.warn('Stripe webhook signature verification skipped - STRIPE_WEBHOOK_SECRET not configured');
+        event = await request.json() as typeof event;
       }
+    } catch (error) {
+      this.env.logger.error('Stripe webhook signature verification failed', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
 
-      return new Response(JSON.stringify({ received: true }), {
+    this.env.logger.info('Stripe webhook received', {
+      eventId: event.id,
+      type: event.type,
+      sessionId: event.data.object.id
+    });
+
+    // Only process checkout.session.completed events
+    if (event.type !== 'checkout.session.completed') {
+      return new Response(JSON.stringify({ received: true, processed: false }), {
         status: 200,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
-    } catch (error) {
-      this.env.logger.error('Stripe webhook error', {
-        error: error instanceof Error ? error.message : String(error)
+    }
+
+    const session = event.data.object;
+    const userId = session.client_reference_id || session.metadata?.user_id;
+    const minutes = parseInt(session.metadata?.minutes || '0');
+    const sku = session.metadata?.sku;
+    const amountCents = session.amount_total || 0;
+
+    // Validate required data
+    if (!userId || !minutes) {
+      this.env.logger.error('Missing userId or minutes in checkout session', {
+        sessionId: session.id,
+        userId,
+        minutes
+      });
+      // Return 200 for data errors - retrying won't help
+      return new Response(JSON.stringify({ received: true, error: 'Missing required metadata' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+
+    try {
+      // IDEMPOTENCY CHECK: Check if this session was already processed
+      const existingPurchase = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT id, status FROM purchases WHERE stripe_session_id = $1`,
+        [session.id]
+      );
+
+      if (existingPurchase.rows?.[0]?.status === 'completed') {
+        this.env.logger.info('Webhook already processed (idempotent)', { sessionId: session.id });
+        return new Response(JSON.stringify({ received: true, already_processed: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Update purchase record to completed
+      await this.env.DATABASE_PROXY.executeQuery(
+        `UPDATE purchases
+         SET status = 'completed',
+             amount_cents = $1,
+             stripe_payment_intent = $2,
+             stripe_customer_id = $3,
+             completed_at = CURRENT_TIMESTAMP
+         WHERE stripe_session_id = $4`,
+        [amountCents, session.payment_intent, session.customer, session.id]
+      );
+
+      // Add minutes to user's balance
+      // First, try to update existing record
+      const updateResult = await this.env.DATABASE_PROXY.executeQuery(
+        `UPDATE user_credits
+         SET available_credits = available_credits + $1,
+             lifetime_credits_purchased = lifetime_credits_purchased + $1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $2
+         RETURNING id`,
+        [minutes, userId]
+      );
+
+      // If no record existed, create one
+      if (!updateResult.rows?.length) {
+        const creditId = crypto.randomUUID();
+        await this.env.DATABASE_PROXY.executeQuery(
+          `INSERT INTO user_credits (id, user_id, available_credits, lifetime_credits_purchased)
+           VALUES ($1, $2, $3, $3)`,
+          [creditId, userId, minutes]
+        );
+      }
+
+      // Record the credit transaction
+      const transactionId = crypto.randomUUID();
+
+      // Get the new balance for the transaction record
+      const balanceResult = await this.env.DATABASE_PROXY.executeQuery(
+        `SELECT available_credits FROM user_credits WHERE user_id = $1`,
+        [userId]
+      );
+      const newBalance = balanceResult.rows?.[0]?.available_credits || minutes;
+
+      await this.env.DATABASE_PROXY.executeQuery(
+        `INSERT INTO credit_transactions (id, user_id, transaction_type, credits_amount, balance_after, description, reference_id)
+         VALUES ($1, $2, 'purchase', $3, $4, $5, $6)`,
+        [transactionId, userId, minutes, newBalance, `Purchased ${minutes} minutes (${sku})`, session.id]
+      );
+
+      this.env.logger.info('Minutes added to user balance', {
+        userId,
+        minutes,
+        newBalance,
+        sessionId: session.id
       });
 
-      // Always return 200 to acknowledge receipt, even on error
-      // This prevents Stripe from retrying
-      return new Response(JSON.stringify({ 
-        received: true, 
-        error: error instanceof Error ? error.message : 'Webhook processing error'
-      }), {
+      return new Response(JSON.stringify({ received: true, processed: true }), {
         status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+
+    } catch (error) {
+      this.env.logger.error('Stripe webhook processing error', {
+        error: error instanceof Error ? error.message : String(error),
+        sessionId: session.id,
+        userId
+      });
+
+      // Return 500 for transient errors - Stripe will retry
+      // This ensures the user gets their credits even if there's a temporary DB issue
+      return new Response(JSON.stringify({
+        error: 'Processing failed, will retry'
+      }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }

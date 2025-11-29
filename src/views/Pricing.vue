@@ -59,6 +59,19 @@
     <!-- Pricing Tiers -->
     <section class="relative py-16 px-6">
       <div class="max-w-5xl mx-auto">
+        <!-- Current Balance (for authenticated users) -->
+        <div v-if="isAuthenticated && balance !== null" class="mb-8 text-center opacity-0 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards]">
+          <div class="inline-flex items-center gap-3 px-6 py-3 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-sm">
+            <svg class="w-5 h-5 text-glow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span class="text-cream/70">Your current balance:</span>
+            <span class="text-xl font-bold bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">
+              {{ balance }} minutes
+            </span>
+          </div>
+        </div>
+
         <div class="grid md:grid-cols-3 gap-6 lg:gap-8">
 
           <!-- Starter - 25 Minutes -->
@@ -108,9 +121,13 @@
               <button
                 @click="purchasePackage('minutes_25')"
                 :disabled="purchasing"
-                class="block w-full text-center px-8 py-4 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl text-cream font-bold hover:bg-white/20 hover:border-glow/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="block w-full text-center px-8 py-4 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl text-cream font-bold hover:bg-white/20 hover:border-glow/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {{ purchasing ? 'Processing...' : 'Buy 25 Minutes' }}
+                <svg v-if="purchasingSku === 'minutes_25'" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                {{ purchasingSku === 'minutes_25' ? 'Redirecting to Stripe...' : 'Buy 25 Minutes' }}
               </button>
             </div>
           </div>
@@ -173,9 +190,13 @@
               <button
                 @click="purchasePackage('minutes_50')"
                 :disabled="purchasing"
-                class="block w-full text-center px-8 py-4 bg-gradient-to-r from-glow via-ember to-solar rounded-xl text-deep font-black hover:scale-[1.02] transition-all duration-300 shadow-[0_8px_32px_rgba(251,191,36,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                class="block w-full text-center px-8 py-4 bg-gradient-to-r from-glow via-ember to-solar rounded-xl text-deep font-black hover:scale-[1.02] transition-all duration-300 shadow-[0_8px_32px_rgba(251,191,36,0.4)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 flex items-center justify-center gap-2"
               >
-                {{ purchasing ? 'Processing...' : 'Buy 50 Minutes' }}
+                <svg v-if="purchasingSku === 'minutes_50'" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                {{ purchasingSku === 'minutes_50' ? 'Redirecting to Stripe...' : 'Buy 50 Minutes' }}
               </button>
             </div>
           </div>
@@ -233,9 +254,13 @@
               <button
                 @click="purchasePackage('minutes_100')"
                 :disabled="purchasing"
-                class="block w-full text-center px-8 py-4 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl text-cream font-bold hover:bg-white/20 hover:border-solar/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="block w-full text-center px-8 py-4 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl text-cream font-bold hover:bg-white/20 hover:border-solar/40 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {{ purchasing ? 'Processing...' : 'Buy 100 Minutes' }}
+                <svg v-if="purchasingSku === 'minutes_100'" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                {{ purchasingSku === 'minutes_100' ? 'Redirecting to Stripe...' : 'Buy 100 Minutes' }}
               </button>
             </div>
           </div>
@@ -396,7 +421,11 @@
             class="inline-flex items-center justify-center px-12 py-5 text-xl font-black text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-[20px] overflow-hidden transition-all duration-500 hover:scale-[1.05] hover:bg-[position:100%_0] shadow-[0_0_0_2px_rgba(251,191,36,0.5),0_20px_60px_rgba(251,191,36,0.4)] hover:shadow-[0_0_0_2px_rgba(251,191,36,0.8),0_24px_80px_rgba(251,191,36,0.5)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 group"
           >
             <span class="relative z-10 flex items-center gap-3">
-              {{ purchasing ? 'Processing...' : 'Get Started Now' }}
+              <svg v-if="purchasingSku === 'minutes_25'" class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ purchasingSku === 'minutes_25' ? 'Redirecting...' : 'Get Started Now' }}
               <svg v-if="!purchasing" class="w-5 h-5 group-hover:translate-x-2 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
@@ -423,36 +452,94 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { createCheckoutSession } from '@/services/payments';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
+import { useToast } from '@/stores/toast';
 
 const authStore = useAuthStore();
 const router = useRouter();
+const route = useRoute();
+const toast = useToast();
+
 const purchasing = ref(false);
+const purchasingSku = ref(null);
+const balance = ref(null);
+const loadingBalance = ref(false);
 
 const isAuthenticated = computed(() => authStore.isAuthenticated);
 
+// Fetch user's current balance
+async function fetchBalance() {
+  if (!isAuthenticated.value) return;
+
+  loadingBalance.value = true;
+  try {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${apiUrl}/api/user/balance`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      balance.value = data.minutes || 0;
+    }
+  } catch (error) {
+    console.error('Failed to fetch balance:', error);
+  } finally {
+    loadingBalance.value = false;
+  }
+}
+
+// Handle payment result from redirect
+function handlePaymentResult() {
+  const payment = route.query.payment;
+  if (payment === 'success') {
+    toast.success('Payment successful! Your minutes have been added to your account.');
+    // Refresh balance
+    fetchBalance();
+    // Clean up URL
+    router.replace({ path: '/pricing' });
+  } else if (payment === 'cancelled') {
+    toast.warning('Payment was cancelled. No charges were made.');
+    router.replace({ path: '/pricing' });
+  }
+}
+
 async function purchasePackage(sku) {
   if (!isAuthenticated.value) {
+    toast.info('Please sign in to purchase minutes.');
     router.push('/login?redirect=/pricing');
     return;
   }
 
+  // Prevent double-clicks
+  if (purchasing.value) return;
+
   purchasing.value = true;
+  purchasingSku.value = sku;
+
   try {
     const { checkoutUrl } = await createCheckoutSession(sku);
     if (checkoutUrl) {
       window.location.href = checkoutUrl;
+    } else {
+      throw new Error('No checkout URL received');
     }
   } catch (error) {
     console.error('Purchase error:', error);
-    alert('Failed to start checkout. Please try again.');
+    toast.error(error.message || 'Failed to start checkout. Please try again.');
   } finally {
     purchasing.value = false;
+    purchasingSku.value = null;
   }
 }
+
+onMounted(() => {
+  handlePaymentResult();
+  fetchBalance();
+});
 </script>
 
 <style scoped>
