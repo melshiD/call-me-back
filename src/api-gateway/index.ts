@@ -2181,11 +2181,11 @@ export default class extends Service<Env> {
       const body = await request.json() as { sku: string };
       
       // Map SKU to price ID and minutes (Price IDs configured in raindrop.manifest)
+      // New pricing tiers: Starter 25min/$14.99, Basic 50min/$24.99, Plus 100min/$44.99
       const skuMap: Record<string, { priceId: string; minutes: number }> = {
         'minutes_25': { priceId: this.env.STRIPE_PRICE_25MIN, minutes: 25 },
         'minutes_50': { priceId: this.env.STRIPE_PRICE_50MIN, minutes: 50 },
-        'minutes_125': { priceId: this.env.STRIPE_PRICE_125MIN, minutes: 125 },
-        'minutes_250': { priceId: this.env.STRIPE_PRICE_250MIN, minutes: 250 },
+        'minutes_100': { priceId: this.env.STRIPE_PRICE_100MIN, minutes: 100 },
       };
 
       const skuInfo = skuMap[body.sku];

@@ -700,27 +700,27 @@
 
       <div class="relative max-w-5xl mx-auto px-6 lg:px-12 text-center opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards]">
         <h2 class="text-6xl lg:text-7xl font-[--font-display] font-extrabold mb-6 tracking-tight">
-          Simple, <span class="italic font-[--font-accent] bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">Transparent</span> Pricing
+          Pay Only <span class="italic font-[--font-accent] bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">What You Use</span>
         </h2>
         <p class="text-2xl text-cream/70 mb-16">
-          Pay per call or subscribe for unlimited access
+          Buy minutes, use them whenever. No subscriptions, no expiration.
         </p>
 
         <div class="grid md:grid-cols-3 gap-8 mb-16">
-          <!-- Pay As You Go -->
+          <!-- Starter - 25 Minutes -->
           <div class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/50 hover:shadow-[0_24px_80px_rgba(251,191,36,0.2)] holographic">
-            <h3 class="text-2xl font-[--font-display] font-bold mb-2">Pay As You Go</h3>
-            <div class="flex items-baseline justify-center gap-2 mb-6">
-              <span class="text-5xl font-black bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">$4.99</span>
-              <span class="text-cream/60 text-lg">/ call</span>
+            <h3 class="text-2xl font-[--font-display] font-bold mb-2">Starter</h3>
+            <div class="flex items-baseline justify-center gap-2 mb-2">
+              <span class="text-5xl font-black bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">$14.99</span>
             </div>
-            <p class="text-sm text-cream/60 mb-4">Perfect for trying us out</p>
+            <p class="text-lg text-cream/80 font-semibold mb-1">25 minutes</p>
+            <p class="text-xs text-cream/50 mb-4">$0.60 per minute</p>
             <ul class="text-sm text-cream/70 space-y-2 text-left">
               <li class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                 </svg>
-                Up to 5 minutes
+                ~5 calls at 5 min each
               </li>
               <li class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -732,34 +732,34 @@
                 <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                 </svg>
-                No commitment
+                Minutes never expire
               </li>
             </ul>
           </div>
 
-          <!-- Standard Plan (Popular) -->
+          <!-- Basic - 50 Minutes (Best Value) -->
           <div class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border-2 border-glow/50 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/70 hover:shadow-[0_32px_100px_rgba(251,191,36,0.3)] holographic">
             <div class="absolute -top-4 left-1/2 -translate-x-1/2 px-6 py-2 bg-gradient-to-r from-glow via-ember to-solar rounded-full text-deep text-xs font-black uppercase tracking-wider shadow-[0_8px_32px_rgba(251,191,36,0.4)]">
-              Most Popular
+              Best Value
             </div>
-            <h3 class="text-2xl font-[--font-display] font-bold mb-2 mt-4">Standard</h3>
-            <div class="flex items-baseline justify-center gap-2 mb-6">
-              <span class="text-5xl font-black bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">$29.99</span>
-              <span class="text-cream/60 text-lg">/ month</span>
+            <h3 class="text-2xl font-[--font-display] font-bold mb-2 mt-4">Basic</h3>
+            <div class="flex items-baseline justify-center gap-2 mb-2">
+              <span class="text-5xl font-black bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">$24.99</span>
             </div>
-            <p class="text-sm text-cream/60 mb-4">Up to 10 calls per month</p>
+            <p class="text-lg text-cream/80 font-semibold mb-1">50 minutes</p>
+            <p class="text-xs text-cream/50 mb-4">$0.50/min <span class="text-glow">• Save 17%</span></p>
             <ul class="text-sm text-cream/70 space-y-2 text-left">
               <li class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                 </svg>
-                5 minutes per call
+                ~10 calls at 5 min each
               </li>
               <li class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                 </svg>
-                Advanced memory
+                All AI personas
               </li>
               <li class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -770,32 +770,32 @@
             </ul>
           </div>
 
-          <!-- Power User -->
+          <!-- Plus - 100 Minutes -->
           <div class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-solar/50 hover:shadow-[0_24px_80px_rgba(255,107,53,0.2)] holographic">
-            <h3 class="text-2xl font-[--font-display] font-bold mb-2">Power User</h3>
-            <div class="flex items-baseline justify-center gap-2 mb-6">
-              <span class="text-5xl font-black bg-gradient-to-r from-solar to-ember bg-clip-text text-transparent">$49.99</span>
-              <span class="text-cream/60 text-lg">/ month</span>
+            <h3 class="text-2xl font-[--font-display] font-bold mb-2">Plus</h3>
+            <div class="flex items-baseline justify-center gap-2 mb-2">
+              <span class="text-5xl font-black bg-gradient-to-r from-solar to-ember bg-clip-text text-transparent">$44.99</span>
             </div>
-            <p class="text-sm text-cream/60 mb-4">Up to 25 calls per month</p>
+            <p class="text-lg text-cream/80 font-semibold mb-1">100 minutes</p>
+            <p class="text-xs text-cream/50 mb-4">$0.45/min <span class="text-solar">• Save 25%</span></p>
             <ul class="text-sm text-cream/70 space-y-2 text-left">
               <li class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-solar flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                 </svg>
-                10 minutes per call
+                ~20 calls at 5 min each
               </li>
               <li class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-solar flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                 </svg>
-                Custom personas
+                Deep AI memory
               </li>
               <li class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-solar flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                 </svg>
-                Deep memory
+                Priority support
               </li>
             </ul>
           </div>
@@ -806,7 +806,7 @@
             to="/pricing"
             class="inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-glow via-ember to-solar rounded-xl text-deep font-black text-lg hover:scale-105 transition-transform duration-300 shadow-[0_12px_40px_rgba(251,191,36,0.4)]"
           >
-            View All Plans
+            Get Started
             <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
@@ -816,7 +816,7 @@
             <svg class="w-5 h-5 text-glow" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
             </svg>
-            <span class="text-cream text-sm font-semibold">First call FREE - No credit card</span>
+            <span class="text-cream text-sm font-semibold">Minutes never expire</span>
           </div>
         </div>
       </div>
