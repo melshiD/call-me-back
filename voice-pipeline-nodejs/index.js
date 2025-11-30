@@ -1364,6 +1364,76 @@ Answer:`;
 
       console.log(`[VoicePipeline ${this.callId}] ✅ Call marked as completed - Duration: ${durationSeconds}s, Cost: $${costEstimate.total.toFixed(4)}`);
 
+      // DEDUCT CREDITS FROM USER'S BALANCE
+      // Calculate minutes used (round UP - 45 seconds = 1 minute)
+      const minutesUsed = Math.ceil(durationSeconds / 60);
+      console.log(`[VoicePipeline ${this.callId}] Deducting ${minutesUsed} minute(s) from user balance...`);
+
+      // Get user_id from the call record
+      const userResult = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+        },
+        body: JSON.stringify({
+          sql: `SELECT user_id FROM calls WHERE id = $1`,
+          params: [this.callId]
+        })
+      });
+
+      if (userResult.ok) {
+        const userData = await userResult.json();
+        const userId = userData.rows?.[0]?.user_id;
+
+        if (userId) {
+          // Deduct credits from user_credits
+          const deductResult = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+            },
+            body: JSON.stringify({
+              sql: `UPDATE user_credits
+                    SET available_credits = available_credits - $1,
+                        lifetime_credits_used = lifetime_credits_used + $1,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = $2
+                    RETURNING available_credits`,
+              params: [minutesUsed, userId]
+            })
+          });
+
+          if (deductResult.ok) {
+            const deductData = await deductResult.json();
+            const newBalance = deductData.rows?.[0]?.available_credits || 0;
+            console.log(`[VoicePipeline ${this.callId}] ✅ Deducted ${minutesUsed} minute(s). New balance: ${newBalance} minutes`);
+
+            // Record the credit transaction
+            const transactionId = crypto.randomUUID();
+            await fetch(`${env.VULTR_DB_API_URL}/query`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+              },
+              body: JSON.stringify({
+                sql: `INSERT INTO credit_transactions (id, user_id, transaction_type, credits_amount, balance_after, description, reference_id)
+                      VALUES ($1, $2, 'usage', $3, $4, $5, $6)`,
+                params: [transactionId, userId, -minutesUsed, newBalance, `Call duration: ${durationSeconds}s (${minutesUsed} min)`, this.callId]
+              })
+            });
+          } else {
+            console.error(`[VoicePipeline ${this.callId}] Failed to deduct credits:`, await deductResult.text());
+          }
+        } else {
+          console.warn(`[VoicePipeline ${this.callId}] No user_id found for call - cannot deduct credits`);
+        }
+      } else {
+        console.error(`[VoicePipeline ${this.callId}] Failed to get user_id:`, await userResult.text());
+      }
+
       // Also update the scheduled_calls table if this call originated from a schedule
       // Query the calls table to get the scheduled_call_id
       const scheduledCallResult = await fetch(`${env.VULTR_DB_API_URL}/query`, {

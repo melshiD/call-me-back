@@ -379,7 +379,7 @@
                     </svg>
                   </button>
                   <button
-                    @click="cancelCall(call.id)"
+                    @click="openCancelConfirm(call)"
                     :disabled="cancelLoading[call.id]"
                     class="p-2 bg-[#0a0a0c] border border-[#1a1a1e] rounded-lg text-[#555] hover:text-red-400 hover:border-red-500/40 transition-all disabled:opacity-50"
                     title="Cancel"
@@ -513,14 +513,71 @@
         </div>
       </div>
     </div>
+
+    <!-- Cancel Confirmation Modal -->
+    <div
+      v-if="cancelConfirmCall"
+      class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      @click.self="closeCancelConfirm"
+    >
+      <div class="bg-[#111114] border border-[#1a1a1e] rounded-xl p-6 w-full max-w-md animate-[fadeIn_0.15s_ease-out] shadow-2xl">
+        <div class="flex items-center justify-between mb-6">
+          <div class="flex items-center gap-3">
+            <div class="p-2 bg-red-500/10 rounded-lg border border-red-500/20">
+              <svg class="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+            </div>
+            <h3 class="font-['JetBrains_Mono',monospace] text-sm tracking-[0.15em] uppercase text-[#e8e6e3]">Abort Mission</h3>
+          </div>
+          <button @click="closeCancelConfirm" class="text-[#555] hover:text-[#999] transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="space-y-5">
+          <!-- Mission Details -->
+          <div class="p-4 bg-[#0a0a0c] rounded-lg border border-red-500/20">
+            <p class="font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.15em] text-[#555] mb-2">Scheduled Mission</p>
+            <p class="text-sm text-[#999]">{{ cancelConfirmCall ? formatScheduledTime(cancelConfirmCall.scheduled_time) : '' }}</p>
+            <p class="text-xs text-[#666] mt-1">{{ cancelConfirmCall?.persona_name || 'Unknown Persona' }}</p>
+          </div>
+
+          <!-- Warning Message -->
+          <p class="text-sm text-[#888] leading-relaxed">
+            This action cannot be undone. The scheduled call will be permanently removed from the queue.
+          </p>
+
+          <!-- Actions -->
+          <div class="flex gap-3 pt-2">
+            <button
+              @click="closeCancelConfirm"
+              class="flex-1 px-4 py-3 bg-[#0a0a0c] border border-[#1a1a1e] rounded-lg text-[#666] font-['JetBrains_Mono',monospace] text-[11px] uppercase tracking-wider hover:border-[#2a2a2e] hover:text-[#999] transition-all"
+            >
+              Keep Mission
+            </button>
+            <button
+              @click="confirmCancelCall"
+              class="flex-1 px-4 py-3 bg-gradient-to-r from-red-600 to-red-500 rounded-lg text-white font-['JetBrains_Mono',monospace] text-[11px] uppercase tracking-wider font-bold hover:from-red-500 hover:to-red-400 transition-all"
+            >
+              Abort Mission
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useToast } from '../stores/toast'
 
 const router = useRouter()
+const toast = useToast()
 const API_BASE = import.meta.env.VITE_API_URL || 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run'
 
 // State
@@ -551,6 +608,9 @@ const editingCall = ref(null)
 const editForm = ref({ date: '', time: '' })
 const editLoading = ref(false)
 const editError = ref('')
+
+// Cancel confirmation modal state
+const cancelConfirmCall = ref(null)
 
 // Computed
 const minDate = computed(() => new Date().toISOString().split('T')[0])
@@ -723,10 +783,22 @@ const resetForm = () => {
   }, 2000)
 }
 
-const cancelCall = async (callId) => {
-  if (!confirm('Cancel this scheduled call?')) return
+// Opens cancel confirmation modal
+const openCancelConfirm = (call) => {
+  cancelConfirmCall.value = call
+}
+
+const closeCancelConfirm = () => {
+  cancelConfirmCall.value = null
+}
+
+const confirmCancelCall = async () => {
+  if (!cancelConfirmCall.value) return
+  const callId = cancelConfirmCall.value.id
 
   cancelLoading.value[callId] = true
+  closeCancelConfirm()
+
   try {
     const token = getAdminToken()
     const response = await fetch(`${API_BASE}/api/calls/schedule/${callId}`, {
@@ -737,8 +809,9 @@ const cancelCall = async (callId) => {
     if (!response.ok) throw new Error('Failed to cancel')
 
     scheduledCalls.value = scheduledCalls.value.filter(c => c.id !== callId)
+    toast.success('Mission cancelled successfully')
   } catch (err) {
-    alert('Failed to cancel: ' + err.message)
+    toast.error('Failed to cancel: ' + err.message)
   } finally {
     delete cancelLoading.value[callId]
   }

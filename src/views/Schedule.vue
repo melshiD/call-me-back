@@ -98,13 +98,20 @@
                 >
                   <span class="text-xs">{{ prefab.icon }}</span>
                   <span>{{ prefab.name }}</span>
-                  <button
-                    v-if="prefab.isCustom"
-                    type="button"
-                    @click.stop="deletePrefab(prefab.id)"
-                    class="ml-0.5 text-red-400/60 hover:text-red-400 text-[10px]"
-                    title="Delete"
-                  >×</button>
+                  <!-- Delete button with inline confirm -->
+                  <span v-if="prefab.isCustom" class="ml-1 flex items-center">
+                    <button
+                      v-if="deletingPrefabId !== prefab.id"
+                      type="button"
+                      @click.stop="confirmDeletePrefab(prefab.id)"
+                      class="text-red-400/60 hover:text-red-400 text-[10px]"
+                      title="Delete"
+                    >×</button>
+                    <span v-else class="flex items-center gap-1 text-[9px]">
+                      <button @click.stop="executeDeletePrefab" class="text-red-400 hover:text-red-300">✓</button>
+                      <button @click.stop="cancelDeletePrefab" class="text-[#666] hover:text-[#999]">✗</button>
+                    </span>
+                  </span>
                 </button>
               </div>
 
@@ -291,7 +298,7 @@
                   <span class="transition-transform duration-300 text-[10px]" :class="{ 'rotate-180': expandedCalls[call.id] }">▼</span>
                 </button>
                 <button
-                  @click="cancelCall(call.id)"
+                  @click="openCancelConfirm(call)"
                   class="px-4 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-xs font-medium hover:bg-red-500/20 transition-all duration-300"
                   :disabled="cancelLoading[call.id]"
                 >
@@ -460,6 +467,61 @@
         </div>
       </div>
     </div>
+
+    <!-- Cancel Confirmation Modal -->
+    <div
+      v-if="cancelConfirmCall"
+      class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      @click.self="closeCancelConfirm"
+    >
+      <div class="bg-[#1a1a1e] border border-[#2a2a2e] rounded-xl p-6 w-full max-w-md animate-[fadeIn_0.2s_ease-out]">
+        <div class="flex items-center justify-between mb-6">
+          <div class="flex items-center gap-3">
+            <div class="p-2 bg-red-500/10 rounded-lg border border-red-500/20">
+              <svg class="w-5 h-5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-[#e8e6e3]">Cancel Call</h3>
+          </div>
+          <button @click="closeCancelConfirm" class="text-[#666] hover:text-[#999] transition-colors">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <!-- Call Details -->
+          <div class="p-3 bg-[#0d0d0f] rounded-lg border border-red-500/20">
+            <p class="text-[10px] font-['JetBrains_Mono',monospace] uppercase tracking-[0.2em] text-[#666] mb-1">Scheduled For</p>
+            <p class="text-sm text-[#999]">{{ cancelConfirmCall ? formatScheduledTime(cancelConfirmCall.scheduled_time) : '' }}</p>
+            <p class="text-xs text-[#666] mt-1">{{ cancelConfirmCall?.persona_name || 'Unknown Persona' }}</p>
+          </div>
+
+          <!-- Warning -->
+          <p class="text-sm text-[#888]">
+            This will permanently remove the scheduled call. This action cannot be undone.
+          </p>
+
+          <!-- Actions -->
+          <div class="flex gap-3 pt-2">
+            <button
+              @click="closeCancelConfirm"
+              class="flex-1 px-4 py-3 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#999] text-sm font-medium hover:border-[#3a3a3e] hover:text-[#e8e6e3] transition-all duration-300"
+            >
+              Keep Call
+            </button>
+            <button
+              @click="confirmCancelCall"
+              class="flex-1 px-4 py-3 bg-gradient-to-r from-red-600 to-red-500 rounded-lg text-white text-sm font-bold hover:from-red-500 hover:to-red-400 transition-all duration-300"
+            >
+              Cancel Call
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -468,10 +530,12 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useCallsStore } from '../stores/calls'
 import { usePersonasStore } from '../stores/personas'
 import { useUserStore } from '../stores/user'
+import { useToast } from '../stores/toast'
 
 const callsStore = useCallsStore()
 const personasStore = usePersonasStore()
 const userStore = useUserStore()
+const toast = useToast()
 
 // Unified call form state
 const callForm = ref({
@@ -544,13 +608,27 @@ const saveNewPrefab = () => {
   callForm.value.selectedPrefab = newPrefab.id
 }
 
-const deletePrefab = (prefabId) => {
-  if (!confirm('Delete this quick context?')) return
+// State for prefab deletion confirmation
+const deletingPrefabId = ref(null)
+
+const confirmDeletePrefab = (prefabId) => {
+  deletingPrefabId.value = prefabId
+}
+
+const cancelDeletePrefab = () => {
+  deletingPrefabId.value = null
+}
+
+const executeDeletePrefab = () => {
+  if (!deletingPrefabId.value) return
+  const prefabId = deletingPrefabId.value
   customPrefabs.value = customPrefabs.value.filter(p => p.id !== prefabId)
   saveCustomPrefabs()
   if (callForm.value.selectedPrefab === prefabId) {
     callForm.value.selectedPrefab = null
   }
+  toast.success('Quick context deleted')
+  deletingPrefabId.value = null
 }
 
 // Form validation
@@ -672,15 +750,29 @@ const editForm = ref({
 const editLoading = ref(false)
 const editError = ref('')
 
-const cancelCall = async (callId) => {
-  if (!confirm('Are you sure you want to cancel this scheduled call?')) return
+// Cancel confirmation modal state
+const cancelConfirmCall = ref(null)
+
+const openCancelConfirm = (call) => {
+  cancelConfirmCall.value = call
+}
+
+const closeCancelConfirm = () => {
+  cancelConfirmCall.value = null
+}
+
+const confirmCancelCall = async () => {
+  if (!cancelConfirmCall.value) return
+  const callId = cancelConfirmCall.value.id
 
   cancelLoading.value[callId] = true
+  closeCancelConfirm()
 
   try {
     await callsStore.cancelScheduledCall(callId)
+    toast.success('Scheduled call cancelled')
   } catch (err) {
-    alert('Failed to cancel call: ' + err.message)
+    toast.error('Failed to cancel: ' + err.message)
   } finally {
     delete cancelLoading.value[callId]
   }
