@@ -473,10 +473,11 @@ const fetchBalance = async () => {
 
     if (response.ok) {
       const data = await response.json()
+      console.log('Balance response:', data) // Debug log
       minutesBalance.value = data.minutes ?? 0
-      balanceLastUpdated.value = data.last_updated ? new Date(data.last_updated) : new Date()
+      balanceLastUpdated.value = data.lastUpdated ? new Date(data.lastUpdated) : new Date()
     } else {
-      console.error('Failed to fetch balance:', response.status)
+      console.error('Failed to fetch balance:', response.status, await response.text())
       minutesBalance.value = 0
     }
   } catch (err) {

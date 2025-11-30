@@ -20,6 +20,7 @@ export interface Env {
   COST_ANALYTICS: ServiceStub<import('../cost-analytics/index.js').default>;
   DEEPGRAM_API_KEY: string;
   ELEVENLABS_API_KEY: string;
+  FRONTEND_URL: string;
   JWT_SECRET: string;
   LOG_QUERY_SERVICE_URL: string;
   logger: Logger;
@@ -27,9 +28,9 @@ export interface Env {
   PAYMENT_PROCESSOR: ServiceStub<import('../payment-processor/index.js').default>;
   PERSONA_MANAGER: ServiceStub<import('../persona-manager/index.js').default>;
   RATE_LIMIT_CACHE: KvCache;
-  STRIPE_PRICE_100MIN: string;
-  STRIPE_PRICE_25MIN: string;
-  STRIPE_PRICE_50MIN: string;
+  STRIPE_PRICE_FIFTY_MIN: string;
+  STRIPE_PRICE_ONE_HUNDRED_MIN: string;
+  STRIPE_PRICE_TWENTY_FIVE_MIN: string;
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
   TOKEN_BLACKLIST: KvCache;

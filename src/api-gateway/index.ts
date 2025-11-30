@@ -2183,9 +2183,9 @@ export default class extends Service<Env> {
       // Map SKU to price ID and minutes (Price IDs configured in raindrop.manifest)
       // New pricing tiers: Starter 25min/$14.99, Basic 50min/$24.99, Plus 100min/$44.99
       const skuMap: Record<string, { priceId: string; minutes: number }> = {
-        'minutes_25': { priceId: this.env.STRIPE_PRICE_25MIN, minutes: 25 },
-        'minutes_50': { priceId: this.env.STRIPE_PRICE_50MIN, minutes: 50 },
-        'minutes_100': { priceId: this.env.STRIPE_PRICE_100MIN, minutes: 100 },
+        'minutes_25': { priceId: this.env.STRIPE_PRICE_TWENTY_FIVE_MIN, minutes: 25 },
+        'minutes_50': { priceId: this.env.STRIPE_PRICE_FIFTY_MIN, minutes: 50 },
+        'minutes_100': { priceId: this.env.STRIPE_PRICE_ONE_HUNDRED_MIN, minutes: 100 },
       };
 
       const skuInfo = skuMap[body.sku];
@@ -2297,11 +2297,15 @@ export default class extends Service<Env> {
     const body = await request.text();
 
     // Parse signature header (format: t=timestamp,v1=signature)
-    const sigParts = signature.split(',').reduce((acc, part) => {
-      const [key, value] = part.split('=');
-      acc[key] = value;
-      return acc;
-    }, {} as Record<string, string>);
+    const sigParts: Record<string, string> = {};
+    for (const part of signature.split(',')) {
+      const eqIndex = part.indexOf('=');
+      if (eqIndex > 0) {
+        const key = part.substring(0, eqIndex);
+        const value = part.substring(eqIndex + 1);
+        sigParts[key] = value;
+      }
+    }
 
     const timestamp = sigParts['t'];
     const expectedSig = sigParts['v1'];
