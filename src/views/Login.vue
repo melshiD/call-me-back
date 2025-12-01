@@ -94,7 +94,7 @@
               </div>
             </div>
 
-            <!-- Submit Button -->
+            <!-- Submit Button (Email/Password) -->
             <button
               type="submit"
               :disabled="loading"
@@ -109,6 +109,26 @@
               </span>
               <div class="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl"></div>
             </button>
+
+            <!-- Divider -->
+            <div class="flex items-center gap-4">
+              <div class="flex-1 h-px bg-white/10"></div>
+              <span class="text-cream/40 text-xs uppercase tracking-wider font-semibold">Or continue with</span>
+              <div class="flex-1 h-px bg-white/10"></div>
+            </div>
+
+            <!-- WorkOS AuthKit Button (Google, GitHub, etc.) -->
+            <a
+              :href="oauthLoginUrl"
+              class="group relative w-full inline-flex items-center justify-center px-10 py-5 text-lg font-bold text-cream bg-white/5 border-2 border-white/20 rounded-xl overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:border-glow/50 hover:bg-white/10"
+            >
+              <span class="relative z-10 flex items-center gap-3">
+                <svg class="w-5 h-5 text-glow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span>Sign in with SSO</span>
+              </span>
+            </a>
 
             <!-- Forgot Password Link -->
             <div class="text-center">
@@ -154,7 +174,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
@@ -165,6 +185,10 @@ const email = ref('')
 const password = ref('')
 const loading = ref(false)
 const error = ref('')
+
+// OAuth login URL - redirects to API gateway which redirects to WorkOS AuthKit
+const API_URL = import.meta.env.VITE_API_URL || 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run'
+const oauthLoginUrl = computed(() => `${API_URL}/api/auth/login/oauth`)
 
 const handleLogin = async () => {
   loading.value = true

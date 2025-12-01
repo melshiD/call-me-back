@@ -46,4 +46,5 @@ export interface Env {
   WEBHOOK_HANDLER: ServiceStub<import('../webhook-handler/index.js').default>;
   WORKOS_API_KEY: string;
   WORKOS_CLIENT_ID: string;
+  WORKOS_USER_REDIRECT_URI: string;
 }

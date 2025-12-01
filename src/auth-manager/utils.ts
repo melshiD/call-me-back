@@ -31,18 +31,58 @@ export async function generateToken(userId: string, email: string, secret: strin
   return jwt;
 }
 
+// Cache for WorkOS JWKS to avoid fetching on every request
+let workosJwksCache: jose.JWTVerifyGetKey | null = null;
+let workosJwksCacheTime = 0;
+const JWKS_CACHE_TTL = 3600000; // 1 hour
+
+async function getWorkOSJWKS(): Promise<jose.JWTVerifyGetKey> {
+  const now = Date.now();
+  if (workosJwksCache && (now - workosJwksCacheTime) < JWKS_CACHE_TTL) {
+    return workosJwksCache;
+  }
+
+  // WorkOS JWKS endpoint
+  const jwksUrl = 'https://api.workos.com/sso/jwks';
+  workosJwksCache = jose.createRemoteJWKSet(new URL(jwksUrl));
+  workosJwksCacheTime = now;
+  return workosJwksCache;
+}
+
 export async function validateToken(token: string, secret: string): Promise<TokenValidationResult> {
   try {
-    const encoder = new TextEncoder();
-    const secretKey = encoder.encode(secret);
+    // First, decode the token without verification to check its structure
+    const decoded = jose.decodeJwt(token);
 
-    const { payload } = await jose.jwtVerify(token, secretKey);
+    // Check if this is a WorkOS token (has 'iss' from WorkOS)
+    const isWorkOSToken = decoded.iss && (
+      decoded.iss.includes('workos.com') ||
+      decoded.iss.includes('authkit.app')
+    );
 
-    return {
-      valid: true,
-      userId: payload.userId as string,
-      tokenId: payload.tokenId as string,
-    };
+    if (isWorkOSToken) {
+      // Validate WorkOS token using their JWKS (public keys)
+      const jwks = await getWorkOSJWKS();
+      const { payload } = await jose.jwtVerify(token, jwks);
+
+      // WorkOS tokens have 'sub' as the user ID
+      return {
+        valid: true,
+        userId: payload.sub as string,
+        tokenId: undefined, // WorkOS tokens don't have our tokenId
+      };
+    } else {
+      // Validate our own JWT using the secret
+      const encoder = new TextEncoder();
+      const secretKey = encoder.encode(secret);
+      const { payload } = await jose.jwtVerify(token, secretKey);
+
+      return {
+        valid: true,
+        userId: payload.userId as string,
+        tokenId: payload.tokenId as string,
+      };
+    }
   } catch (error) {
     return {
       valid: false,

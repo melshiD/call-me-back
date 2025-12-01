@@ -45,4 +45,5 @@ export interface Env {
   VULTR_DB_API_URL: string;
   WORKOS_API_KEY: string;
   WORKOS_CLIENT_ID: string;
+  WORKOS_USER_REDIRECT_URI: string;
 }

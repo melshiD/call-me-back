@@ -290,6 +290,48 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  /**
+   * Set token from OAuth callback
+   *
+   * Used when user authenticates via WorkOS AuthKit (Google, GitHub, etc.)
+   * The token is a WorkOS access token, which we store and use for API calls.
+   * We also fetch the user profile to populate the user state.
+   *
+   * @param {string} oauthToken - The access token from WorkOS
+   */
+  const setTokenFromOAuth = async (oauthToken) => {
+    const apiUrl = import.meta.env.VITE_API_URL
+
+    // Store the token first
+    token.value = oauthToken
+    localStorage.setItem('token', oauthToken)
+
+    // Fetch user profile using the new token (POST for security - no caching/logging)
+    try {
+      const response = await fetch(`${apiUrl}/api/auth/me`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${oauthToken}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch user profile')
+      }
+
+      const data = await response.json()
+      user.value = data.user
+      localStorage.setItem('user', JSON.stringify(data.user))
+    } catch (error) {
+      console.error('Failed to fetch user after OAuth:', error)
+      // Clear the token if we can't get the user
+      token.value = null
+      localStorage.removeItem('token')
+      throw error
+    }
+  }
+
   // Initialize auth state from localStorage
   checkAuth()
 
@@ -300,6 +342,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     logout,
-    checkAuth
+    checkAuth,
+    setTokenFromOAuth
   }
 })

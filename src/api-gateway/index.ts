@@ -1175,6 +1175,97 @@ export default class extends Service<Env> {
    */
   private async handleAuthRoutes(request: Request, path: string): Promise<Response> {
     try {
+      // GET /api/auth/login/oauth - Redirect to WorkOS AuthKit for OAuth login
+      if (request.method === 'GET' && path === '/api/auth/login/oauth') {
+        if (!this.env.WORKOS_API_KEY || !this.env.WORKOS_CLIENT_ID) {
+          return new Response(JSON.stringify({ error: 'OAuth not configured' }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Build WorkOS authorization URL
+        // Using authkit provider which shows all configured auth methods (Google, GitHub, email/password, etc.)
+        const redirectUri = this.env.WORKOS_USER_REDIRECT_URI || 'https://callmeback.ai/auth/callback';
+        const authUrl = new URL('https://api.workos.com/user_management/authorize');
+        authUrl.searchParams.set('client_id', this.env.WORKOS_CLIENT_ID);
+        authUrl.searchParams.set('redirect_uri', redirectUri);
+        authUrl.searchParams.set('response_type', 'code');
+        authUrl.searchParams.set('provider', 'authkit');
+
+        return Response.redirect(authUrl.toString(), 302);
+      }
+
+      // GET /api/auth/callback - Handle WorkOS OAuth callback
+      if (request.method === 'GET' && path === '/api/auth/callback') {
+        const url = new URL(request.url);
+        const code = url.searchParams.get('code');
+        const error = url.searchParams.get('error');
+        const frontendUrl = this.env.FRONTEND_URL || 'https://callmeback.ai';
+
+        if (error) {
+          console.error('[API-GATEWAY] WorkOS OAuth error:', error);
+          return Response.redirect(`${frontendUrl}/login?error=${encodeURIComponent(error)}`, 302);
+        }
+
+        if (!code) {
+          return Response.redirect(`${frontendUrl}/login?error=no_code`, 302);
+        }
+
+        try {
+          // Exchange code for tokens using WorkOS API
+          const redirectUri = this.env.WORKOS_USER_REDIRECT_URI || 'https://callmeback.ai/auth/callback';
+          const tokenResponse = await fetch('https://api.workos.com/user_management/authenticate', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${this.env.WORKOS_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              client_id: this.env.WORKOS_CLIENT_ID,
+              code: code,
+              grant_type: 'authorization_code',
+            }),
+          });
+
+          if (!tokenResponse.ok) {
+            const errorText = await tokenResponse.text();
+            console.error('[API-GATEWAY] WorkOS token exchange failed:', errorText);
+            return Response.redirect(`${frontendUrl}/login?error=auth_failed`, 302);
+          }
+
+          const tokenData = await tokenResponse.json() as any;
+          const workosUser = tokenData.user;
+          const accessToken = tokenData.access_token;
+
+          // Upsert user in our database
+          const userId = workosUser.id;
+          const email = workosUser.email;
+          const name = workosUser.first_name
+            ? `${workosUser.first_name} ${workosUser.last_name || ''}`.trim()
+            : email.split('@')[0];
+
+          await this.env.DATABASE_PROXY.executeQuery(`
+            INSERT INTO users (id, email, password_hash, name, email_verified)
+            VALUES ($1, $2, 'workos_oauth', $3, $4)
+            ON CONFLICT (id) DO UPDATE SET
+              email = EXCLUDED.email,
+              name = EXCLUDED.name,
+              email_verified = EXCLUDED.email_verified,
+              updated_at = NOW()
+          `, [userId, email, name, workosUser.email_verified || false]);
+
+          console.log('[API-GATEWAY] User authenticated via WorkOS OAuth:', { userId, email });
+
+          // Redirect to frontend with the WorkOS access token
+          // The frontend will store this and use it for API calls
+          return Response.redirect(`${frontendUrl}/auth/callback?token=${accessToken}`, 302);
+        } catch (err) {
+          console.error('[API-GATEWAY] OAuth callback error:', err);
+          return Response.redirect(`${frontendUrl}/login?error=auth_failed`, 302);
+        }
+      }
+
       // POST /api/auth/register - User registration
       if (request.method === 'POST' && path === '/api/auth/register') {
         const body = await request.json() as any;
@@ -1221,6 +1312,57 @@ export default class extends Service<Env> {
           });
         }
         return new Response(JSON.stringify(result), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // POST /api/auth/me - Get current user profile (POST for security - no caching/logging)
+      if (request.method === 'POST' && path === '/api/auth/me') {
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        const token = authHeader.substring(7);
+        const validation = await this.env.AUTH_MANAGER.validateToken(token);
+
+        if (!validation.valid || !validation.userId) {
+          return new Response(JSON.stringify({ error: 'Invalid token' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        // Fetch user from database
+        const result = await this.env.DATABASE_PROXY.executeQuery(
+          'SELECT id, email, name, phone, email_verified, phone_verified, stripe_customer_id, created_at, updated_at FROM users WHERE id = $1',
+          [validation.userId]
+        );
+
+        if (result.rows.length === 0) {
+          return new Response(JSON.stringify({ error: 'User not found' }), {
+            status: 404,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        const dbUser = result.rows[0] as any;
+        return new Response(JSON.stringify({
+          user: {
+            id: dbUser.id,
+            email: dbUser.email,
+            name: dbUser.name,
+            phone: dbUser.phone,
+            emailVerified: Boolean(dbUser.email_verified),
+            phoneVerified: Boolean(dbUser.phone_verified),
+            stripeCustomerId: dbUser.stripe_customer_id,
+            createdAt: dbUser.created_at,
+            updatedAt: dbUser.updated_at
+          }
+        }), {
           headers: { 'Content-Type': 'application/json' }
         });
       }
