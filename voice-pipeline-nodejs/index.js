@@ -86,6 +86,23 @@ envFile.split('\n').forEach(line => {
   if (key && value) env[key.trim()] = value.trim();
 });
 
+/**
+ * Phone Call Guidelines - Layer 5
+ * Appended to all persona prompts. TODO: Move to database for per-persona or global editing.
+ */
+const PHONE_CALL_GUIDELINES = `
+
+IMPORTANT - PHONE CALL FORMAT:
+You are on a LIVE PHONE CALL with the user right now. This is a real-time voice conversation over the phone.
+- Keep responses brief and natural (1-2 short sentences max)
+- Respond to what the user actually says - stay grounded in the real conversation
+- Speak conversationally like you're on a phone call
+- Don't narrate your actions - just speak naturally as if talking on the phone
+- If something's unclear, just ask!
+- Remember: they hear your voice, not text - keep it natural and flowing
+
+CRITICAL: NEVER output bracketed actions like [laughs], [sighs], (pauses), *smiles*, etc. These will be spoken aloud verbatim and sound robotic. Just speak naturally without stage directions.`;
+
 const app = express();
 const server = createServer(app);
 
@@ -157,7 +174,7 @@ class VoicePipeline {
     this.personaName = null;
     this.voiceId = null;
     this.systemPrompt = null;
-    this.smartMemory = null;
+    this.relationshipContext = null;
     this.longTermMemory = null;  // Layer 4: User facts from KV storage
 
     // Service connections
@@ -208,6 +225,11 @@ class VoicePipeline {
       cerebrasTokens: 0,
       sessionDuration: 0
     };
+
+    // Phase 2: Speculative response state (EagerEndOfTurn optimization)
+    this.draftAbortController = null;  // AbortController for cancellable LLM fetch
+    this.draftResponse = null;          // Cached speculative response
+    this.draftTranscript = null;        // Transcript used for draft (to verify match)
 
     console.log(`[VoicePipeline ${this.callId}] Initialized`, callParams);
   }
@@ -302,7 +324,7 @@ class VoicePipeline {
         this.maxTokens = row.max_tokens || 100;  // Default: 100 tokens (prevents mid-sentence truncation)
         this.temperature = row.temperature || 0.7;  // Default: 0.7 (balanced creativity)
         // Note: smart_memory column doesn't exist in current schema - will be added later for static relationship context
-        this.smartMemory = '';
+        this.relationshipContext = '';
 
         // Set call context from database (fetched via callId, not passed via TwiML)
         if (callContext) {
@@ -328,7 +350,7 @@ class VoicePipeline {
         this.systemPrompt = 'You are Brad, a supportive bro who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.';
         this.maxTokens = 100;
         this.temperature = 0.7;
-        this.smartMemory = '';
+        this.relationshipContext = '';
         this.callPretext = callContext?.call_pretext || '';
         this.callScenario = callContext?.call_scenario || '';
       }
@@ -341,7 +363,7 @@ class VoicePipeline {
       this.temperature = 0.7;
       this.voiceId = 'pNInz6obpgDQGcFmaJgB';
       this.systemPrompt = 'You are Brad, a supportive bro who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.';
-      this.smartMemory = '';
+      this.relationshipContext = '';
       this.callPretext = '';
       this.callScenario = '';
     }
@@ -382,7 +404,7 @@ class VoicePipeline {
 
           // Layer 3: Relationship context
           if (data.relationshipPrompt) {
-            this.smartMemory = data.relationshipPrompt;
+            this.relationshipContext = data.relationshipPrompt;
             console.log(`[VoicePipeline ${this.callId}] ✅ Layer 3: relationship context loaded`);
           }
 
@@ -750,34 +772,69 @@ class VoicePipeline {
         break;
 
       case 'EagerEndOfTurn':
-        // User might be done - could start preparing response here (Phase 2)
-        // For now, just log it
-        console.log(`[VoicePipeline ${this.callId}] ⏳ EagerEndOfTurn - user might be done`);
+        // Phase 2: User might be done - start speculative LLM call
+        console.log(`[VoicePipeline ${this.callId}] ⏳ EagerEndOfTurn - starting speculative response`);
         this.currentFluxTranscript = transcript;
+
+        // Cancel any existing draft and start new one
+        this.clearDraft();
+        if (transcript && transcript.trim()) {
+          this.draftAbortController = new AbortController();
+          this.prepareDraftResponse(transcript, this.draftAbortController.signal);
+        }
         break;
 
       case 'TurnResumed':
-        // User kept speaking after EagerEndOfTurn - cancel any draft (Phase 2)
-        console.log(`[VoicePipeline ${this.callId}] ↩️ TurnResumed - user continued speaking`);
+        // Phase 2: User kept speaking - abort speculative LLM call
+        console.log(`[VoicePipeline ${this.callId}] ↩️ TurnResumed - aborting speculative response`);
         this.currentFluxTranscript = transcript;
+        this.clearDraft();
         break;
 
       case 'EndOfTurn':
-        // User definitely done - trigger AI response
+        // User definitely done - use draft if available, otherwise trigger normal response
         console.log(`[VoicePipeline ${this.callId}] ✅ EndOfTurn - user finished speaking`);
 
         if (transcript && transcript.trim()) {
-          // Store final transcript and trigger response
           this.currentFluxTranscript = transcript;
 
-          // Add to conversation history (same format as before)
+          // Add to conversation history
           this.transcriptSegments = [{
             text: transcript,
             timestamp: Date.now()
           }];
 
-          // Trigger AI response - Flux has determined the turn is complete
-          this.triggerResponse('flux_end_of_turn');
+          // Phase 2: Check if we have a usable draft response
+          if (this.draftResponse && this.draftTranscript === transcript) {
+            console.log(`[VoicePipeline ${this.callId}] 🚀 Using speculative draft response!`);
+
+            // Add user message to history
+            this.conversationHistory.push({
+              role: 'user',
+              content: transcript
+            });
+
+            // Add AI response to history
+            this.conversationHistory.push({
+              role: 'assistant',
+              content: this.draftResponse
+            });
+
+            // Speak the draft response
+            this.speak(this.draftResponse);
+
+            // Clear draft state and reset for next turn
+            this.clearDraft();
+            this.transcriptSegments = [];
+            this.evaluationCount = 0;
+          } else {
+            // No usable draft - trigger normal response
+            if (this.draftResponse) {
+              console.log(`[VoicePipeline ${this.callId}] Draft transcript mismatch, using normal flow`);
+            }
+            this.clearDraft();
+            this.triggerResponse('flux_end_of_turn');
+          }
         } else {
           console.log(`[VoicePipeline ${this.callId}] EndOfTurn with empty transcript - ignoring`);
         }
@@ -1141,36 +1198,55 @@ Answer:`;
   }
 
   /**
+   * Build the complete system prompt with all persona layers
+   * Used by generateResponse() and prepareDraftResponse()
+   *
+   * Layers:
+   *   1. Base system prompt (admin-defined, from personas.core_system_prompt)
+   *   2. Call context - user-dependent (callPretext, callScenario, customInstructions)
+   *   3. Relationship context - user-defined (relationshipContext from KV)
+   *   4. User facts - user-dependent (longTermMemory from KV)
+   *   5. Phone call guidelines (from PHONE_CALL_GUIDELINES constant)
+   */
+  buildFullSystemPrompt() {
+    // Layer 1: Base persona prompt (admin-defined)
+    let systemPrompt = this.systemPrompt;
+
+    // Layer 3: Relationship context (user-defined)
+    if (this.relationshipContext) {
+      systemPrompt += `\n\nRELATIONSHIP CONTEXT:\n${this.relationshipContext}`;
+    }
+
+    // Layer 2: Call context (user-dependent)
+    if (this.callPretext) {
+      systemPrompt += `\n\nCALL CONTEXT: The user requested this call for the following reason: "${this.callPretext}". Keep this context in mind and be helpful with their situation.`;
+    }
+    if (this.callScenario) {
+      systemPrompt += `\n\nSCENARIO: ${this.callScenario}`;
+    }
+    if (this.customInstructions) {
+      systemPrompt += `\n\nSPECIAL INSTRUCTIONS FOR THIS CALL:\n${this.customInstructions}`;
+    }
+
+    // Layer 4: User facts learned from previous calls
+    if (this.longTermMemory) {
+      systemPrompt += `\n\nWHAT YOU KNOW ABOUT THIS USER (from previous conversations):\n- ${this.longTermMemory}`;
+    }
+
+    // Layer 5: Phone call guidelines
+    systemPrompt += PHONE_CALL_GUIDELINES;
+
+    return systemPrompt;
+  }
+
+  /**
    * Generate AI response using Cerebras
    */
   async generateResponse() {
     try {
       console.log(`[VoicePipeline ${this.callId}] Generating response...`);
 
-      // Build system prompt with persona configuration, smartMemory, and callPretext
-      let systemPrompt = this.systemPrompt;
-
-      // Add smartMemory if available (configured relationships/behavior)
-      if (this.smartMemory) {
-        systemPrompt += `\n\nRELATIONSHIP CONTEXT:\n${this.smartMemory}`;
-      }
-
-      // Add callPretext if available (reason for the call, e.g., "Save me from a bad date")
-      if (this.callPretext) {
-        systemPrompt += `\n\nCALL CONTEXT: The user requested this call for the following reason: "${this.callPretext}". Keep this context in mind and be helpful with their situation.`;
-      }
-
-      // LAYER 4: Add user facts learned from previous calls
-      if (this.longTermMemory) {
-        systemPrompt += `\n\nWHAT YOU KNOW ABOUT THIS USER (from previous conversations):\n- ${this.longTermMemory}`;
-      }
-
-      // CRITICAL: Enforce brevity and natural conversation
-      systemPrompt += `\n\nPhone Call Guidelines:
-- Keep responses brief and natural (1-2 short sentences)
-- Respond to what the user actually says - stay grounded in the real conversation
-- Speak conversationally, no stage directions like "(laughs)"
-- If something's unclear, just ask!`;
+      const systemPrompt = this.buildFullSystemPrompt();
 
       const messages = [
         {
@@ -1225,6 +1301,86 @@ Answer:`;
       console.error(`[VoicePipeline ${this.callId}] Failed to generate response:`, error);
       await this.speak("Sorry bro, I lost my train of thought. What were you saying?");
     }
+  }
+
+  /**
+   * Phase 2: Prepare speculative draft response on EagerEndOfTurn
+   * Runs speculatively when Flux thinks the user MIGHT be done.
+   * Can be aborted if user continues speaking (TurnResumed).
+   */
+  async prepareDraftResponse(transcript, abortSignal) {
+    try {
+      console.log(`[VoicePipeline ${this.callId}] 🔮 Starting speculative draft for: "${transcript}"`);
+
+      const systemPrompt = this.buildFullSystemPrompt();
+
+      // Build messages with the speculative transcript (not yet in conversationHistory)
+      const messages = [
+        { role: 'system', content: systemPrompt },
+        ...this.conversationHistory.slice(-10),
+        { role: 'user', content: transcript }
+      ];
+
+      const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.CEREBRAS_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: 'llama3.1-8b',
+          messages: messages,
+          max_tokens: this.maxTokens,
+          temperature: this.temperature,
+          stream: false
+        }),
+        signal: abortSignal  // Allows cancellation on TurnResumed
+      });
+
+      // Check if aborted before processing
+      if (abortSignal.aborted) {
+        console.log(`[VoicePipeline ${this.callId}] 🔮 Draft request was aborted`);
+        return;
+      }
+
+      const data = await response.json();
+      const aiResponse = data.choices[0]?.message?.content;
+
+      if (aiResponse) {
+        console.log(`[VoicePipeline ${this.callId}] 🔮 Draft ready: "${aiResponse.substring(0, 50)}..."`);
+
+        // Store draft for use when EndOfTurn arrives
+        this.draftResponse = aiResponse;
+        this.draftTranscript = transcript;
+
+        // Log Cerebras usage (speculative)
+        if (data.usage) {
+          console.log(`[VoicePipeline ${this.callId}] Cerebras (speculative): prompt=${data.usage.prompt_tokens} completion=${data.usage.completion_tokens}`);
+        }
+      }
+    } catch (error) {
+      // AbortError is expected when user continues speaking
+      if (error.name === 'AbortError') {
+        console.log(`[VoicePipeline ${this.callId}] 🔮 Draft aborted (user continued speaking)`);
+      } else {
+        console.error(`[VoicePipeline ${this.callId}] 🔮 Draft generation failed:`, error.message);
+      }
+      // Clear any partial draft state
+      this.draftResponse = null;
+      this.draftTranscript = null;
+    }
+  }
+
+  /**
+   * Clear speculative draft state (called on TurnResumed or when draft is used)
+   */
+  clearDraft() {
+    if (this.draftAbortController) {
+      this.draftAbortController.abort();
+      this.draftAbortController = null;
+    }
+    this.draftResponse = null;
+    this.draftTranscript = null;
   }
 
   /**
@@ -1714,8 +1870,11 @@ class BrowserVoicePipeline {
     this.overrides = params.overrides || {};
 
     // Context from PersonaDesigner UI (for testing)
-    this.smartMemory = params.smartMemory || null;
+    // Note: params uses 'smartMemory' for API compatibility, stored as relationshipContext internally
+    this.relationshipContext = params.smartMemory || params.relationshipContext || null;
     this.callPretext = params.callPretext || null;
+    this.callScenario = params.callScenario || null;
+    this.customInstructions = params.customInstructions || null;
 
     // Long-term memory (facts learned from previous calls)
     this.longTermMemory = null;
@@ -1850,8 +2009,8 @@ class BrowserVoicePipeline {
           }
 
           // Layer 3: Relationship context (only if not already set from init message)
-          if (!this.smartMemory && data.relationshipPrompt) {
-            this.smartMemory = data.relationshipPrompt;
+          if (!this.relationshipContext && data.relationshipPrompt) {
+            this.relationshipContext = data.relationshipPrompt;
             console.log(`[BrowserPipeline ${this.sessionId}] ✅ Layer 3: relationship context loaded`);
           }
 
@@ -1985,11 +2144,12 @@ class BrowserVoicePipeline {
     switch (event) {
       case 'StartOfTurn':
         this.lastSpeechTime = Date.now();
-        if (this.isSpeaking) {
-          console.log(`[BrowserPipeline ${this.sessionId}] 🛑 User interrupted (Flux StartOfTurn)`);
-          this.send({ type: 'interrupt' });
-          this.handleInterruption();
-        }
+        // ALWAYS send interrupt when user starts speaking - audio may still be playing
+        // even if isSpeaking=false (ElevenLabs sets isFinal before audio finishes playing)
+        // TODO: Improve audio cutoff quality - consider fade-out or finding natural break point
+        console.log(`[BrowserPipeline ${this.sessionId}] 🛑 User interrupted (Flux StartOfTurn)`);
+        this.send({ type: 'interrupt' });
+        this.handleInterruption();
         break;
 
       case 'Update':
@@ -1998,12 +2158,6 @@ class BrowserVoicePipeline {
           this.lastSpeechTime = Date.now();
           // Send interim transcript to frontend
           this.send({ type: 'transcript', text: transcript, is_final: false });
-
-          if (this.isSpeaking) {
-            console.log(`[BrowserPipeline ${this.sessionId}] 🛑 User interrupted (Flux Update)`);
-            this.send({ type: 'interrupt' });
-            this.handleInterruption();
-          }
         }
         break;
 
@@ -2023,6 +2177,13 @@ class BrowserVoicePipeline {
           this.currentFluxTranscript = transcript;
           // Send final transcript to frontend
           this.send({ type: 'transcript', text: transcript, is_final: true });
+
+          // CRITICAL FIX: Add user message to conversation history BEFORE generating response
+          // Without this, generateResponse() sends old history to LLM, ignoring what user just said
+          this.conversationHistory.push({ role: 'user', content: transcript });
+          this.send({ type: 'user_turn_complete', text: transcript });
+          this.transcriptSegments = [];  // Clear to avoid duplication with legacy path
+
           // Generate AI response
           this.generateResponse();
         }
@@ -2211,31 +2372,30 @@ class BrowserVoicePipeline {
       // Build system prompt with all context layers
       let fullSystemPrompt = this.systemPrompt;
 
-      // LAYER 3: Add smartMemory context (relationship + admin context from PersonaDesigner UI)
-      if (this.smartMemory) {
-        fullSystemPrompt += `\n\nRELATIONSHIP CONTEXT:\n${this.smartMemory}`;
+      // LAYER 3: Add relationshipContext (user-defined relationship description)
+      if (this.relationshipContext) {
+        fullSystemPrompt += `\n\nRELATIONSHIP CONTEXT:\n${this.relationshipContext}`;
       }
 
-      // Add callPretext context (reason for call + instructions from PersonaDesigner UI)
+      // Layer 2: Call context (user-dependent)
       if (this.callPretext) {
         fullSystemPrompt += `\n\nCALL CONTEXT: The user requested this call for the following reason: "${this.callPretext}". Keep this context in mind and be helpful with their situation.`;
       }
+      if (this.callScenario) {
+        fullSystemPrompt += `\n\nSCENARIO: ${this.callScenario}`;
+      }
+      if (this.customInstructions) {
+        fullSystemPrompt += `\n\nSPECIAL INSTRUCTIONS FOR THIS CALL:\n${this.customInstructions}`;
+      }
 
-      // LAYER 4: USER KNOWLEDGE - Facts learned from previous calls
+      // Layer 4: User facts learned from previous calls
       // These are automatically extracted after each call and stored in SmartMemory
       if (this.longTermMemory) {
         fullSystemPrompt += `\n\nWHAT YOU KNOW ABOUT THIS USER (from previous conversations):\n- ${this.longTermMemory}`;
       }
 
-      // Phone call guidelines (always applied)
-      fullSystemPrompt += `\n\nIMPORTANT - PHONE CALL FORMAT:
-You are on a LIVE PHONE CALL with the user right now. This is a real-time voice conversation over the phone.
-- Keep responses brief and natural (1-2 short sentences max)
-- Respond to what the user actually says - stay grounded in the real conversation
-- Speak conversationally like you're on a phone call - no stage directions, no asterisks, no "(laughs)" or "(pauses)"
-- Don't narrate your actions - just speak naturally as if talking on the phone
-- If something's unclear, just ask!
-- Remember: they hear your voice, not text - keep it natural and flowing`;
+      // Layer 5: Phone call guidelines
+      fullSystemPrompt += PHONE_CALL_GUIDELINES;
 
       // Phase 2: Build context from interrupted messages
       const interruptedMessages = this.conversationHistory

@@ -1763,9 +1763,10 @@ const hasChanges = computed(() => {
 const fetchPersonas = async () => {
   loadingPersonas.value = true;
   try {
-    // Fetch from main API gateway, not logs service
-    // No auth needed - /api/personas is public
-    const response = await fetch(`${API_GATEWAY_URL}/api/personas`);
+    // Fetch from main API gateway with admin token to get full persona data (including systemPrompt)
+    const token = localStorage.getItem('adminToken');
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const response = await fetch(`${API_GATEWAY_URL}/api/personas`, { headers });
     if (!response.ok) throw new Error('Failed to fetch personas');
     const data = await response.json();
     personas.value = data.personas || data || [];

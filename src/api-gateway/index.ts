@@ -156,11 +156,43 @@ export default class extends Service<Env> {
 
       this.env.logger.info('Incoming call', { callSid, from, to });
 
-      // Extract callId, userId and personaId from query params (passed by call-orchestrator)
+      // Extract callId, userId and personaId from query params (passed by call-orchestrator for OUTBOUND calls)
       const url = new URL(request.url);
       const callId = url.searchParams.get('callId') || callSid; // Use our internal callId, fallback to Twilio SID
       const userId = url.searchParams.get('userId') || 'demo_user';
-      const personaId = url.searchParams.get('personaId') || 'brad_001';
+
+      // For INBOUND calls (user calling persona's number), look up persona by the called number
+      // For OUTBOUND calls (call-orchestrator triggered), personaId is in query params
+      let personaId = url.searchParams.get('personaId');
+
+      if (!personaId && to) {
+        // Inbound call - look up persona by their Twilio phone number
+        this.env.logger.info('Inbound call detected, looking up persona by phone number', { to });
+        try {
+          const personaResult = await this.env.DATABASE_PROXY.executeQuery(
+            'SELECT id FROM personas WHERE twilio_phone_number = $1',
+            [to]
+          );
+          if (personaResult.rows && personaResult.rows.length > 0) {
+            personaId = personaResult.rows[0].id;
+            this.env.logger.info('Found persona for inbound call', { personaId, phoneNumber: to });
+          } else {
+            this.env.logger.warn('No persona found for phone number, using default', { to });
+            personaId = 'brad_001';
+          }
+        } catch (lookupError) {
+          this.env.logger.error('Failed to look up persona by phone number', {
+            error: lookupError instanceof Error ? lookupError.message : String(lookupError),
+            to
+          });
+          personaId = 'brad_001';
+        }
+      }
+
+      // Final fallback
+      if (!personaId) {
+        personaId = 'brad_001';
+      }
 
       // Build WebSocket URL for Media Streams (without query parameters)
       // Twilio Stream URLs do NOT support query parameters - use <Parameter> elements instead
