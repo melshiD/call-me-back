@@ -693,12 +693,33 @@ export default class extends Service<Env> {
    */
   private async handlePersonaRoutes(request: Request, path: string): Promise<Response> {
     // GET /api/personas - List all public personas
+    // Returns full data for authenticated users, filtered data for anonymous
     if (request.method === 'GET' && path === '/api/personas') {
       try {
-        this.env.logger.info('Calling PERSONA_MANAGER.getPersonas()');
+        // Check if user is authenticated (optional - don't reject if not)
+        const userId = await this.getUserIdFromAuth(request);
+        const isAuthenticated = !!userId;
+
+        this.env.logger.info('Calling PERSONA_MANAGER.getPersonas()', { isAuthenticated });
         const personas = await this.env.PERSONA_MANAGER.getPersonas();
         this.env.logger.info('Got personas', { count: personas.length });
-        return new Response(JSON.stringify(personas), {
+
+        // Filter sensitive fields for unauthenticated requests
+        const responseData = isAuthenticated
+          ? personas
+          : personas.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              description: p.description,
+              voice: p.voice,
+              isPublic: p.isPublic,
+              createdBy: p.createdBy,
+              tags: p.tags,
+              createdAt: p.createdAt
+              // systemPrompt intentionally omitted for public access
+            }));
+
+        return new Response(JSON.stringify(responseData), {
           headers: { 'Content-Type': 'application/json' }
         });
       } catch (error) {
