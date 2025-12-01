@@ -1622,7 +1622,7 @@ const loadContextFromKV = async () => {
     // No data in new key - try migration from legacy keys
     // TODO: Remove this migration code after 2025-12-15 (gives ~3 weeks for migration)
     console.log(`[PersonaDesigner] No data in new key, attempting migration from legacy keys...`);
-    await migrateFromLegacyKeys(adminId, selectedPersona.value.id, token);
+    await migrateFromLegacyKeys(effectiveUserId, selectedPersona.value.id, token);
 
   } catch (e) {
     console.error('[PersonaDesigner] KV load error:', e);
@@ -2082,12 +2082,13 @@ const selectScenario = (scenario) => {
 // Relationship Context Methods
 const selectRelationshipType = (rel) => {
   if (relationshipType.value?.id === rel.id) {
+    // Clicking same type again clears selection
     relationshipType.value = null;
+    relationshipPrompt.value = '';
   } else {
     relationshipType.value = rel;
-    if (!relationshipPrompt.value) {
-      relationshipPrompt.value = rel.prompt;
-    }
+    // Always update prompt when selecting a new relationship type
+    relationshipPrompt.value = rel.prompt;
   }
 };
 

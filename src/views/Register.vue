@@ -60,8 +60,12 @@
 
             <!-- Create Account Button - Redirects to AuthKit -->
             <a
-              :href="oauthLoginUrl"
-              class="group relative w-full inline-flex items-center justify-center px-10 py-5 text-lg font-black text-deep bg-gradient-to-r from-ember via-solar to-ember bg-[length:200%_100%] rounded-xl overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:bg-[position:100%_0] shadow-[0_0_0_1px_rgba(255,140,66,0.5),0_16px_50px_rgba(255,140,66,0.4)] hover:shadow-[0_0_0_1px_rgba(255,140,66,0.8),0_20px_60px_rgba(255,140,66,0.5)]"
+              :href="agreedToTerms ? oauthLoginUrl : undefined"
+              @click="!agreedToTerms && $event.preventDefault()"
+              class="group relative w-full inline-flex items-center justify-center px-10 py-5 text-lg font-black rounded-xl overflow-hidden transition-all duration-500"
+              :class="agreedToTerms
+                ? 'text-deep bg-gradient-to-r from-ember via-solar to-ember bg-[length:200%_100%] hover:scale-[1.02] hover:bg-[position:100%_0] shadow-[0_0_0_1px_rgba(255,140,66,0.5),0_16px_50px_rgba(255,140,66,0.4)] hover:shadow-[0_0_0_1px_rgba(255,140,66,0.8),0_20px_60px_rgba(255,140,66,0.5)] cursor-pointer'
+                : 'text-cream/40 bg-cream/10 cursor-not-allowed'"
             >
               <span class="relative z-10 flex items-center gap-3 uppercase tracking-wider">
                 <span>Create Account</span>
@@ -77,13 +81,27 @@
               Sign up with Google, GitHub, or email
             </p>
 
-            <!-- Terms Notice -->
-            <p class="text-xs text-center text-cream/40 leading-relaxed">
-              By creating an account, you agree to our
-              <a href="#" class="text-ember hover:text-solar transition-colors duration-300 font-semibold">Terms of Service</a>
-              and
-              <a href="#" class="text-ember hover:text-solar transition-colors duration-300 font-semibold">Privacy Policy</a>
-            </p>
+            <!-- Terms Agreement Checkbox -->
+            <div class="flex items-start gap-3 p-4 bg-white/[0.03] rounded-xl border border-cream/10">
+              <input
+                type="checkbox"
+                id="termsAgreement"
+                v-model="agreedToTerms"
+                class="mt-1 w-5 h-5 rounded border-cream/30 bg-deep text-ember focus:ring-ember/50 cursor-pointer flex-shrink-0"
+              />
+              <label for="termsAgreement" class="text-sm text-cream/70 leading-relaxed cursor-pointer select-none">
+                I understand that I am scheduling calls with <span class="text-cream font-medium">AI personas, not real humans</span>.
+                AI may provide inaccurate information. This service is for entertainment/companionship and is
+                <span class="text-solar font-semibold">NOT a substitute for professional medical, legal, or mental health advice</span>.
+                For emergencies, contact 911.
+                <span class="block mt-2 text-cream/50">
+                  I agree to the
+                  <router-link to="/terms" class="text-ember hover:text-solar transition-colors font-semibold">Terms of Service</router-link>
+                  and
+                  <router-link to="/privacy" class="text-ember hover:text-solar transition-colors font-semibold">Privacy Policy</router-link>.
+                </span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -127,6 +145,7 @@ import { useRoute } from 'vue-router'
 
 const route = useRoute()
 const error = ref('')
+const agreedToTerms = ref(false)
 
 // OAuth login URL - redirects to API gateway which redirects to WorkOS AuthKit
 // AuthKit handles both login AND registration in one flow

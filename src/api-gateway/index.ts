@@ -1492,6 +1492,18 @@ export default class extends Service<Env> {
 
     const token = authHeader.substring(7);
     try {
+      // Decode JWT to check if it's a WorkOS token
+      const parts = token.split('.');
+      if (parts.length === 3 && parts[1]) {
+        const payload = JSON.parse(atob(parts[1]));
+
+        // WorkOS tokens have adminId or workosId - trust them (signed by WorkOS)
+        if (payload.adminId || payload.workosId) {
+          return payload.adminId || payload.userId;
+        }
+      }
+
+      // For regular tokens, validate via AUTH_MANAGER
       const validation = await this.env.AUTH_MANAGER.validateToken(token);
       if (validation.valid && validation.userId) {
         return validation.userId;
