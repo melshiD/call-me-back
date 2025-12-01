@@ -1214,15 +1214,15 @@ export default class extends Service<Env> {
 
         try {
           // Exchange code for tokens using WorkOS API
-          const redirectUri = this.env.WORKOS_USER_REDIRECT_URI || 'https://callmeback.ai/auth/callback';
+          // Per WorkOS docs: client_secret goes in the body, NOT in Authorization header
           const tokenResponse = await fetch('https://api.workos.com/user_management/authenticate', {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${this.env.WORKOS_API_KEY}`,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
               client_id: this.env.WORKOS_CLIENT_ID,
+              client_secret: this.env.WORKOS_API_KEY,
               code: code,
               grant_type: 'authorization_code',
             }),
@@ -1230,7 +1230,14 @@ export default class extends Service<Env> {
 
           if (!tokenResponse.ok) {
             const errorText = await tokenResponse.text();
-            console.error('[API-GATEWAY] WorkOS token exchange failed:', errorText);
+            console.error('[API-GATEWAY] WorkOS token exchange failed:', {
+              status: tokenResponse.status,
+              statusText: tokenResponse.statusText,
+              error: errorText,
+              hasClientId: !!this.env.WORKOS_CLIENT_ID,
+              hasApiKey: !!this.env.WORKOS_API_KEY,
+              codeLength: code?.length || 0
+            });
             return Response.redirect(`${frontendUrl}/login?error=auth_failed`, 302);
           }
 
@@ -1245,12 +1252,15 @@ export default class extends Service<Env> {
             ? `${workosUser.first_name} ${workosUser.last_name || ''}`.trim()
             : email.split('@')[0];
 
+          // Upsert by email - user may have registered via email/password previously
+          // On conflict, update their ID to the WorkOS ID for unified auth
           await this.env.DATABASE_PROXY.executeQuery(`
             INSERT INTO users (id, email, password_hash, name, email_verified)
             VALUES ($1, $2, 'workos_oauth', $3, $4)
-            ON CONFLICT (id) DO UPDATE SET
-              email = EXCLUDED.email,
-              name = EXCLUDED.name,
+            ON CONFLICT (email) DO UPDATE SET
+              id = EXCLUDED.id,
+              password_hash = 'workos_oauth',
+              name = COALESCE(EXCLUDED.name, users.name),
               email_verified = EXCLUDED.email_verified,
               updated_at = NOW()
           `, [userId, email, name, workosUser.email_verified || false]);

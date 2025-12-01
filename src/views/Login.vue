@@ -1,14 +1,14 @@
 <template>
   <div class="min-h-screen bg-midnight text-cream overflow-x-hidden font-[--font-body] relative">
-    <!-- Enhanced Ambient Background -->
+    <!-- Ambient Background - Static orbs, no float animation -->
     <div class="fixed inset-0 -z-10 bg-midnight">
       <div class="grain-overlay absolute inset-0 pointer-events-none mix-blend-overlay opacity-50"></div>
-      <!-- Morphing Orb 1 - Golden -->
-      <div class="absolute w-[700px] h-[700px] -top-[250px] -right-[250px] opacity-12 pointer-events-none blur-[120px] animate-[float_20s_ease-in-out_infinite,morph_15s_ease-in-out_infinite] bg-gradient-radial from-glow via-ember to-transparent"></div>
-      <!-- Morphing Orb 2 - Solar Orange -->
-      <div class="absolute w-[600px] h-[600px] bottom-[5%] -left-[200px] opacity-15 pointer-events-none blur-[120px] animate-[float_25s_ease-in-out_infinite_reverse,morph_18s_ease-in-out_infinite] [animation-delay:5s] bg-gradient-radial from-solar via-ember to-transparent"></div>
-      <!-- Subtle accent orb for depth -->
-      <div class="absolute w-[400px] h-[400px] top-[40%] left-[50%] -translate-x-1/2 -translate-y-1/2 opacity-8 pointer-events-none blur-[100px] animate-[float_22s_ease-in-out_infinite,morph_16s_ease-in-out_infinite] [animation-delay:3s] bg-gradient-radial from-glow to-transparent"></div>
+      <!-- Golden Orb - Top Right -->
+      <div class="absolute w-[700px] h-[700px] -top-[250px] -right-[250px] opacity-12 pointer-events-none blur-[120px] bg-gradient-radial from-glow via-ember to-transparent"></div>
+      <!-- Solar Orb - Bottom Left -->
+      <div class="absolute w-[600px] h-[600px] bottom-[5%] -left-[200px] opacity-15 pointer-events-none blur-[120px] bg-gradient-radial from-solar via-ember to-transparent"></div>
+      <!-- Center Accent -->
+      <div class="absolute w-[400px] h-[400px] top-[40%] left-[50%] -translate-x-1/2 -translate-y-1/2 opacity-8 pointer-events-none blur-[100px] bg-gradient-radial from-glow to-transparent"></div>
     </div>
 
     <!-- Main Container -->
@@ -36,7 +36,7 @@
           <div class="text-center mb-10 relative z-10">
             <!-- Status Badge -->
             <div class="inline-flex items-center gap-2.5 px-4 py-2 rounded-full border border-glow/40 bg-gradient-to-r from-glow/10 to-ember/10 mb-6 backdrop-blur-md shadow-[0_4px_20px_rgba(251,191,36,0.2)]">
-              <span class="w-2 h-2 bg-glow rounded-full animate-[pulseGlow_2s_ease-in-out_infinite] shadow-[0_0_8px_rgba(251,191,36,0.8)]"></span>
+              <span class="w-2 h-2 bg-glow rounded-full shadow-[0_0_8px_rgba(251,191,36,0.8)]"></span>
               <span class="text-xs font-bold tracking-[0.15em] bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent uppercase">Secure Access</span>
             </div>
 
@@ -46,44 +46,8 @@
             <p class="text-lg text-cream/70 font-medium">Your AI companions are ready to assist</p>
           </div>
 
-          <!-- Login Form -->
-          <form @submit.prevent="handleLogin" class="space-y-6 relative z-10">
-            <!-- Email Field -->
-            <div class="space-y-2">
-              <label for="email" class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">
-                Email Address
-              </label>
-              <div class="relative group">
-                <div class="absolute inset-0 bg-gradient-to-r from-glow/20 to-ember/20 rounded-xl blur-lg opacity-0 group-focus-within:opacity-100 transition-opacity duration-300"></div>
-                <input
-                  id="email"
-                  v-model="email"
-                  type="email"
-                  class="relative w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300 font-medium"
-                  placeholder="you@example.com"
-                  required
-                />
-              </div>
-            </div>
-
-            <!-- Password Field -->
-            <div class="space-y-2">
-              <label for="password" class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">
-                Password
-              </label>
-              <div class="relative group">
-                <div class="absolute inset-0 bg-gradient-to-r from-glow/20 to-ember/20 rounded-xl blur-lg opacity-0 group-focus-within:opacity-100 transition-opacity duration-300"></div>
-                <input
-                  id="password"
-                  v-model="password"
-                  type="password"
-                  class="relative w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300 font-medium"
-                  placeholder="••••••••••••"
-                  required
-                />
-              </div>
-            </div>
-
+          <!-- Login Content -->
+          <div class="space-y-6 relative z-10">
             <!-- Error Message -->
             <div v-if="error" class="bg-solar/10 border-2 border-solar/30 rounded-xl p-4 backdrop-blur-sm">
               <div class="flex items-center gap-3">
@@ -94,49 +58,25 @@
               </div>
             </div>
 
-            <!-- Submit Button (Email/Password) -->
-            <button
-              type="submit"
-              :disabled="loading"
-              class="group relative w-full inline-flex items-center justify-center px-10 py-5 text-lg font-black text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-xl overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:bg-[position:100%_0] shadow-[0_0_0_1px_rgba(251,191,36,0.5),0_16px_50px_rgba(251,191,36,0.4)] hover:shadow-[0_0_0_1px_rgba(251,191,36,0.8),0_20px_60px_rgba(251,191,36,0.5)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            <!-- Sign In Button - Redirects to AuthKit -->
+            <a
+              :href="oauthLoginUrl"
+              class="group relative w-full inline-flex items-center justify-center px-10 py-5 text-lg font-black text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-xl overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:bg-[position:100%_0] shadow-[0_0_0_1px_rgba(251,191,36,0.5),0_16px_50px_rgba(251,191,36,0.4)] hover:shadow-[0_0_0_1px_rgba(251,191,36,0.8),0_20px_60px_rgba(251,191,36,0.5)]"
             >
-              <span class="relative z-10 flex items-center gap-2 uppercase tracking-wider">
-                <span v-if="loading">Signing In...</span>
-                <span v-else>Sign In</span>
-                <svg v-if="!loading" class="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+              <span class="relative z-10 flex items-center gap-3 uppercase tracking-wider">
+                <span>Sign In</span>
+                <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
               </span>
               <div class="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl"></div>
-            </button>
-
-            <!-- Divider -->
-            <div class="flex items-center gap-4">
-              <div class="flex-1 h-px bg-white/10"></div>
-              <span class="text-cream/40 text-xs uppercase tracking-wider font-semibold">Or continue with</span>
-              <div class="flex-1 h-px bg-white/10"></div>
-            </div>
-
-            <!-- WorkOS AuthKit Button (Google, GitHub, etc.) -->
-            <a
-              :href="oauthLoginUrl"
-              class="group relative w-full inline-flex items-center justify-center px-10 py-5 text-lg font-bold text-cream bg-white/5 border-2 border-white/20 rounded-xl overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:border-glow/50 hover:bg-white/10"
-            >
-              <span class="relative z-10 flex items-center gap-3">
-                <svg class="w-5 h-5 text-glow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                </svg>
-                <span>Sign in with SSO</span>
-              </span>
             </a>
 
-            <!-- Forgot Password Link -->
-            <div class="text-center">
-              <a href="#" class="text-sm text-cream/50 hover:text-glow transition-colors duration-300 font-medium">
-                Forgot your password?
-              </a>
-            </div>
-          </form>
+            <!-- Auth Options Info -->
+            <p class="text-center text-cream/50 text-sm">
+              Continue with Google, GitHub, or email
+            </p>
+          </div>
         </div>
 
         <!-- Sign Up Link -->
@@ -147,7 +87,7 @@
               to="/register"
               class="font-bold text-glow hover:text-ember transition-colors duration-300 ml-1"
             >
-              Create Account →
+              Create Account
             </router-link>
           </p>
         </div>
@@ -174,35 +114,29 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 
-const router = useRouter()
-const authStore = useAuthStore()
-
-const email = ref('')
-const password = ref('')
-const loading = ref(false)
+const route = useRoute()
 const error = ref('')
 
 // OAuth login URL - redirects to API gateway which redirects to WorkOS AuthKit
 const API_URL = import.meta.env.VITE_API_URL || 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run'
 const oauthLoginUrl = computed(() => `${API_URL}/api/auth/login/oauth`)
 
-const handleLogin = async () => {
-  loading.value = true
-  error.value = ''
-
-  try {
-    await authStore.login(email.value, password.value)
-    router.push('/dashboard')
-  } catch (err) {
-    error.value = err.message || 'Login failed. Please check your credentials and try again.'
-  } finally {
-    loading.value = false
+// Check for error in query params (from failed OAuth)
+onMounted(() => {
+  const errorParam = route.query.error
+  if (errorParam) {
+    if (errorParam === 'auth_failed') {
+      error.value = 'Authentication failed. Please try again.'
+    } else if (errorParam === 'no_code') {
+      error.value = 'Authentication was cancelled. Please try again.'
+    } else {
+      error.value = `Authentication error: ${errorParam}`
+    }
   }
-}
+})
 </script>
 
 <style scoped>

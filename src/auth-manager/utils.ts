@@ -36,20 +36,20 @@ let workosJwksCache: jose.JWTVerifyGetKey | null = null;
 let workosJwksCacheTime = 0;
 const JWKS_CACHE_TTL = 3600000; // 1 hour
 
-async function getWorkOSJWKS(): Promise<jose.JWTVerifyGetKey> {
+async function getWorkOSJWKS(clientId: string): Promise<jose.JWTVerifyGetKey> {
   const now = Date.now();
   if (workosJwksCache && (now - workosJwksCacheTime) < JWKS_CACHE_TTL) {
     return workosJwksCache;
   }
 
-  // WorkOS JWKS endpoint
-  const jwksUrl = 'https://api.workos.com/sso/jwks';
+  // WorkOS JWKS endpoint - must include client ID
+  const jwksUrl = `https://api.workos.com/sso/jwks/${clientId}`;
   workosJwksCache = jose.createRemoteJWKSet(new URL(jwksUrl));
   workosJwksCacheTime = now;
   return workosJwksCache;
 }
 
-export async function validateToken(token: string, secret: string): Promise<TokenValidationResult> {
+export async function validateToken(token: string, secret: string, workosClientId?: string): Promise<TokenValidationResult> {
   try {
     // First, decode the token without verification to check its structure
     const decoded = jose.decodeJwt(token);
@@ -61,8 +61,14 @@ export async function validateToken(token: string, secret: string): Promise<Toke
     );
 
     if (isWorkOSToken) {
+      if (!workosClientId) {
+        return {
+          valid: false,
+          error: 'WorkOS client ID required for token validation',
+        };
+      }
       // Validate WorkOS token using their JWKS (public keys)
-      const jwks = await getWorkOSJWKS();
+      const jwks = await getWorkOSJWKS(workosClientId);
       const { payload } = await jose.jwtVerify(token, jwks);
 
       // WorkOS tokens have 'sub' as the user ID

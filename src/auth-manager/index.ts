@@ -345,8 +345,8 @@ export default class extends Service<Env> {
   async validateToken(token: string): Promise<TokenValidationResult> {
     try {
       // Both WorkOS access tokens and our JWT tokens are JWT format
-      // So we can use the same validation logic
-      const validation = await utils.validateToken(token, this.env.JWT_SECRET);
+      // Pass WorkOS client ID for JWKS verification of WorkOS tokens
+      const validation = await utils.validateToken(token, this.env.JWT_SECRET, this.env.WORKOS_CLIENT_ID);
 
       if (!validation.valid) {
         return validation;
