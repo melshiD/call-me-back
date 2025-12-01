@@ -108,9 +108,99 @@
                 <div class="font-semibold">{{ authStore.user?.email }}</div>
               </div>
 
+              <!-- Phone Numbers Section -->
               <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-xl p-4">
-                <div class="text-sm text-cream/50 mb-1">Phone</div>
-                <div class="font-semibold">{{ authStore.user?.phone }}</div>
+                <div class="flex items-center justify-between mb-3">
+                  <div class="text-sm text-cream/50">Phone Numbers</div>
+                  <button
+                    @click="openPhoneVerificationModal"
+                    class="px-3 py-1.5 bg-gradient-to-r from-glow/20 to-ember/20 border border-glow/40 rounded-lg text-sm font-semibold hover:from-glow/30 hover:to-ember/30 transition-all duration-300"
+                  >
+                    + Add Number
+                  </button>
+                </div>
+
+                <!-- No numbers message -->
+                <div v-if="phonesStore.verifiedPhones.length === 0" class="text-cream/40 text-sm py-2">
+                  No verified phone numbers. Add one to receive calls.
+                </div>
+
+                <!-- Phone numbers list -->
+                <div v-else class="space-y-2">
+                  <div
+                    v-for="phoneEntry in phonesStore.verifiedPhones"
+                    :key="phoneEntry.phone"
+                    class="flex items-center justify-between py-2 px-3 rounded-lg transition-all duration-200"
+                    :class="phoneEntry.isPrimary ? 'bg-glow/10 border border-glow/30' : 'bg-white/[0.02] hover:bg-white/[0.04]'"
+                  >
+                    <div class="flex items-center gap-3 flex-1 min-w-0">
+                      <!-- Primary indicator -->
+                      <div v-if="phoneEntry.isPrimary" class="w-2 h-2 bg-glow rounded-full flex-shrink-0"></div>
+                      <div v-else class="w-2 h-2 bg-transparent rounded-full flex-shrink-0"></div>
+
+                      <!-- Editable nickname -->
+                      <div class="flex-1 min-w-0">
+                        <div v-if="editingNicknamePhone === phoneEntry.phone" class="flex items-center gap-2">
+                          <input
+                            v-model="editingNicknameValue"
+                            type="text"
+                            maxlength="30"
+                            class="flex-1 px-2 py-1 bg-white/5 border border-white/20 rounded text-sm text-cream focus:outline-none focus:border-glow/50"
+                            placeholder="Nickname"
+                            @keydown.enter="saveNickname(phoneEntry.phone)"
+                            @keydown.esc="cancelNicknameEdit"
+                          />
+                          <button @click="saveNickname(phoneEntry.phone)" class="text-emerald-400 hover:text-emerald-300 text-xs">Save</button>
+                          <button @click="cancelNicknameEdit" class="text-cream/50 hover:text-cream/70 text-xs">Cancel</button>
+                        </div>
+                        <div v-else class="flex items-center gap-2">
+                          <span class="font-semibold truncate">{{ phoneEntry.nickname || phonesStore.formatPhoneForDisplay(phoneEntry.phone) }}</span>
+                          <button
+                            @click="startNicknameEdit(phoneEntry)"
+                            class="text-cream/30 hover:text-cream/60 transition-colors"
+                            title="Edit nickname"
+                          >
+                            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                              <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div v-if="phoneEntry.nickname" class="text-xs text-cream/40">{{ phonesStore.formatPhoneForDisplay(phoneEntry.phone) }}</div>
+                      </div>
+
+                      <!-- Verified badge -->
+                      <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs rounded-full font-bold uppercase flex-shrink-0">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        </svg>
+                        Verified
+                      </span>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex items-center gap-2 ml-3 flex-shrink-0">
+                      <button
+                        v-if="!phoneEntry.isPrimary"
+                        @click="phonesStore.setPrimary(phoneEntry.phone)"
+                        class="text-xs text-cream/50 hover:text-glow transition-colors"
+                        title="Set as primary"
+                      >
+                        Set Primary
+                      </button>
+                      <span v-else class="text-xs text-glow font-semibold">Primary</span>
+
+                      <button
+                        @click="confirmDeletePhone(phoneEntry.phone)"
+                        class="text-red-400/60 hover:text-red-400 transition-colors ml-2"
+                        title="Remove number"
+                      >
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-xl p-4">
@@ -147,14 +237,9 @@
                 />
               </div>
 
-              <div class="space-y-2">
-                <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Phone</label>
-                <input
-                  v-model="profileForm.phone"
-                  type="tel"
-                  class="w-full px-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
-                  required
-                />
+              <!-- Phone numbers are managed separately via Add/Delete, not in this form -->
+              <div class="bg-white/[0.02] border border-white/5 rounded-xl p-4">
+                <p class="text-sm text-cream/40">Phone numbers are managed above. Use the "Add Number" button to add and verify phone numbers.</p>
               </div>
 
               <div v-if="profileError" class="bg-solar/10 border border-solar/30 rounded-xl p-4">
@@ -441,18 +526,479 @@
         </form>
       </div>
     </div>
+
+    <!-- Phone Verification Modal -->
+    <div v-if="showPhoneVerificationModal" class="fixed inset-0 z-50 flex items-center justify-center px-6 bg-midnight/80 backdrop-blur-md" @click="closePhoneVerificationModal">
+      <div class="relative bg-gradient-to-br from-white/[0.12] to-white/[0.04] backdrop-blur-2xl border-2 border-white/20 rounded-[32px] p-10 max-w-md w-full shadow-[0_32px_100px_rgba(0,0,0,0.5)]" @click.stop>
+
+        <!-- Step 1: Enter Phone Number -->
+        <div v-if="phoneVerificationStep === 1">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-[--font-display] font-bold">Verify Phone Number</h2>
+            <button @click="closePhoneVerificationModal" class="text-cream/60 hover:text-cream transition-colors">
+              <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Phone Icon Animation -->
+          <div class="flex justify-center mb-6">
+            <div class="relative">
+              <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-glow/30 to-ember/30 border-2 border-glow/50 flex items-center justify-center shadow-[0_0_40px_rgba(255,170,51,0.3)]">
+                <svg class="w-10 h-10 text-glow" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
+                </svg>
+              </div>
+              <div class="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-br from-glow to-ember rounded-full flex items-center justify-center animate-pulse">
+                <svg class="w-3.5 h-3.5 text-deep" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-center text-cream/70 mb-6">
+            Enter your phone number to receive a verification code via SMS.
+          </p>
+
+          <form @submit.prevent="sendVerificationCode" class="space-y-4">
+            <div class="space-y-2">
+              <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Phone Number</label>
+              <div class="relative">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-cream/50 font-semibold">+1</span>
+                <input
+                  ref="phoneInput"
+                  v-model="phoneVerificationForm.phoneNumber"
+                  type="tel"
+                  class="w-full pl-12 pr-6 py-4 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300 text-lg tracking-wider"
+                  placeholder="(555) 123-4567"
+                  @input="formatPhoneNumber"
+                  required
+                />
+              </div>
+              <p class="text-xs text-cream/50 pl-1">US numbers only. Standard SMS rates may apply.</p>
+            </div>
+
+            <div class="space-y-2">
+              <label class="block text-sm font-bold uppercase tracking-[0.1em] text-cream/80 pl-1">Nickname <span class="text-cream/40 font-normal normal-case">(optional)</span></label>
+              <input
+                v-model="phoneVerificationForm.nickname"
+                type="text"
+                maxlength="30"
+                class="w-full px-4 py-3 bg-white/5 border-2 border-white/10 rounded-xl text-cream placeholder-cream/30 focus:outline-none focus:border-glow/50 focus:bg-white/10 transition-all duration-300"
+                placeholder="e.g., Work Phone, Home, Personal"
+              />
+              <p class="text-xs text-cream/50 pl-1">Give this number a name for easy identification.</p>
+            </div>
+
+            <div v-if="phoneVerificationError" class="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+              <p class="text-sm text-red-300">{{ phoneVerificationError }}</p>
+            </div>
+
+            <button
+              type="submit"
+              class="w-full px-6 py-4 bg-gradient-to-r from-glow to-ember rounded-xl text-deep font-bold hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+              :disabled="phoneVerificationLoading || !isValidPhoneNumber"
+            >
+              <svg v-if="phoneVerificationLoading" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ phoneVerificationLoading ? 'Sending...' : 'Send Verification Code' }}
+            </button>
+          </form>
+        </div>
+
+        <!-- Step 2: Enter Verification Code -->
+        <div v-else-if="phoneVerificationStep === 2">
+          <div class="flex items-center justify-between mb-6">
+            <button @click="phoneVerificationStep = 1" class="text-cream/60 hover:text-cream transition-colors flex items-center gap-1">
+              <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              Back
+            </button>
+            <button @click="closePhoneVerificationModal" class="text-cream/60 hover:text-cream transition-colors">
+              <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- SMS Icon Animation -->
+          <div class="flex justify-center mb-6">
+            <div class="relative">
+              <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500/30 to-cyan-500/30 border-2 border-emerald-500/50 flex items-center justify-center shadow-[0_0_40px_rgba(16,185,129,0.3)]">
+                <svg class="w-10 h-10 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                </svg>
+              </div>
+              <div class="absolute -top-1 -right-1 w-6 h-6 bg-gradient-to-br from-emerald-400 to-cyan-400 rounded-full flex items-center justify-center">
+                <svg class="w-3.5 h-3.5 text-deep" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </div>
+
+          <h2 class="text-2xl font-[--font-display] font-bold text-center mb-2">Enter Code</h2>
+          <p class="text-center text-cream/70 mb-6">
+            We sent a 6-digit code to<br>
+            <span class="font-semibold text-glow">+1 {{ phoneVerificationForm.phoneNumber }}</span>
+          </p>
+
+          <form @submit.prevent="verifyCode" class="space-y-4">
+            <!-- 6-Digit Code Input -->
+            <div class="flex justify-center gap-2">
+              <input
+                v-for="(digit, index) in 6"
+                :key="index"
+                :ref="el => codeInputs[index] = el"
+                v-model="verificationCodeDigits[index]"
+                type="text"
+                maxlength="1"
+                class="w-12 h-14 text-center text-2xl font-bold bg-white/5 border-2 border-white/20 rounded-xl text-cream focus:outline-none focus:border-glow/70 focus:bg-white/10 transition-all duration-300"
+                @input="handleCodeInput(index, $event)"
+                @keydown="handleCodeKeydown(index, $event)"
+                @paste="handleCodePaste"
+                inputmode="numeric"
+                pattern="[0-9]*"
+              />
+            </div>
+
+            <div v-if="phoneVerificationError" class="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+              <p class="text-sm text-red-300">{{ phoneVerificationError }}</p>
+            </div>
+
+            <button
+              type="submit"
+              class="w-full px-6 py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-xl text-deep font-bold hover:scale-[1.02] transition-all duration-300 disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
+              :disabled="phoneVerificationLoading || verificationCode.length !== 6"
+            >
+              <svg v-if="phoneVerificationLoading" class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              {{ phoneVerificationLoading ? 'Verifying...' : 'Verify Phone' }}
+            </button>
+
+            <div class="text-center">
+              <button
+                type="button"
+                @click="resendCode"
+                :disabled="resendCooldown > 0"
+                class="text-sm text-cream/60 hover:text-glow transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {{ resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Didn't receive the code? Resend" }}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Step 3: Success -->
+        <div v-else-if="phoneVerificationStep === 3" class="text-center py-4">
+          <div class="flex justify-center mb-6">
+            <div class="w-24 h-24 rounded-full bg-gradient-to-br from-emerald-500/30 to-cyan-500/30 border-2 border-emerald-500/50 flex items-center justify-center shadow-[0_0_60px_rgba(16,185,129,0.4)] animate-[pulse_2s_ease-in-out_infinite]">
+              <svg class="w-12 h-12 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+
+          <h2 class="text-2xl font-[--font-display] font-bold mb-2 text-emerald-400">Phone Verified!</h2>
+          <p class="text-cream/70 mb-6">
+            Your phone number has been successfully verified.<br>
+            You can now receive calls from our AI personas.
+          </p>
+
+          <button
+            @click="closePhoneVerificationModal"
+            class="w-full px-6 py-4 bg-gradient-to-r from-emerald-500 to-cyan-500 rounded-xl text-deep font-bold hover:scale-[1.02] transition-all duration-300"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useUserStore } from '../stores/user'
 import { useCallsStore } from '../stores/calls'
+import { usePhonesStore } from '../stores/phones'
 
 const authStore = useAuthStore()
 const userStore = useUserStore()
 const callsStore = useCallsStore()
+const phonesStore = usePhonesStore()
+
+// Sync phones store with user data when user changes
+watch(() => authStore.user, (user) => {
+  if (user) {
+    phonesStore.syncWithUser(user)
+  }
+}, { immediate: true })
+
+// Phone verification modal
+const showPhoneVerificationModal = ref(false)
+const phoneVerificationStep = ref(1) // 1: enter phone, 2: enter code, 3: success
+const phoneVerificationForm = ref({
+  phoneNumber: '',
+  nickname: ''
+})
+const phoneVerificationLoading = ref(false)
+const phoneVerificationError = ref('')
+const verificationCodeDigits = ref(['', '', '', '', '', ''])
+const codeInputs = ref([])
+const resendCooldown = ref(0)
+let resendTimer = null
+
+// Nickname editing
+const editingNicknamePhone = ref(null)
+const editingNicknameValue = ref('')
+
+const startNicknameEdit = (phoneEntry) => {
+  editingNicknamePhone.value = phoneEntry.phone
+  editingNicknameValue.value = phoneEntry.nickname || ''
+}
+
+const saveNickname = (phone) => {
+  phonesStore.updateNickname(phone, editingNicknameValue.value.trim())
+  editingNicknamePhone.value = null
+  editingNicknameValue.value = ''
+}
+
+const cancelNicknameEdit = () => {
+  editingNicknamePhone.value = null
+  editingNicknameValue.value = ''
+}
+
+// Phone deletion
+const confirmDeletePhone = (phone) => {
+  if (confirm(`Remove this phone number? You'll need to verify it again to use it.`)) {
+    phonesStore.removePhone(phone)
+  }
+}
+
+const verificationCode = computed(() => verificationCodeDigits.value.join(''))
+
+const isValidPhoneNumber = computed(() => {
+  // Remove all non-digits
+  const digits = phoneVerificationForm.value.phoneNumber.replace(/\D/g, '')
+  return digits.length === 10
+})
+
+const formatPhoneNumber = (event) => {
+  // Get only digits
+  let digits = event.target.value.replace(/\D/g, '')
+
+  // Limit to 10 digits
+  if (digits.length > 10) {
+    digits = digits.slice(0, 10)
+  }
+
+  // Format as (XXX) XXX-XXXX
+  let formatted = ''
+  if (digits.length > 0) {
+    formatted = '(' + digits.slice(0, 3)
+  }
+  if (digits.length >= 3) {
+    formatted += ') ' + digits.slice(3, 6)
+  }
+  if (digits.length >= 6) {
+    formatted += '-' + digits.slice(6, 10)
+  }
+
+  phoneVerificationForm.value.phoneNumber = formatted
+}
+
+const openPhoneVerificationModal = () => {
+  showPhoneVerificationModal.value = true
+  phoneVerificationStep.value = 1
+  phoneVerificationError.value = ''
+  phoneVerificationForm.value.phoneNumber = ''
+  phoneVerificationForm.value.nickname = ''
+  verificationCodeDigits.value = ['', '', '', '', '', '']
+  // Don't pre-fill - user is adding a NEW number
+}
+
+const closePhoneVerificationModal = () => {
+  showPhoneVerificationModal.value = false
+  phoneVerificationStep.value = 1
+  phoneVerificationError.value = ''
+  if (resendTimer) {
+    clearInterval(resendTimer)
+    resendTimer = null
+  }
+  resendCooldown.value = 0
+}
+
+const sendVerificationCode = async () => {
+  phoneVerificationLoading.value = true
+  phoneVerificationError.value = ''
+
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) throw new Error('Not authenticated')
+
+    // Format phone to E.164 (+1XXXXXXXXXX)
+    const digits = phoneVerificationForm.value.phoneNumber.replace(/\D/g, '')
+    const e164Phone = '+1' + digits
+
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/user/phone/send-verification`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ phone: e164Phone })
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to send verification code')
+    }
+
+    // Move to step 2
+    phoneVerificationStep.value = 2
+    startResendCooldown()
+
+    // Focus first code input
+    await nextTick()
+    if (codeInputs.value[0]) {
+      codeInputs.value[0].focus()
+    }
+  } catch (err) {
+    phoneVerificationError.value = err.message || 'Failed to send verification code'
+  } finally {
+    phoneVerificationLoading.value = false
+  }
+}
+
+const verifyCode = async () => {
+  phoneVerificationLoading.value = true
+  phoneVerificationError.value = ''
+
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) throw new Error('Not authenticated')
+
+    // Format phone to E.164 (+1XXXXXXXXXX)
+    const digits = phoneVerificationForm.value.phoneNumber.replace(/\D/g, '')
+    const e164Phone = '+1' + digits
+
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/user/phone/verify`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        phone: e164Phone,
+        code: verificationCode.value
+      })
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Invalid verification code')
+    }
+
+    // Update local user state
+    authStore.user = {
+      ...authStore.user,
+      phone: e164Phone,
+      phone_verified: true
+    }
+
+    // Add to phones store with nickname (make primary if first number)
+    const isFirstNumber = phonesStore.verifiedPhones.length === 0
+    phonesStore.addVerifiedPhone(e164Phone, phoneVerificationForm.value.nickname || '', isFirstNumber)
+
+    // Move to success step
+    phoneVerificationStep.value = 3
+  } catch (err) {
+    phoneVerificationError.value = err.message || 'Failed to verify code'
+    // Clear the code inputs on error
+    verificationCodeDigits.value = ['', '', '', '', '', '']
+    if (codeInputs.value[0]) {
+      codeInputs.value[0].focus()
+    }
+  } finally {
+    phoneVerificationLoading.value = false
+  }
+}
+
+const resendCode = async () => {
+  if (resendCooldown.value > 0) return
+  await sendVerificationCode()
+}
+
+const startResendCooldown = () => {
+  resendCooldown.value = 60
+  if (resendTimer) clearInterval(resendTimer)
+  resendTimer = setInterval(() => {
+    resendCooldown.value--
+    if (resendCooldown.value <= 0) {
+      clearInterval(resendTimer)
+      resendTimer = null
+    }
+  }, 1000)
+}
+
+const handleCodeInput = (index, event) => {
+  const value = event.target.value
+
+  // Only allow digits
+  if (!/^\d*$/.test(value)) {
+    verificationCodeDigits.value[index] = ''
+    return
+  }
+
+  // Move to next input if digit entered
+  if (value && index < 5) {
+    nextTick(() => {
+      if (codeInputs.value[index + 1]) {
+        codeInputs.value[index + 1].focus()
+      }
+    })
+  }
+}
+
+const handleCodeKeydown = (index, event) => {
+  // Handle backspace - move to previous input
+  if (event.key === 'Backspace' && !verificationCodeDigits.value[index] && index > 0) {
+    nextTick(() => {
+      if (codeInputs.value[index - 1]) {
+        codeInputs.value[index - 1].focus()
+      }
+    })
+  }
+}
+
+const handleCodePaste = (event) => {
+  event.preventDefault()
+  const pastedData = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+
+  for (let i = 0; i < 6; i++) {
+    verificationCodeDigits.value[i] = pastedData[i] || ''
+  }
+
+  // Focus the last filled input or the next empty one
+  const lastFilledIndex = Math.min(pastedData.length, 5)
+  nextTick(() => {
+    if (codeInputs.value[lastFilledIndex]) {
+      codeInputs.value[lastFilledIndex].focus()
+    }
+  })
+}
 
 // Minutes balance
 const minutesBalance = ref(null)
@@ -512,8 +1058,7 @@ const formatRelativeTime = (date) => {
 const editingProfile = ref(false)
 const profileForm = ref({
   name: '',
-  email: '',
-  phone: ''
+  email: ''
 })
 const profileLoading = ref(false)
 const profileError = ref('')
@@ -636,8 +1181,7 @@ onMounted(async () => {
   if (authStore.user) {
     profileForm.value = {
       name: authStore.user.name,
-      email: authStore.user.email,
-      phone: authStore.user.phone
+      email: authStore.user.email
     }
   }
 

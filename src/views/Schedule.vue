@@ -24,13 +24,63 @@
               <!-- Phone Number -->
               <div class="space-y-1.5">
                 <label class="block font-['JetBrains_Mono',monospace] text-[10px] uppercase tracking-[0.2em] text-[#666]">Phone Number</label>
-                <input
-                  v-model="callForm.phoneNumber"
-                  type="tel"
-                  class="w-full px-4 py-3 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#e8e6e3] placeholder-[#444] text-sm focus:outline-none focus:border-amber-500/50 transition-colors"
-                  placeholder="+1234567890"
-                  required
-                />
+
+                <!-- Multiple phones: dropdown selector -->
+                <div v-if="phonesStore.verifiedPhones.length > 1" class="relative group">
+                  <select
+                    v-model="callForm.phoneNumber"
+                    class="w-full px-4 py-3 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-[#e8e6e3] text-sm focus:outline-none focus:border-amber-500/50 hover:border-[#3a3a3e] transition-all duration-300 appearance-none cursor-pointer pr-10"
+                    required
+                  >
+                    <option
+                      v-for="phone in phonesStore.verifiedPhones"
+                      :key="phone.phone"
+                      :value="phone.phone"
+                      class="bg-[#1a1a1e] text-[#e8e6e3]"
+                    >
+                      {{ phone.nickname ? `${phone.nickname}` : phonesStore.formatPhoneForDisplay(phone.phone) }}
+                    </option>
+                  </select>
+                  <!-- Custom dropdown arrow with verified indicator -->
+                  <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-2">
+                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 opacity-80" title="Verified"></div>
+                    <svg class="w-4 h-4 text-[#666] group-hover:text-[#999] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+                </div>
+
+                <!-- Single phone: elegant display -->
+                <div v-else-if="phonesStore.verifiedPhones.length === 1" class="relative">
+                  <div class="w-full px-4 py-3 bg-[#0d0d0f] border border-[#2a2a2e] rounded-lg text-sm flex items-center justify-between">
+                    <span class="text-[#e8e6e3]">
+                      {{ phonesStore.verifiedPhones[0].nickname || phonesStore.formatPhoneForDisplay(phonesStore.verifiedPhones[0].phone) }}
+                    </span>
+                    <div class="flex items-center gap-1.5">
+                      <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 opacity-80"></div>
+                      <span class="text-[10px] text-emerald-500/70 font-['JetBrains_Mono',monospace] uppercase tracking-wider">Verified</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- No phones: call-to-action -->
+                <router-link
+                  v-else
+                  to="/profile"
+                  class="block w-full px-4 py-3 bg-gradient-to-r from-red-500/5 to-orange-500/5 border border-red-500/20 rounded-lg text-sm group hover:border-amber-500/30 hover:from-amber-500/5 hover:to-orange-500/5 transition-all duration-300"
+                >
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <svg class="w-4 h-4 text-red-400/70 group-hover:text-amber-400/70 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                      </svg>
+                      <span class="text-red-400/90 group-hover:text-amber-400/90 transition-colors">Add a verified number to make calls</span>
+                    </div>
+                    <svg class="w-4 h-4 text-[#444] group-hover:text-amber-500/50 group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                    </svg>
+                  </div>
+                </router-link>
               </div>
 
               <!-- Persona Selection -->
@@ -531,11 +581,13 @@ import { useCallsStore } from '../stores/calls'
 import { usePersonasStore } from '../stores/personas'
 import { useUserStore } from '../stores/user'
 import { useToast } from '../stores/toast'
+import { usePhonesStore } from '../stores/phones'
 
 const callsStore = useCallsStore()
 const personasStore = usePersonasStore()
 const userStore = useUserStore()
 const toast = useToast()
+const phonesStore = usePhonesStore()
 
 // Unified call form state
 const callForm = ref({
@@ -633,7 +685,9 @@ const executeDeletePrefab = () => {
 
 // Form validation
 const isFormValid = computed(() => {
-  return callForm.value.phoneNumber && callForm.value.personaId && callForm.value.duration > 0
+  // Must have at least one verified phone number
+  const hasVerifiedPhone = phonesStore.verifiedPhones.length > 0
+  return hasVerifiedPhone && callForm.value.phoneNumber && callForm.value.personaId && callForm.value.duration > 0
 })
 
 const minDate = computed(() => {
@@ -899,6 +953,14 @@ let isMounted = true
 
 onMounted(async () => {
   loadCustomPrefabs()
+
+  // Auto-select phone number from phonesStore
+  if (phonesStore.primaryPhone) {
+    callForm.value.phoneNumber = phonesStore.primaryPhone
+  } else if (phonesStore.verifiedPhones.length === 1) {
+    callForm.value.phoneNumber = phonesStore.verifiedPhones[0].phone
+  }
+
   try {
     await personasStore.fetchContacts()
     if (!isMounted) return

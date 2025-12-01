@@ -38,6 +38,7 @@ export interface Env {
   TWILIO_ACCOUNT_SID: string;
   TWILIO_AUTH_TOKEN: string;
   TWILIO_PHONE_NUMBER: string;
+  TWILIO_VERIFY_SERVICE_SID: string;
   USER_DATA: KvCache;
   VOICE_PIPELINE: ServiceStub<import('../voice-pipeline/index.js').default>;
   VULTR_DB_API_KEY: string;

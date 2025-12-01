@@ -2115,6 +2115,16 @@ export default class extends Service<Env> {
       return await this.handleGetUsageStats(request, corsHeaders);
     }
 
+    // POST /api/user/phone/send-verification - Send SMS verification code
+    if (request.method === 'POST' && path === '/api/user/phone/send-verification') {
+      return await this.handleSendPhoneVerification(request, corsHeaders);
+    }
+
+    // POST /api/user/phone/verify - Verify SMS code and update user
+    if (request.method === 'POST' && path === '/api/user/phone/verify') {
+      return await this.handleVerifyPhone(request, corsHeaders);
+    }
+
     return new Response('Not Found', { status: 404, headers: corsHeaders });
   }
 
@@ -2978,6 +2988,225 @@ export default class extends Service<Env> {
       }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+  /**
+   * Send phone verification code via Twilio Verify
+   * POST /api/user/phone/send-verification
+   */
+  private async handleSendPhoneVerification(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
+    try {
+      // Get userId from JWT auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const body = await request.json() as { phone: string };
+      const { phone } = body;
+
+      if (!phone || !/^\+1\d{10}$/.test(phone)) {
+        return new Response(JSON.stringify({ error: 'Invalid phone number format. Must be +1XXXXXXXXXX' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Get Twilio credentials
+      const twilioAccountSid = this.env.TWILIO_ACCOUNT_SID;
+      const twilioAuthToken = this.env.TWILIO_AUTH_TOKEN;
+      // @ts-ignore - TWILIO_VERIFY_SERVICE_SID is added to env but not yet in generated types
+      const twilioVerifyServiceSid = this.env.TWILIO_VERIFY_SERVICE_SID;
+
+      if (!twilioAccountSid || !twilioAuthToken || !twilioVerifyServiceSid) {
+        this.env.logger.error('Twilio Verify not configured', {
+          hasAccountSid: !!twilioAccountSid,
+          hasAuthToken: !!twilioAuthToken,
+          hasVerifyServiceSid: !!twilioVerifyServiceSid
+        });
+        return new Response(JSON.stringify({ error: 'Phone verification service not configured' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Send verification code via Twilio Verify API
+      const twilioUrl = `https://verify.twilio.com/v2/Services/${twilioVerifyServiceSid}/Verifications`;
+      const authHeader = 'Basic ' + btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+
+      const twilioResponse = await fetch(twilioUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+          'To': phone,
+          'Channel': 'sms'
+        }).toString()
+      });
+
+      const twilioResult = await twilioResponse.json() as { status?: string; sid?: string; message?: string };
+
+      if (!twilioResponse.ok) {
+        this.env.logger.error('Twilio Verify send failed', {
+          status: twilioResponse.status,
+          result: twilioResult
+        });
+        return new Response(JSON.stringify({
+          error: twilioResult.message || 'Failed to send verification code'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      this.env.logger.info('Verification code sent', {
+        userId,
+        phone: phone.slice(0, -4) + '****', // Mask last 4 digits in logs
+        status: twilioResult.status
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Verification code sent'
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+
+    } catch (error) {
+      this.env.logger.error('Phone verification send error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return new Response(JSON.stringify({
+        error: 'Failed to send verification code'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+  }
+
+  /**
+   * Verify phone code and update user
+   * POST /api/user/phone/verify
+   */
+  private async handleVerifyPhone(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
+    try {
+      // Get userId from JWT auth token
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const body = await request.json() as { phone: string; code: string };
+      const { phone, code } = body;
+
+      if (!phone || !/^\+1\d{10}$/.test(phone)) {
+        return new Response(JSON.stringify({ error: 'Invalid phone number format' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      if (!code || !/^\d{6}$/.test(code)) {
+        return new Response(JSON.stringify({ error: 'Invalid verification code format' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Get Twilio credentials
+      const twilioAccountSid = this.env.TWILIO_ACCOUNT_SID;
+      const twilioAuthToken = this.env.TWILIO_AUTH_TOKEN;
+      // @ts-ignore - TWILIO_VERIFY_SERVICE_SID is added to env but not yet in generated types
+      const twilioVerifyServiceSid = this.env.TWILIO_VERIFY_SERVICE_SID;
+
+      if (!twilioAccountSid || !twilioAuthToken || !twilioVerifyServiceSid) {
+        return new Response(JSON.stringify({ error: 'Phone verification service not configured' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Verify code via Twilio Verify API
+      const twilioUrl = `https://verify.twilio.com/v2/Services/${twilioVerifyServiceSid}/VerificationCheck`;
+      const authHeader = 'Basic ' + btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+
+      const twilioResponse = await fetch(twilioUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: new URLSearchParams({
+          'To': phone,
+          'Code': code
+        }).toString()
+      });
+
+      const twilioResult = await twilioResponse.json() as { status?: string; valid?: boolean; message?: string };
+
+      if (!twilioResponse.ok || twilioResult.status !== 'approved') {
+        this.env.logger.warn('Phone verification failed', {
+          userId,
+          status: twilioResult.status,
+          valid: twilioResult.valid
+        });
+        return new Response(JSON.stringify({
+          error: 'Invalid or expired verification code'
+        }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Update user's phone and phone_verified status in database
+      const updateResult = await this.env.DATABASE_PROXY.executeQuery(
+        `UPDATE users SET phone = $1, phone_verified = true, updated_at = NOW() WHERE id = $2 RETURNING id, phone, phone_verified`,
+        [phone, userId]
+      );
+
+      if (updateResult.rows.length === 0) {
+        return new Response(JSON.stringify({ error: 'User not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      this.env.logger.info('Phone verified successfully', {
+        userId,
+        phone: phone.slice(0, -4) + '****'
+      });
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Phone verified successfully',
+        phone,
+        phone_verified: true
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+
+    } catch (error) {
+      this.env.logger.error('Phone verification error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return new Response(JSON.stringify({
+        error: 'Failed to verify phone'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
     }
   }
