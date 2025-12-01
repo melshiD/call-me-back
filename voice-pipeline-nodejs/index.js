@@ -179,6 +179,7 @@ class VoicePipeline {
     // State
     this.conversationHistory = [];
     this.transcriptSegments = [];
+    this.currentFluxTranscript = '';  // Current transcript from Flux (accumulated)
     this.lastSpeechTime = 0;
     this.isSpeaking = false;
     this.isEvaluating = false;
@@ -186,12 +187,14 @@ class VoicePipeline {
     this.silenceTimer = null;
     this.evaluationCount = 0;
 
-    // Turn-taking config (reduced thresholds with VAD enabled)
+    // Turn-taking config
+    // Note: With Flux, most turn-taking is handled natively via EndOfTurn events
+    // These are fallback values for legacy/VAD paths
     this.config = {
-      shortSilenceMs: 300,       // Reduced from 500 (VAD handles detection)
-      llmEvalThresholdMs: 800,   // Reduced from 1200 (33% faster)
-      forceResponseMs: 2000,     // Reduced from 3000
-      maxEvaluations: 2          // Max LLM evals before forcing
+      shortSilenceMs: 300,       // Fallback: short pause threshold
+      llmEvalThresholdMs: 800,   // Fallback: when to evaluate turn completion
+      forceResponseMs: 2000,     // Fallback: force response after this silence
+      maxEvaluations: 2          // Fallback: max LLM evals before forcing
     };
 
     // Call tracking and cleanup
@@ -477,9 +480,12 @@ class VoicePipeline {
    */
   async connectDeepgram() {
     return new Promise((resolve, reject) => {
-      console.log(`[VoicePipeline ${this.callId}] Connecting to Deepgram...`);
+      console.log(`[VoicePipeline ${this.callId}] Connecting to Deepgram Flux...`);
 
-      const deepgramUrl = 'wss://api.deepgram.com/v1/listen?model=nova-3&encoding=mulaw&sample_rate=8000';
+      // Flux model with native turn-taking detection
+      // - eot_threshold: Confidence level to fire EndOfTurn (0.5-0.9)
+      // - eot_timeout_ms: Force EndOfTurn after this much silence
+      const deepgramUrl = 'wss://api.deepgram.com/v2/listen?model=flux-general-en&encoding=mulaw&sample_rate=8000&eot_threshold=0.7&eot_timeout_ms=5000';
 
       this.deepgramWs = new WebSocket(deepgramUrl, {
         headers: {
@@ -488,7 +494,7 @@ class VoicePipeline {
       });
 
       this.deepgramWs.on('open', () => {
-        console.log(`[VoicePipeline ${this.callId}] Deepgram connected`);
+        console.log(`[VoicePipeline ${this.callId}] Deepgram Flux connected`);
         this.deepgramReady = true;
 
         // Flush buffered audio
@@ -507,18 +513,23 @@ class VoicePipeline {
       this.deepgramWs.on('message', (data) => {
         try {
           const response = JSON.parse(data.toString());
+
+          // Handle Flux TurnInfo events (native turn-taking)
+          if (response.type === 'TurnInfo') {
+            this.handleFluxTurnInfo(response);
+            return;
+          }
+
+          // Handle Connected event
+          if (response.type === 'Connected') {
+            console.log(`[VoicePipeline ${this.callId}] Deepgram Flux session established, request_id: ${response.request_id}`);
+            return;
+          }
+
+          // Legacy format fallback (shouldn't happen with Flux but just in case)
           const transcript = response.channel?.alternatives?.[0]?.transcript;
           if (transcript && transcript.trim()) {
-            console.log(`[VoicePipeline ${this.callId}] User said:`, transcript);
-
-            // Log Deepgram usage for cost tracking
-            const duration = response.duration;
-            const confidence = response.channel?.alternatives?.[0]?.confidence;
-            const isFinal = response.is_final;
-            if (duration !== undefined || confidence !== undefined) {
-              console.log(`[VoicePipeline ${this.callId}] Deepgram transcript: duration: ${duration || 0} confidence: ${confidence || 0} is_final: ${isFinal || false}`);
-            }
-
+            console.log(`[VoicePipeline ${this.callId}] [Legacy] User said:`, transcript);
             this.handleTranscriptSegment(transcript);
           }
         } catch (error) {
@@ -703,7 +714,117 @@ class VoicePipeline {
   }
 
   /**
-   * Handle incoming transcript segment from Deepgram
+   * Handle Flux TurnInfo events for native turn-taking
+   * Events: StartOfTurn, Update, EagerEndOfTurn, TurnResumed, EndOfTurn
+   */
+  handleFluxTurnInfo(response) {
+    const { event, transcript, turn_index, end_of_turn_confidence } = response;
+
+    // Log all Flux events for debugging
+    console.log(`[VoicePipeline ${this.callId}] Flux ${event}: turn=${turn_index} confidence=${end_of_turn_confidence?.toFixed(2) || 'N/A'} transcript="${transcript || ''}"`);
+
+    switch (event) {
+      case 'StartOfTurn':
+        // User started speaking
+        this.lastSpeechTime = Date.now();
+
+        // If AI was speaking when user started, handle interruption
+        if (this.isSpeaking) {
+          console.log(`[VoicePipeline ${this.callId}] 🛑 User interrupted AI (StartOfTurn while speaking)`);
+          this.handleUserInterruption();
+        }
+        break;
+
+      case 'Update':
+        // Interim transcript update - accumulate but don't trigger response
+        if (transcript && transcript.trim()) {
+          this.currentFluxTranscript = transcript;
+          this.lastSpeechTime = Date.now();
+
+          // Check for interruption during updates too
+          if (this.isSpeaking) {
+            console.log(`[VoicePipeline ${this.callId}] 🛑 User interrupted AI (Update while speaking)`);
+            this.handleUserInterruption();
+          }
+        }
+        break;
+
+      case 'EagerEndOfTurn':
+        // User might be done - could start preparing response here (Phase 2)
+        // For now, just log it
+        console.log(`[VoicePipeline ${this.callId}] ⏳ EagerEndOfTurn - user might be done`);
+        this.currentFluxTranscript = transcript;
+        break;
+
+      case 'TurnResumed':
+        // User kept speaking after EagerEndOfTurn - cancel any draft (Phase 2)
+        console.log(`[VoicePipeline ${this.callId}] ↩️ TurnResumed - user continued speaking`);
+        this.currentFluxTranscript = transcript;
+        break;
+
+      case 'EndOfTurn':
+        // User definitely done - trigger AI response
+        console.log(`[VoicePipeline ${this.callId}] ✅ EndOfTurn - user finished speaking`);
+
+        if (transcript && transcript.trim()) {
+          // Store final transcript and trigger response
+          this.currentFluxTranscript = transcript;
+
+          // Add to conversation history (same format as before)
+          this.transcriptSegments = [{
+            text: transcript,
+            timestamp: Date.now()
+          }];
+
+          // Trigger AI response - Flux has determined the turn is complete
+          this.triggerResponse('flux_end_of_turn');
+        } else {
+          console.log(`[VoicePipeline ${this.callId}] EndOfTurn with empty transcript - ignoring`);
+        }
+        break;
+
+      default:
+        console.log(`[VoicePipeline ${this.callId}] Unknown Flux event: ${event}`);
+    }
+  }
+
+  /**
+   * Handle user interruption while AI is speaking
+   */
+  handleUserInterruption() {
+    // Stop TTS playback
+    if (this.elevenLabsWs && this.elevenLabsWs.readyState === WebSocket.OPEN) {
+      try {
+        this.elevenLabsWs.send(JSON.stringify({
+          text: '',
+          flush: true
+        }));
+        console.log(`[VoicePipeline ${this.callId}] Sent flush to stop TTS`);
+      } catch (error) {
+        console.error(`[VoicePipeline ${this.callId}] Failed to flush TTS:`, error);
+      }
+    }
+
+    // Clear Twilio audio by sending clear message
+    if (this.twilioWs && this.twilioWs.readyState === WebSocket.OPEN && this.streamSid) {
+      try {
+        this.twilioWs.send(JSON.stringify({
+          event: 'clear',
+          streamSid: this.streamSid
+        }));
+        console.log(`[VoicePipeline ${this.callId}] Sent clear to Twilio to stop audio playback`);
+      } catch (error) {
+        console.error(`[VoicePipeline ${this.callId}] Failed to clear Twilio audio:`, error);
+      }
+    }
+
+    this.isSpeaking = false;
+    this.transcriptSegments = [];
+    this.evaluationCount = 0;
+  }
+
+  /**
+   * Handle incoming transcript segment from Deepgram (legacy/fallback)
    */
   handleTranscriptSegment(transcript) {
     // If AI was speaking and user interrupted
@@ -1615,6 +1736,7 @@ class BrowserVoicePipeline {
     // State
     this.conversationHistory = [];
     this.transcriptSegments = [];
+    this.currentFluxTranscript = '';  // Current transcript from Flux
     this.lastSpeechTime = 0;
     this.isSpeaking = false;
     this.silenceTimer = null;
@@ -1812,18 +1934,33 @@ class BrowserVoicePipeline {
 
   async connectDeepgram() {
     return new Promise((resolve, reject) => {
-      // Browser sends 16kHz PCM (linear16)
-      const url = 'wss://api.deepgram.com/v1/listen?model=nova-3&encoding=linear16&sample_rate=16000';
+      // Browser sends 16kHz PCM (linear16) - use Flux for native turn-taking
+      const url = 'wss://api.deepgram.com/v2/listen?model=flux-general-en&encoding=linear16&sample_rate=16000&eot_threshold=0.7&eot_timeout_ms=5000';
       this.deepgramWs = new WebSocket(url, { headers: { 'Authorization': `Token ${env.DEEPGRAM_API_KEY}` } });
 
       this.deepgramWs.on('open', () => {
         this.deepgramReady = true;
+        console.log(`[BrowserPipeline ${this.sessionId}] Deepgram Flux connected`);
         resolve();
       });
 
       this.deepgramWs.on('message', (data) => {
         try {
           const response = JSON.parse(data.toString());
+
+          // Handle Flux TurnInfo events
+          if (response.type === 'TurnInfo') {
+            this.handleFluxTurnInfo(response);
+            return;
+          }
+
+          // Handle Connected event
+          if (response.type === 'Connected') {
+            console.log(`[BrowserPipeline ${this.sessionId}] Deepgram Flux session established`);
+            return;
+          }
+
+          // Legacy format fallback
           const transcript = response.channel?.alternatives?.[0]?.transcript;
           if (transcript?.trim()) {
             this.send({ type: 'transcript', text: transcript, is_final: response.is_final });
@@ -1835,6 +1972,62 @@ class BrowserVoicePipeline {
       this.deepgramWs.on('error', reject);
       setTimeout(() => reject(new Error('Deepgram timeout')), 5000);
     });
+  }
+
+  /**
+   * Handle Flux TurnInfo events for BrowserPipeline
+   */
+  handleFluxTurnInfo(response) {
+    const { event, transcript, turn_index, end_of_turn_confidence } = response;
+
+    console.log(`[BrowserPipeline ${this.sessionId}] Flux ${event}: confidence=${end_of_turn_confidence?.toFixed(2) || 'N/A'}`);
+
+    switch (event) {
+      case 'StartOfTurn':
+        this.lastSpeechTime = Date.now();
+        if (this.isSpeaking) {
+          console.log(`[BrowserPipeline ${this.sessionId}] 🛑 User interrupted (Flux StartOfTurn)`);
+          this.send({ type: 'interrupt' });
+          this.handleInterruption();
+        }
+        break;
+
+      case 'Update':
+        if (transcript?.trim()) {
+          this.currentFluxTranscript = transcript;
+          this.lastSpeechTime = Date.now();
+          // Send interim transcript to frontend
+          this.send({ type: 'transcript', text: transcript, is_final: false });
+
+          if (this.isSpeaking) {
+            console.log(`[BrowserPipeline ${this.sessionId}] 🛑 User interrupted (Flux Update)`);
+            this.send({ type: 'interrupt' });
+            this.handleInterruption();
+          }
+        }
+        break;
+
+      case 'EagerEndOfTurn':
+        console.log(`[BrowserPipeline ${this.sessionId}] ⏳ EagerEndOfTurn`);
+        this.currentFluxTranscript = transcript;
+        break;
+
+      case 'TurnResumed':
+        console.log(`[BrowserPipeline ${this.sessionId}] ↩️ TurnResumed`);
+        this.currentFluxTranscript = transcript;
+        break;
+
+      case 'EndOfTurn':
+        console.log(`[BrowserPipeline ${this.sessionId}] ✅ EndOfTurn`);
+        if (transcript?.trim()) {
+          this.currentFluxTranscript = transcript;
+          // Send final transcript to frontend
+          this.send({ type: 'transcript', text: transcript, is_final: true });
+          // Generate AI response
+          this.generateResponse();
+        }
+        break;
+    }
   }
 
   async connectElevenLabs() {
