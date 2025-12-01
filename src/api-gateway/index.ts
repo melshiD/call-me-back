@@ -159,7 +159,37 @@ export default class extends Service<Env> {
       // Extract callId, userId and personaId from query params (passed by call-orchestrator for OUTBOUND calls)
       const url = new URL(request.url);
       const callId = url.searchParams.get('callId') || callSid; // Use our internal callId, fallback to Twilio SID
-      const userId = url.searchParams.get('userId') || 'demo_user';
+      let userId = url.searchParams.get('userId');
+
+      // For INBOUND calls (user calling persona's number), look up user by their phone number
+      // Only match against VERIFIED phone numbers to avoid ambiguity with test accounts
+      if (!userId && from) {
+        this.env.logger.info('Inbound call - looking up user by caller phone number', { from });
+        try {
+          const userResult = await this.env.DATABASE_PROXY.executeQuery(
+            'SELECT id, name FROM users WHERE phone = $1 AND phone_verified = true',
+            [from]
+          );
+          if (userResult.rows && userResult.rows.length > 0) {
+            userId = userResult.rows[0].id;
+            this.env.logger.info('Found verified user for inbound call', { userId, userName: userResult.rows[0].name, from });
+          } else {
+            this.env.logger.warn('No verified user found for caller phone number', { from });
+            userId = 'anonymous_caller';
+          }
+        } catch (lookupError) {
+          this.env.logger.error('Failed to look up user by phone number', {
+            error: lookupError instanceof Error ? lookupError.message : String(lookupError),
+            from
+          });
+          userId = 'anonymous_caller';
+        }
+      }
+
+      // Final fallback for userId
+      if (!userId) {
+        userId = 'demo_user';
+      }
 
       // For INBOUND calls (user calling persona's number), look up persona by the called number
       // For OUTBOUND calls (call-orchestrator triggered), personaId is in query params
@@ -1599,6 +1629,29 @@ export default class extends Service<Env> {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': allowOrigin,
             'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Vary': 'Origin'
+          }
+        });
+      }
+
+      // GET /api/admin/users - List all users (for impersonation dropdown)
+      if (request.method === 'GET' && path === '/api/admin/users') {
+        console.log('[API-GATEWAY] Fetching all users for admin');
+
+        const result = await this.env.DATABASE_PROXY.executeQuery(
+          `SELECT id, email, name, phone, phone_verified, created_at
+           FROM users
+           ORDER BY created_at DESC
+           LIMIT 100`,
+          []
+        );
+
+        return new Response(JSON.stringify({ users: result.rows || [] }), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': allowOrigin,
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization',
             'Vary': 'Origin'
           }
@@ -3219,6 +3272,27 @@ export default class extends Service<Env> {
           error: 'Invalid or expired verification code'
         }), {
           status: 400,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Check if this phone number is already verified by another user
+      // This ensures unique phone numbers for inbound call identification
+      const existingUserResult = await this.env.DATABASE_PROXY.executeQuery(
+        'SELECT id, email FROM users WHERE phone = $1 AND phone_verified = true AND id != $2',
+        [phone, userId]
+      );
+
+      if (existingUserResult.rows && existingUserResult.rows.length > 0) {
+        this.env.logger.warn('Phone number already verified by another user', {
+          phone: phone.slice(0, -4) + '****',
+          existingUserId: existingUserResult.rows[0].id,
+          attemptingUserId: userId
+        });
+        return new Response(JSON.stringify({
+          error: 'This phone number is already associated with another account'
+        }), {
+          status: 409, // Conflict
           headers: { 'Content-Type': 'application/json', ...corsHeaders }
         });
       }

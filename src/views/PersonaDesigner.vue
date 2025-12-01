@@ -38,6 +38,95 @@
 
           <!-- Right: Controls & Status -->
           <div class="flex items-center gap-3">
+            <!-- User Impersonation Dropdown -->
+            <div class="relative">
+              <button
+                @click="showUserDropdown = !showUserDropdown"
+                class="flex items-center gap-2 px-3 py-2 rounded-lg border transition-all duration-300"
+                :class="impersonatedUser
+                  ? 'bg-cyan-500/10 border-cyan-500/40 hover:border-cyan-500/60'
+                  : 'bg-[#1a1a1e] border-[#2a2a2e] hover:border-amber-500/50'"
+              >
+                <svg class="w-4 h-4" :class="impersonatedUser ? 'text-cyan-400' : 'text-[#666]'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span class="font-mono text-[10px] uppercase tracking-wider" :class="impersonatedUser ? 'text-cyan-400' : 'text-[#888]'">
+                  {{ impersonatedUser ? impersonatedUser.email.split('@')[0] : 'Admin' }}
+                </span>
+                <svg class="w-3 h-3 text-[#555] transition-transform" :class="{ 'rotate-180': showUserDropdown }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              <!-- Dropdown Menu -->
+              <div
+                v-if="showUserDropdown"
+                class="absolute right-0 mt-2 w-72 bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg shadow-2xl overflow-hidden z-50"
+              >
+                <div class="p-2 border-b border-[#2a2a2e]">
+                  <span class="font-mono text-[9px] uppercase tracking-widest text-[#555]">Operating As</span>
+                </div>
+
+                <div class="max-h-64 overflow-y-auto">
+                  <!-- Admin Option -->
+                  <button
+                    @click="setImpersonatedUser(null)"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-amber-500/10 transition-colors text-left"
+                    :class="{ 'bg-amber-500/5 border-l-2 border-amber-500': !impersonatedUser }"
+                  >
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500/20 to-amber-600/20 flex items-center justify-center border border-amber-500/30">
+                      <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-mono text-xs text-amber-400">Admin Mode</div>
+                      <div class="font-mono text-[10px] text-[#555] truncate">Your own persona relationships</div>
+                    </div>
+                    <div v-if="!impersonatedUser" class="w-2 h-2 rounded-full bg-amber-500"></div>
+                  </button>
+
+                  <!-- Divider -->
+                  <div class="h-px bg-[#2a2a2e] my-1"></div>
+
+                  <!-- Loading State -->
+                  <div v-if="loadingUsers" class="px-3 py-4 text-center">
+                    <div class="inline-block w-4 h-4 border-2 border-[#444] border-t-amber-500 rounded-full animate-spin"></div>
+                    <span class="ml-2 font-mono text-[10px] text-[#555]">Loading users...</span>
+                  </div>
+
+                  <!-- User List -->
+                  <button
+                    v-for="user in allUsers"
+                    :key="user.id"
+                    @click="setImpersonatedUser(user)"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-cyan-500/10 transition-colors text-left"
+                    :class="{ 'bg-cyan-500/5 border-l-2 border-cyan-500': impersonatedUser?.id === user.id }"
+                  >
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[#2a2a2e] to-[#1e1e22] flex items-center justify-center border border-[#3a3a3e]">
+                      <span class="font-mono text-[10px] text-[#888] uppercase">{{ user.email?.charAt(0) || '?' }}</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="font-mono text-xs text-[#ccc] truncate">{{ user.email }}</div>
+                      <div class="font-mono text-[10px] text-[#555] truncate flex items-center gap-1">
+                        <span v-if="user.phone_verified" class="text-emerald-500">●</span>
+                        <span v-else class="text-[#444]">○</span>
+                        {{ user.phone || 'No phone' }}
+                      </div>
+                    </div>
+                    <div v-if="impersonatedUser?.id === user.id" class="w-2 h-2 rounded-full bg-cyan-500"></div>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Click-outside overlay -->
+              <div
+                v-if="showUserDropdown"
+                class="fixed inset-0 z-40"
+                @click="showUserDropdown = false"
+              ></div>
+            </div>
+
             <!-- Connection Status -->
             <div class="flex items-center gap-2 bg-[#1a1a1e] px-3 py-2 rounded-lg border border-[#2a2a2e]">
               <div class="w-2 h-2 rounded-full" :class="connectionStatus === 'connected' ? 'bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]' : connectionStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-[#444]'"></div>
@@ -1148,6 +1237,12 @@ const selectedPersona = ref(null);
 const loadingPersonas = ref(true);
 const saving = ref(false);
 
+// User Impersonation State
+const allUsers = ref([]);
+const impersonatedUser = ref(null); // null = admin mode, object = impersonating
+const showUserDropdown = ref(false);
+const loadingUsers = ref(false);
+
 // Editable fields
 const editedPrompt = ref('');
 const temperature = ref(0.7);
@@ -1249,6 +1344,62 @@ const getAdminIdFromToken = () => {
     return null;
   }
 };
+
+// Get effective user ID - returns impersonated user's ID if set, otherwise admin ID
+const getEffectiveUserId = () => {
+  if (impersonatedUser.value) {
+    return impersonatedUser.value.id;
+  }
+  return getAdminIdFromToken();
+};
+
+// Fetch all users for impersonation dropdown
+const fetchAllUsers = async () => {
+  loadingUsers.value = true;
+  try {
+    const token = localStorage.getItem('adminToken');
+    const response = await fetch(`${API_GATEWAY_URL}/api/admin/users`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      allUsers.value = data.users || [];
+      console.log(`[PersonaDesigner] Loaded ${allUsers.value.length} users for impersonation`);
+
+      // Restore impersonated user from localStorage if exists
+      const savedImpersonation = localStorage.getItem('impersonatedUserId');
+      if (savedImpersonation) {
+        const user = allUsers.value.find(u => u.id === savedImpersonation);
+        if (user) {
+          impersonatedUser.value = user;
+          console.log(`[PersonaDesigner] Restored impersonation: ${user.email}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[PersonaDesigner] Failed to fetch users:', err);
+  } finally {
+    loadingUsers.value = false;
+  }
+};
+
+// Set impersonated user and persist to localStorage
+const setImpersonatedUser = (user) => {
+  impersonatedUser.value = user;
+  showUserDropdown.value = false;
+  if (user) {
+    localStorage.setItem('impersonatedUserId', user.id);
+    console.log(`[PersonaDesigner] Now impersonating: ${user.email}`);
+  } else {
+    localStorage.removeItem('impersonatedUserId');
+    console.log('[PersonaDesigner] Switched to admin mode');
+  }
+  // Reload persona context for the new user
+  if (selectedPersona.value) {
+    loadContextFromKV();
+  }
+};
+
 const API_BASE = import.meta.env.VITE_API_URL || 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run';
 
 // Fetch available Cerebras models (filtered to Llama and Qwen)
@@ -1350,14 +1501,14 @@ const saveContextToKV = async () => {
     return;
   }
 
-  const adminId = getAdminIdFromToken();
-  if (!adminId) {
-    console.error('[PersonaDesigner] No adminId, cannot save to KV');
+  const effectiveUserId = getEffectiveUserId();
+  if (!effectiveUserId) {
+    console.error('[PersonaDesigner] No user ID, cannot save to KV');
     saveContextToLocalStorage();
     return;
   }
 
-  const key = getUserContextKey(adminId, selectedPersona.value.id);
+  const key = getUserContextKey(effectiveUserId, selectedPersona.value.id);
   // Unified value containing all user-specific layers (2, 3, 4)
   const value = {
     // Layer 2: Call Context
@@ -1408,14 +1559,14 @@ const saveContextToKV = async () => {
 const loadContextFromKV = async () => {
   if (!selectedPersona.value?.id) return;
 
-  const adminId = getAdminIdFromToken();
-  if (!adminId) {
-    console.error('[PersonaDesigner] No adminId, cannot load from KV');
+  const effectiveUserId = getEffectiveUserId();
+  if (!effectiveUserId) {
+    console.error('[PersonaDesigner] No user ID, cannot load from KV');
     return;
   }
 
   const token = localStorage.getItem('adminToken');
-  const key = getUserContextKey(adminId, selectedPersona.value.id);
+  const key = getUserContextKey(effectiveUserId, selectedPersona.value.id);
 
   try {
     // Use KV storage endpoint: GET /api/userdata/:key
@@ -2683,6 +2834,7 @@ onMounted(() => {
     return;
   }
   fetchPersonas();
+  fetchAllUsers(); // Load users for impersonation dropdown
   loadAdminPhone();
   fetchRecentCalls();
   enumerateAudioDevices();
