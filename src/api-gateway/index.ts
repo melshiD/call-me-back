@@ -1265,7 +1265,16 @@ export default class extends Service<Env> {
               updated_at = NOW()
           `, [userId, email, name, workosUser.email_verified || false]);
 
-          console.log('[API-GATEWAY] User authenticated via WorkOS OAuth:', { userId, email });
+          // Give new users 5 free trial minutes (only if they don't have credits yet)
+          // available_credits represents minutes, so 5 = 5 minutes free trial
+          const FREE_TRIAL_MINUTES = 5;
+          await this.env.DATABASE_PROXY.executeQuery(`
+            INSERT INTO user_credits (id, user_id, available_credits, subscription_tier, max_call_duration_minutes)
+            VALUES (gen_random_uuid()::text, $1, $2, 'free_trial', $2)
+            ON CONFLICT (user_id) DO NOTHING
+          `, [userId, FREE_TRIAL_MINUTES]);
+
+          console.log('[API-GATEWAY] User authenticated via WorkOS OAuth:', { userId, email, freeTrialMinutes: FREE_TRIAL_MINUTES });
 
           // Redirect to frontend with the WorkOS access token
           // The frontend will store this and use it for API calls

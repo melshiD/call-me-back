@@ -67,8 +67,8 @@
             <router-link to="/login" class="nav-item">
               <span>Login</span>
             </router-link>
-            <router-link to="/register" class="nav-item-primary">
-              <span class="relative z-10">Get Started</span>
+            <router-link to="/login" class="nav-item-primary">
+              <span class="relative z-10">Start Free Trial</span>
               <div class="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-full blur-md"></div>
             </router-link>
           </template>
@@ -138,8 +138,8 @@
               <router-link to="/login" class="mobile-nav-item" @click="mobileMenuOpen = false">
                 <span>Login</span>
               </router-link>
-              <router-link to="/register" class="mobile-nav-item-primary" @click="mobileMenuOpen = false">
-                <span>Get Started</span>
+              <router-link to="/login" class="mobile-nav-item-primary" @click="mobileMenuOpen = false">
+                <span>Start Free Trial</span>
               </router-link>
             </template>
 

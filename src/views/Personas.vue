@@ -93,7 +93,7 @@
                 </div>
 
                 <router-link
-                  to="/register"
+                  to="/login"
                   class="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-glow to-ember rounded-xl text-deep font-bold hover:scale-105 transition-transform duration-300"
                 >
                   Start with Brad
@@ -168,7 +168,7 @@
                 </div>
 
                 <router-link
-                  to="/register"
+                  to="/login"
                   class="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-xl text-deep font-bold hover:scale-105 transition-transform duration-300"
                 >
                   Start with Sarah
@@ -243,7 +243,7 @@
                 </div>
 
                 <router-link
-                  to="/register"
+                  to="/login"
                   class="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-purple-400 to-pink-500 rounded-xl text-deep font-bold hover:scale-105 transition-transform duration-300"
                 >
                   Start with Alex
@@ -429,11 +429,11 @@
         </p>
 
         <router-link
-          to="/register"
+          to="/login"
           class="inline-flex items-center justify-center px-16 py-7 text-2xl font-black text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-[24px] overflow-hidden transition-all duration-500 hover:scale-[1.05] hover:bg-[position:100%_0] shadow-[0_0_0_2px_rgba(251,191,36,0.5),0_20px_60px_rgba(251,191,36,0.4)] hover:shadow-[0_0_0_2px_rgba(251,191,36,0.8),0_24px_80px_rgba(251,191,36,0.5)] group"
         >
           <span class="relative z-10 flex items-center gap-3">
-            Get Started Free
+            Start Free Trial
             <svg class="w-6 h-6 group-hover:translate-x-2 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>

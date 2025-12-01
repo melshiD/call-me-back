@@ -79,16 +79,10 @@
           </div>
         </div>
 
-        <!-- Sign Up Link -->
+        <!-- Sign Up Info -->
         <div class="mt-8 text-center opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.2s]">
           <p class="text-cream/60">
-            Don't have an account?
-            <router-link
-              to="/register"
-              class="font-bold text-glow hover:text-ember transition-colors duration-300 ml-1"
-            >
-              Create Account
-            </router-link>
+            Don't have an account? You can register from the sign-in form after clicking the button above.
           </p>
         </div>
 

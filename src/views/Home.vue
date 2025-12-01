@@ -54,7 +54,7 @@
 
             <div class="flex flex-col sm:flex-row gap-5 mb-10">
               <router-link
-                to="/register"
+                to="/login"
                 class="group relative inline-flex items-center justify-center px-10 py-6 text-lg font-bold text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-2xl overflow-hidden transition-all duration-500 hover:scale-[1.05] hover:bg-[position:100%_0] shadow-[0_0_0_1px_rgba(251,191,36,0.5),0_16px_50px_rgba(251,191,36,0.4)] hover:shadow-[0_0_0_1px_rgba(251,191,36,0.8),0_20px_60px_rgba(251,191,36,0.5)] magnetic-hover"
               >
                 <span class="relative z-10 flex items-center gap-2">
@@ -840,7 +840,7 @@
 
         <div class="flex flex-col items-center gap-6 mb-12">
           <router-link
-            to="/register"
+            to="/login"
             class="group relative inline-flex items-center justify-center px-16 py-8 text-2xl lg:text-3xl font-black text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-[28px] overflow-hidden transition-all duration-500 hover:scale-[1.08] hover:bg-[position:100%_0] shadow-[0_0_0_2px_rgba(251,191,36,0.5),0_24px_80px_rgba(251,191,36,0.5)] hover:shadow-[0_0_0_2px_rgba(251,191,36,0.8),0_32px_100px_rgba(251,191,36,0.6)] magnetic-hover"
           >
             <span class="relative z-10 flex items-center gap-3">

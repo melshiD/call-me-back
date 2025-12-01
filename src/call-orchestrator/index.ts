@@ -63,7 +63,25 @@ export default class extends Service<Env> {
       // Get Twilio credentials from environment
       const twilioAccountSid = this.env.TWILIO_ACCOUNT_SID;
       const twilioAuthToken = this.env.TWILIO_AUTH_TOKEN;
-      const twilioPhoneNumber = this.env.TWILIO_PHONE_NUMBER;
+      const defaultTwilioPhone = this.env.TWILIO_PHONE_NUMBER;
+
+      // Fetch persona's phone number for caller ID
+      let twilioPhoneNumber = defaultTwilioPhone;
+      try {
+        const personaResult = await this.env.DATABASE_PROXY.executeQuery(
+          'SELECT twilio_phone_number FROM personas WHERE id = $1',
+          [input.personaId]
+        );
+        if (personaResult.rows.length > 0 && personaResult.rows[0].twilio_phone_number) {
+          twilioPhoneNumber = personaResult.rows[0].twilio_phone_number;
+          this.env.logger.info('Using persona-specific caller ID', {
+            personaId: input.personaId,
+            callerIdNumber: twilioPhoneNumber
+          });
+        }
+      } catch (err) {
+        this.env.logger.warn('Failed to fetch persona phone number, using default', { error: err instanceof Error ? err.message : String(err) });
+      }
 
       // For demo mode, allow calls even without Twilio configured
       if (input.paymentMethod === 'demo' && !twilioAccountSid) {

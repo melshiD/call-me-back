@@ -80,15 +80,12 @@
             <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-glow/20 to-transparent -mr-16 -mt-16 rotate-45 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
             <div class="relative z-10">
-              <h3 class="text-2xl font-[--font-display] font-bold mb-2">Starter</h3>
-              <p class="text-sm text-cream/60 mb-6">Try it out</p>
 
               <div class="mb-6">
                 <div class="flex items-baseline gap-2 mb-1">
                   <span class="text-5xl font-black bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">$14.99</span>
                 </div>
                 <p class="text-lg text-cream/80 font-semibold">25 minutes</p>
-                <p class="text-xs text-cream/50 mt-1">$0.60 per minute</p>
               </div>
 
               <ul class="space-y-3 mb-8">
@@ -134,24 +131,17 @@
 
           <!-- Basic - 50 Minutes (Most Popular) -->
           <div class="opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.2s] relative bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border-2 border-glow/50 rounded-[32px] p-8 lg:p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/70 hover:shadow-[0_32px_100px_rgba(251,191,36,0.3)] holographic overflow-hidden group md:-mt-4 md:mb-4">
-            <!-- Popular Badge -->
-            <div class="absolute -top-4 left-1/2 -translate-x-1/2 px-6 py-2 bg-gradient-to-r from-glow via-ember to-solar rounded-full text-deep text-xs font-black uppercase tracking-wider shadow-[0_8px_32px_rgba(251,191,36,0.4)]">
-              Best Value
-            </div>
 
             <!-- Corner accent -->
             <div class="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-glow/30 to-transparent -mr-20 -mt-20 rotate-45 blur-2xl opacity-50 group-hover:opacity-100 transition-opacity duration-500"></div>
 
             <div class="relative z-10 mt-4">
-              <h3 class="text-2xl font-[--font-display] font-bold mb-2">Basic</h3>
-              <p class="text-sm text-cream/60 mb-6">Most popular</p>
 
               <div class="mb-6">
                 <div class="flex items-baseline gap-2 mb-1">
                   <span class="text-5xl font-black bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">$24.99</span>
                 </div>
                 <p class="text-lg text-cream/80 font-semibold">50 minutes</p>
-                <p class="text-xs text-cream/50 mt-1">$0.50 per minute <span class="text-glow">• Save 17%</span></p>
               </div>
 
               <ul class="space-y-3 mb-8">
@@ -207,15 +197,12 @@
             <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-solar/20 to-transparent -mr-16 -mt-16 rotate-45 blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
 
             <div class="relative z-10">
-              <h3 class="text-2xl font-[--font-display] font-bold mb-2">Plus</h3>
-              <p class="text-sm text-cream/60 mb-6">Power users</p>
 
               <div class="mb-6">
                 <div class="flex items-baseline gap-2 mb-1">
                   <span class="text-5xl font-black bg-gradient-to-r from-solar to-ember bg-clip-text text-transparent">$44.99</span>
                 </div>
                 <p class="text-lg text-cream/80 font-semibold">100 minutes</p>
-                <p class="text-xs text-cream/50 mt-1">$0.45 per minute <span class="text-solar">• Save 25%</span></p>
               </div>
 
               <ul class="space-y-3 mb-8">
@@ -269,8 +256,7 @@
 
         <!-- Login prompt for non-authenticated users -->
         <p v-if="!isAuthenticated" class="text-center text-cream/60 mt-8 opacity-0 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.5s]">
-          <router-link to="/login" class="text-glow hover:text-ember transition-colors">Sign in</router-link> or
-          <router-link to="/register" class="text-glow hover:text-ember transition-colors">create an account</router-link> to purchase minutes.
+          <router-link to="/login" class="text-glow hover:text-ember transition-colors">Sign in or create an account</router-link> to purchase minutes.
         </p>
       </div>
     </section>
@@ -434,11 +420,11 @@
 
           <router-link
             v-else
-            to="/register"
+            to="/login"
             class="inline-flex items-center justify-center px-12 py-5 text-xl font-black text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-[20px] overflow-hidden transition-all duration-500 hover:scale-[1.05] hover:bg-[position:100%_0] shadow-[0_0_0_2px_rgba(251,191,36,0.5),0_20px_60px_rgba(251,191,36,0.4)] hover:shadow-[0_0_0_2px_rgba(251,191,36,0.8),0_24px_80px_rgba(251,191,36,0.5)] group"
           >
             <span class="relative z-10 flex items-center gap-3">
-              Create Free Account
+              Start Free Trial
               <svg class="w-5 h-5 group-hover:translate-x-2 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
