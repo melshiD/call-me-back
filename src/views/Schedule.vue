@@ -767,6 +767,9 @@ const handleScheduleSubmit = async () => {
       }
     )
 
+    // Refetch to get complete data including persona_name
+    await callsStore.fetchScheduledCalls()
+
     formSuccess.value = 'Call scheduled successfully!'
     resetForm()
   } catch (err) {

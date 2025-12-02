@@ -32,27 +32,39 @@ export async function generateToken(userId: string, email: string, secret: strin
 }
 
 // Cache for WorkOS JWKS to avoid fetching on every request
-let workosJwksCache: jose.JWTVerifyGetKey | null = null;
-let workosJwksCacheTime = 0;
+// Key by clientId since different clients have different JWKS
+const workosJwksCache: Map<string, { jwks: jose.JWTVerifyGetKey; cacheTime: number }> = new Map();
 const JWKS_CACHE_TTL = 3600000; // 1 hour
 
 async function getWorkOSJWKS(clientId: string): Promise<jose.JWTVerifyGetKey> {
   const now = Date.now();
-  if (workosJwksCache && (now - workosJwksCacheTime) < JWKS_CACHE_TTL) {
-    return workosJwksCache;
+  const cached = workosJwksCache.get(clientId);
+
+  if (cached && (now - cached.cacheTime) < JWKS_CACHE_TTL) {
+    return cached.jwks;
   }
 
   // WorkOS JWKS endpoint - must include client ID
   const jwksUrl = `https://api.workos.com/sso/jwks/${clientId}`;
-  workosJwksCache = jose.createRemoteJWKSet(new URL(jwksUrl));
-  workosJwksCacheTime = now;
-  return workosJwksCache;
+  const jwks = jose.createRemoteJWKSet(new URL(jwksUrl));
+  workosJwksCache.set(clientId, { jwks, cacheTime: now });
+  return jwks;
 }
 
 export async function validateToken(token: string, secret: string, workosClientId?: string): Promise<TokenValidationResult> {
   try {
     // First, decode the token without verification to check its structure
     const decoded = jose.decodeJwt(token);
+
+    // Check token expiration before signature validation for better error messages
+    if (decoded.exp && decoded.exp < Math.floor(Date.now() / 1000)) {
+      const expiredAt = new Date(decoded.exp * 1000).toISOString();
+      console.error('[AUTH] Token expired at:', expiredAt, 'sub:', decoded.sub);
+      return {
+        valid: false,
+        error: `Token expired at ${expiredAt}`,
+      };
+    }
 
     // Check if this is a WorkOS token (has 'iss' from WorkOS)
     const isWorkOSToken = decoded.iss && (
@@ -90,9 +102,12 @@ export async function validateToken(token: string, secret: string, workosClientI
       };
     }
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Invalid token';
+    // Log detailed error for debugging
+    console.error('[AUTH] Token validation failed:', errorMessage);
     return {
       valid: false,
-      error: error instanceof Error ? error.message : 'Invalid token',
+      error: errorMessage,
     };
   }
 }

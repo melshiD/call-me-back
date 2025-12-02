@@ -139,6 +139,17 @@ export default class extends Service<Env> {
       const statusEvents = ['initiated', 'ringing', 'answered', 'completed', 'no-answer', 'busy', 'failed', 'canceled'];
       statusEvents.forEach(event => formBody.append('StatusCallbackEvent', event));
 
+      // AMD (Answering Machine Detection) - detect voicemail and hang up to avoid blank messages
+      // https://www.twilio.com/docs/voice/answering-machine-detection
+      formBody.append('MachineDetection', 'Enable');
+      formBody.append('MachineDetectionTimeout', '5'); // 5 seconds to detect (quick, since we ring for 15s max)
+      formBody.append('MachineDetectionSpeechThreshold', '2000'); // 2 seconds of speech = probably voicemail greeting
+      formBody.append('MachineDetectionSpeechEndThreshold', '800'); // 800ms silence after speech = greeting done
+      formBody.append('MachineDetectionSilenceTimeout', '3000'); // 3 seconds of silence = probably human
+      formBody.append('AsyncAmd', 'true'); // Don't block call connection, detect async
+      formBody.append('AsyncAmdStatusCallback', `${baseUrl}/api/voice/amd?callId=${callId}`);
+      formBody.append('AsyncAmdStatusCallbackMethod', 'POST');
+
       const response = await fetch(twilioUrl, {
         method: 'POST',
         headers: {

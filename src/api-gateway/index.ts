@@ -3,6 +3,7 @@ import { Env } from './raindrop.gen';
 import { ScenarioTemplateManager } from '../shared/scenario-templates';
 import { VoicePipelineOrchestrator, VoicePipelineConfig } from '../voice-pipeline/voice-pipeline-orchestrator';
 import { CallCostTracker } from '../shared/cost-tracker';
+import { SignJWT } from 'jose';
 
 export default class extends Service<Env> {
   async fetch(request: Request): Promise<Response> {
@@ -118,6 +119,11 @@ export default class extends Service<Env> {
     // POST /api/voice/status - Handle Twilio call status callbacks
     if (request.method === 'POST' && path === '/api/voice/status') {
       return await this.handleVoiceStatus(request, url);
+    }
+
+    // POST /api/voice/amd - Handle Twilio AMD (Answering Machine Detection) callbacks
+    if (request.method === 'POST' && path === '/api/voice/amd') {
+      return await this.handleVoiceAmd(request, url);
     }
 
     // WebSocket /api/voice/stream - Handle Twilio Media Streams
@@ -445,7 +451,6 @@ export default class extends Service<Env> {
       // Return TwiML response to Twilio
       // NOTE: When called via <Connect action="...">, Twilio expects TwiML back, not plain text
       // Alternative approach: Use account-level statusCallback webhooks in Twilio console instead
-      const emptyTwiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
       return new Response(emptyTwiml, {
         status: 200,
         headers: { 'Content-Type': 'text/xml' }
@@ -455,8 +460,100 @@ export default class extends Service<Env> {
         error: error instanceof Error ? error.message : String(error)
       });
       // Still return 200 with TwiML to Twilio to prevent retries
-      const errorTwiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
-      return new Response(errorTwiml, { status: 200, headers: { 'Content-Type': 'text/xml' } });
+      const fallbackTwiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+      return new Response(fallbackTwiml, { status: 200, headers: { 'Content-Type': 'text/xml' } });
+    }
+  }
+
+  /**
+   * Handle AMD (Answering Machine Detection) callback from Twilio
+   * When voicemail is detected, hang up the call to avoid blank messages
+   */
+  private async handleVoiceAmd(request: Request, url: URL): Promise<Response> {
+    try {
+      const callId = url.searchParams.get('callId');
+      const emptyTwiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+
+      if (!callId) {
+        this.env.logger.warn('AMD callback missing callId');
+        return new Response(emptyTwiml, { status: 200, headers: { 'Content-Type': 'text/xml' } });
+      }
+
+      // Parse Twilio form data
+      const formData = await request.formData();
+      const answeredBy = formData.get('AnsweredBy') as string;
+      const callSid = formData.get('CallSid') as string;
+
+      this.env.logger.info('AMD callback received', { callId, callSid, answeredBy });
+
+      // Check if answering machine/voicemail was detected
+      // Twilio AnsweredBy values: machine_start, machine_end_beep, machine_end_silence, machine_end_other, human, fax, unknown
+      const isMachine = answeredBy && answeredBy.startsWith('machine');
+
+      if (isMachine) {
+        this.env.logger.info('Voicemail detected - hanging up call', { callId, callSid, answeredBy });
+
+        // Hang up the call via Twilio REST API
+        const twilioAccountSid = this.env.TWILIO_ACCOUNT_SID;
+        const twilioAuthToken = this.env.TWILIO_AUTH_TOKEN;
+
+        if (twilioAccountSid && twilioAuthToken && callSid) {
+          try {
+            const auth = btoa(`${twilioAccountSid}:${twilioAuthToken}`);
+            const hangupResponse = await fetch(
+              `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Calls/${callSid}.json`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Basic ${auth}`,
+                  'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'Status=completed'
+              }
+            );
+
+            if (hangupResponse.ok) {
+              this.env.logger.info('Successfully hung up voicemail call', { callId, callSid });
+
+              // Update call status in database
+              await this.env.DATABASE_PROXY.executeQuery(
+                `UPDATE calls
+                 SET status = 'voicemail-detected',
+                     error_message = 'Voicemail detected - call ended automatically',
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $1`,
+                [callId]
+              );
+            } else {
+              this.env.logger.error('Failed to hang up voicemail call', {
+                callId,
+                callSid,
+                status: hangupResponse.status,
+                response: await hangupResponse.text()
+              });
+            }
+          } catch (hangupError) {
+            this.env.logger.error('Error hanging up voicemail call', {
+              callId,
+              callSid,
+              error: hangupError instanceof Error ? hangupError.message : String(hangupError)
+            });
+          }
+        }
+      } else {
+        this.env.logger.info('Human detected - continuing call', { callId, callSid, answeredBy });
+      }
+
+      return new Response(emptyTwiml, {
+        status: 200,
+        headers: { 'Content-Type': 'text/xml' }
+      });
+    } catch (error) {
+      this.env.logger.error('AMD callback error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      const fallbackTwiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+      return new Response(fallbackTwiml, { status: 200, headers: { 'Content-Type': 'text/xml' } });
     }
   }
 
@@ -1448,9 +1545,36 @@ export default class extends Service<Env> {
 
           console.log('[API-GATEWAY] User authenticated via WorkOS OAuth:', { userId, email, freeTrialMinutes: FREE_TRIAL_MINUTES });
 
-          // Redirect to frontend with the WorkOS access token
-          // The frontend will store this and use it for API calls
-          return Response.redirect(`${frontendUrl}/auth/callback?token=${accessToken}`, 302);
+          // Generate our own JWT with longer expiration (30 days) instead of using
+          // the short-lived WorkOS access token (5-15 minutes)
+          // This prevents users from being logged out unexpectedly
+          const jwtSecret = this.env.JWT_SECRET;
+          if (!jwtSecret) {
+            console.error('[API-GATEWAY] JWT_SECRET not configured');
+            return Response.redirect(`${frontendUrl}/login?error=config_error`, 302);
+          }
+
+          // Create JWT with jose library (same as auth-manager/utils.ts)
+          const encoder = new TextEncoder();
+          const secretKey = encoder.encode(jwtSecret);
+          const tokenId = crypto.randomUUID();
+
+          const ourToken = await new SignJWT({
+            userId,
+            email,
+            tokenId,
+            // Store that this originated from WorkOS OAuth for audit purposes
+            authMethod: 'workos_oauth'
+          })
+            .setProtectedHeader({ alg: 'HS256' })
+            .setIssuedAt()
+            .setExpirationTime('30d')  // 30 days expiration
+            .sign(secretKey);
+
+          console.log('[API-GATEWAY] Generated long-lived JWT for user:', { userId, email, tokenId });
+
+          // Redirect to frontend with our JWT (not the short-lived WorkOS token)
+          return Response.redirect(`${frontendUrl}/auth/callback?token=${ourToken}`, 302);
         } catch (err) {
           console.error('[API-GATEWAY] OAuth callback error:', err);
           return Response.redirect(`${frontendUrl}/login?error=auth_failed`, 302);
