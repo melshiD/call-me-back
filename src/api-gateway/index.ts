@@ -316,9 +316,12 @@ export default class extends Service<Env> {
       // Voice pipeline will fetch full persona/call data from database using callId
       // NOTE: Call context (pretext, scenario, etc.) is NOT passed via TwiML because <Parameter> has 500 char limit
       //       Voice pipeline fetches context from calls table using callId
+      // action= URL is called when <Connect> ends (for status updates, especially on inbound calls)
+      // Alternative: Configure statusCallback at Twilio account/number level in console
+      const statusCallbackUrl = `https://call-me-back.ai-tools-marketplace.io/api/voice/status?callId=${encodeURIComponent(callId)}`;
       const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Connect>
+    <Connect action="${statusCallbackUrl}">
         <Stream url="${streamUrl}">
             <Parameter name="callId" value="${callId}" />
             <Parameter name="twilioCallSid" value="${callSid}" />
@@ -365,9 +368,10 @@ export default class extends Service<Env> {
     try {
       // Get callId from query params
       const callId = url.searchParams.get('callId');
+      const emptyTwiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
       if (!callId) {
         this.env.logger.warn('Voice status callback missing callId');
-        return new Response('OK', { status: 200 }); // Still return 200 to Twilio
+        return new Response(emptyTwiml, { status: 200, headers: { 'Content-Type': 'text/xml' } });
       }
 
       // Parse Twilio form data
@@ -438,14 +442,21 @@ export default class extends Service<Env> {
         );
       }
 
-      // Return 200 OK to Twilio (required)
-      return new Response('OK', { status: 200 });
+      // Return TwiML response to Twilio
+      // NOTE: When called via <Connect action="...">, Twilio expects TwiML back, not plain text
+      // Alternative approach: Use account-level statusCallback webhooks in Twilio console instead
+      const emptyTwiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+      return new Response(emptyTwiml, {
+        status: 200,
+        headers: { 'Content-Type': 'text/xml' }
+      });
     } catch (error) {
       this.env.logger.error('Voice status callback error', {
         error: error instanceof Error ? error.message : String(error)
       });
-      // Still return 200 to Twilio to prevent retries
-      return new Response('OK', { status: 200 });
+      // Still return 200 with TwiML to Twilio to prevent retries
+      const errorTwiml = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>';
+      return new Response(errorTwiml, { status: 200, headers: { 'Content-Type': 'text/xml' } });
     }
   }
 

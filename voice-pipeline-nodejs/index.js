@@ -1781,8 +1781,257 @@ Answer:`;
       }
 
       console.log(`[VoicePipeline ${this.callId}] ✅ Cost breakdown logged to api_call_events`);
+
+      // Run post-call evaluation to extract and store facts
+      await this.runPostCallEvaluation();
+
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Error saving call completion:`, error);
+    }
+  }
+
+  /**
+   * Post-call evaluation: Extract facts from conversation and store to KV Storage
+   * This enables the AI to learn and remember things about users across calls
+   * NOTE: This is duplicated from BrowserVoicePipeline - see PUNCHLIST for DRY refactor
+   */
+  async runPostCallEvaluation() {
+    const userId = this.userId;
+    const personaId = this.personaId;
+
+    // Skip if no valid user
+    if (!userId || userId === 'unknown' || userId === 'demo_user' || userId === 'anonymous_caller') {
+      console.log(`[PostCallEval ${this.callId}] Skipping - no valid userId (${userId})`);
+      return;
+    }
+
+    // Skip if conversation is too short (nothing meaningful to extract)
+    if (this.conversationHistory.length < 4) {
+      console.log(`[PostCallEval ${this.callId}] Skipping - conversation too short (${this.conversationHistory.length} turns)`);
+      return;
+    }
+
+    try {
+      console.log(`[PostCallEval ${this.callId}] Starting fact extraction for user ${userId}...`);
+
+      // Fetch global extraction settings from SmartMemory
+      const extractionSettings = await this.getExtractionSettings();
+
+      // 1. Extract facts from conversation using Cerebras
+      const newFacts = await this.extractFactsFromConversation(extractionSettings);
+
+      if (newFacts.length === 0) {
+        console.log(`[PostCallEval ${this.callId}] No new facts extracted`);
+        return;
+      }
+
+      console.log(`[PostCallEval ${this.callId}] Extracted ${newFacts.length} facts:`, newFacts.map(f => f.content));
+
+      // 2. Store facts to KV Storage via API Gateway
+      await this.updateLongTermMemory(userId, personaId, newFacts);
+
+      console.log(`[PostCallEval ${this.callId}] ✅ Post-call evaluation complete - ${newFacts.length} facts learned`);
+
+    } catch (err) {
+      console.error(`[PostCallEval ${this.callId}] Evaluation failed:`, err);
+      // Don't throw - evaluation failure shouldn't break call completion
+    }
+  }
+
+  /**
+   * Get global extraction settings from SmartMemory (configured via PersonaDesigner)
+   */
+  async getExtractionSettings() {
+    const defaults = {
+      enabled: true,
+      model: 'llama-3.3-70b',
+      temperature: 0.1,
+      maxTokens: 500,
+      extractionPrompt: null
+    };
+
+    try {
+      const response = await fetch(`${env.API_GATEWAY_URL}/api/memory/semantic/${encodeURIComponent('global:extraction_settings')}`, {
+        headers: { 'Authorization': `Bearer ${env.ADMIN_SECRET_TOKEN}` }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.document && !result.document.deleted) {
+          return { ...defaults, ...result.document };
+        }
+      }
+    } catch (err) {
+      console.log(`[PostCallEval ${this.callId}] Using default extraction settings`);
+    }
+
+    return defaults;
+  }
+
+  /**
+   * Extract facts from conversation using Cerebras LLM
+   */
+  async extractFactsFromConversation(settings) {
+    if (settings.enabled === false) {
+      console.log(`[PostCallEval ${this.callId}] Fact extraction disabled in settings`);
+      return [];
+    }
+
+    const transcript = this.conversationHistory
+      .map(turn => `${turn.role === 'user' ? 'User' : this.personaName}: ${turn.content}`)
+      .join('\n');
+
+    const defaultPrompt = `Analyze this phone conversation and extract NEW facts about the user.
+Only extract facts that are:
+1. Explicitly stated or strongly implied by the user
+2. Relevant to future conversations (not just this call)
+3. Personal information, preferences, life events, relationships, work, or interests
+
+Current date: ${new Date().toISOString().split('T')[0]}
+
+Conversation:
+${transcript}
+
+For each fact, provide:
+- content: The factual statement about the user
+- category: One of [personal, work, relationships, interests, health, goals, preferences]
+- importance: low, medium, or high
+
+Output ONLY a valid JSON array. If no new facts, return empty array [].
+
+Example:
+[
+  {"content": "User's name is Dave", "category": "personal", "importance": "high"},
+  {"content": "User works as a software engineer", "category": "work", "importance": "medium"}
+]`;
+
+    const extractionPrompt = settings.extractionPrompt || defaultPrompt;
+
+    try {
+      const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.CEREBRAS_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: settings.model || 'llama-3.3-70b',
+          messages: [
+            { role: 'system', content: 'You are a fact extraction system. Output only valid JSON arrays.' },
+            { role: 'user', content: extractionPrompt }
+          ],
+          max_tokens: settings.maxTokens || 500,
+          temperature: settings.temperature || 0.1
+        })
+      });
+
+      if (!response.ok) {
+        console.error(`[PostCallEval ${this.callId}] Cerebras API error:`, await response.text());
+        return [];
+      }
+
+      const data = await response.json();
+      const text = data.choices?.[0]?.message?.content || '[]';
+
+      let jsonText = text.trim();
+      if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/```json?\n?/g, '').replace(/```/g, '').trim();
+      }
+
+      const facts = JSON.parse(jsonText);
+      return Array.isArray(facts) ? facts : [];
+
+    } catch (e) {
+      console.error(`[PostCallEval ${this.callId}] Failed to extract facts:`, e);
+      return [];
+    }
+  }
+
+  /**
+   * Update user context with new facts via KV Storage
+   * Key pattern: user_context:{userId}:{personaId}
+   */
+  async updateLongTermMemory(userId, personaId, newFacts) {
+    const key = `user_context:${userId}:${personaId}`;
+
+    try {
+      // Load existing memory from KV
+      const getResponse = await fetch(`${env.API_GATEWAY_URL}/api/userdata/${encodeURIComponent(key)}`, {
+        headers: { 'Authorization': `Bearer ${env.ADMIN_SECRET_TOKEN}` }
+      });
+
+      let existing = { important_memories: [], facts: [], totalCallCount: 0 };
+      if (getResponse.ok) {
+        const result = await getResponse.json();
+        if (result.data && !result.data.deleted) {
+          existing = result.data;
+        }
+      }
+
+      // Add timestamps to new facts
+      const timestampedFacts = newFacts.map(fact => ({
+        ...fact,
+        learnedAt: new Date().toISOString()
+      }));
+
+      // Merge facts (avoid duplicates)
+      const existingMemories = existing.important_memories || existing.facts || [];
+      const mergedFacts = [...existingMemories];
+
+      for (const newFact of timestampedFacts) {
+        const isDuplicate = existingMemories.some(f => {
+          const existingContent = (f.content || f.fact || '').toLowerCase();
+          const newContent = (newFact.content || '').toLowerCase();
+          return existingContent.includes(newContent.slice(0, 30)) ||
+                 newContent.includes(existingContent.slice(0, 30));
+        });
+        if (!isDuplicate) {
+          mergedFacts.push(newFact);
+        }
+      }
+
+      // Keep only most recent/important facts (max 50)
+      const sortedFacts = mergedFacts
+        .sort((a, b) => {
+          const importanceOrder = { high: 3, medium: 2, low: 1 };
+          const aImp = importanceOrder[a.importance] || 1;
+          const bImp = importanceOrder[b.importance] || 1;
+          if (aImp !== bImp) return bImp - aImp;
+          return new Date(b.learnedAt || 0) - new Date(a.learnedAt || 0);
+        })
+        .slice(0, 50);
+
+      // Store updated user context to KV
+      const putResponse = await fetch(`${env.API_GATEWAY_URL}/api/userdata`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.ADMIN_SECRET_TOKEN}`
+        },
+        body: JSON.stringify({
+          key,
+          value: {
+            callPretext: existing.callPretext || '',
+            customInstructions: existing.customInstructions || '',
+            selectedScenarioId: existing.selectedScenarioId || null,
+            relationshipTypeId: existing.relationshipTypeId || null,
+            relationshipDuration: existing.relationshipDuration || null,
+            relationshipPrompt: existing.relationshipPrompt || '',
+            facts: sortedFacts,
+            totalCallCount: (existing.totalCallCount || 0) + 1,
+            lastUpdated: new Date().toISOString()
+          }
+        })
+      });
+
+      if (!putResponse.ok) {
+        console.error(`[PostCallEval ${this.callId}] Failed to store memory:`, await putResponse.text());
+      } else {
+        console.log(`[PostCallEval ${this.callId}] Stored ${sortedFacts.length} facts to KV storage`);
+      }
+
+    } catch (err) {
+      console.error(`[PostCallEval ${this.callId}] Memory update failed:`, err);
     }
   }
 }

@@ -692,7 +692,11 @@ const isFormValid = computed(() => {
 
 const minDate = computed(() => {
   const today = new Date()
-  return today.toISOString().split('T')[0]
+  // Use local date, not UTC (toISOString returns UTC which can be tomorrow in evening EST)
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 })
 
 // Handle Call Now
