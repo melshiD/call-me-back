@@ -12,6 +12,10 @@ application "call-me-back" {
     default = "+17622526613"
   }
 
+  env "TWILIO_VERIFY_SERVICE_SID" {
+    secret = true
+  }
+
   env "ELEVENLABS_API_KEY" {
     secret = true
   }
@@ -44,6 +48,17 @@ application "call-me-back" {
     secret = true
   }
 
+  env "WORKOS_USER_REDIRECT_URI" {
+    # Redirect URI for user OAuth - must match WorkOS dashboard configuration
+    # This points to the API gateway callback endpoint, NOT the frontend
+    default = "https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run/api/auth/callback"
+  }
+
+  env "FRONTEND_URL" {
+    # Frontend URL for OAuth redirects and Stripe redirect URLs
+    default = "https://call-me-back.vercel.app"
+  }
+
   env "LOG_QUERY_SERVICE_URL" {
     # SECURE: Uses Caddy reverse proxy with SSL (see SECURE_REVERSE_PROXY_PATTERN.md)
     default = "https://logs.ai-tools-marketplace.io"
@@ -51,6 +66,27 @@ application "call-me-back" {
 
   env "ADMIN_SECRET_TOKEN" {
     secret = true
+  }
+
+  # Stripe payment integration
+  env "STRIPE_SECRET_KEY" {
+    secret = true
+  }
+
+  env "STRIPE_WEBHOOK_SECRET" {
+    secret = true
+  }
+
+  env "STRIPE_PRICE_TWENTY_FIVE_MIN" {
+    default = "price_1SYrTJA358BGMOqmgLSmViHy"
+  }
+
+  env "STRIPE_PRICE_FIFTY_MIN" {
+    default = "price_1SYrTKA358BGMOqmc3piklNb"
+  }
+
+  env "STRIPE_PRICE_ONE_HUNDRED_MIN" {
+    default = "price_1SYrTLA358BGMOqm3AxzcRxL"
   }
 
   service "api-gateway" {

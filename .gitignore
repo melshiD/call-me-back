@@ -35,3 +35,8 @@ documentation/
 scripts/
 
 .admin-token*
+prompt-prep*
+wysbd*
+/.claude
+after_midterm
+*.sh

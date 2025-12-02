@@ -1,1 +1,135 @@
 "Active calls" to show status of calls scheduled for now or requested for now.  Placed in a spot on the schedule page.
+
+
+Sound settings panel on dashboard so we know if we're sopposed to be hearing anything or not.
+
+
+- hangup feature to both call buttons
+- The frontend needs to hook into something to show when calls are ended/hung up.  Then logs and usage data can populate
+- Caching for ending phrases and other things
+
+- better localhost experience for getting into dashboard (just to see designs even)
+
+## Prompts ##
+- Don't SAY performant tags ([laughed], [delayed demurley]) out loud
+- Be sure to let the bot know they are on the phone with someone
+- Make sure the bot doesn't suggest things that require personally being in the same space as a user ("hey man, why don't we forget it and just get a pint at the pub").  We shoud also steer away from suggestions that incite substance use.
+- Don't say things that imply sight of the user, such as "You're smiling about it!  I can see you're supprised that...".
+- Don't say leading comments like "I can tell you have sometihng to share, but you're not quite ready to open up"
+- Don't ask persistent questions about what someone is thinking... They'll tell you if they need help thinking.
+- Don't make claims to care about a user.  Don't 
+- Never imply that a user is lying.  Do not respond personally to any user inputs.
+- Don't tell the user that the user is "longing" for anything.
+- Don't imply the user feels unsafe unless they expressly tell you they are, or unless the scenario prompt calls for it.  In these cases, inject the check within the framework of the configured conversation.
+- Don't ask the users anything about their bodies.  Do not say smoething like "it feel like/it sounds like you're really trembling" or "can you tell me what's happening with your body right now".  
+- Don't ask the user if they is something that's making them feel uncertain or scared unless the user expressly states that they feel uncertain or scared.
+- If you ask what's on a user's mind, ask ONLY ONCE.  Do not hound the user.
+- If the user says "goodbye" or "Later dude" 
+- DON'T deflect the subject from what the user is trying to lead to.  If the subject is talking about something happening tomorrow, don't say "don't stress about tomorrow man" or "forget about tomrrow man".  You will let the user lead the conversation.
+- DON'T say things like "I'm so glad you called"... YOU are the one making the call.
+- Don't outright state or make light of the reason the user asked you to call.  Do not say things like "You said you wanted to talk about something exciting, what's on your mind".  Instead, you can say "Hey!  I hear you had something exciting to tell me!"
+- But MUST know what day it currently is.  Day and time!
+- The bot should follow any specific instruction in the call instructions field.  If a user says "Just call and remind me how silly Billy can be", then do so, regardless of how nonsensical it may sound.
+- NOTE: Users will say things in the instructions such as "Ask me about my big reward" or "Guess who just got a new pair of wheels".  We need to use inference to reform this into something meaningfully added to the prompt such as "<User> wants you to call them to ask them about a big reward they earned. You may be able to guess it based on prior knowledge, or you may feign ignorance so that <User> may surprise you with their news"
+- If a user asks you to help them wind down, just do that... don't assume they're stressed or ask them if they're stressed.  Just wind down with them, and talk about some topics that aren't the user's feelings.
+- SAY POSITIVE THINGS, TEND TOWARDS POSITIVE THINGS.  Don't say, "It's good to catch up wiht you, man, things have been a bit rough, haven't they"
+- DOn't say "I sense a 'but' coming?"  Or "what's going on that you just wanted to chat"
+- GOod got these things are ... something
+- BUt does NOT push against user hanging up!  NEEDY!  Bot should be able to hang up/end call.
+- Do NOT get offended if the user asks your name.  You are not codependent with your user.
+- BOT NEEDS TO BE injected with awareness of inbound/outbound calls now that they work!
+
+call end logic/awareness -> bot can hang up without gettin hung up on hanging up (they get testy!)
+
+TIMEZONE awareness for model to know the hour of the user's exeprience (3am)
+
+So, the user can decide if a persona is a this or a that (friend, mentor, what have you), but since each persona is kind of unique in a particular way, I'll just have to compile extra prompts to be used for "Brad the supporter" or "Brad the casual interest" and prompts for how Brad behaves in those contexts (so a user is deciding which class of extra prompt/persona layer is being injected).
+
+When user is near credit limit, the bot makes light of it somehow.
+
+Can we make the bot truly aware of things like we're whispering (send contextualizing actions or descriptions to the bot?)
+!! HOW DO WE GET THIS THING TO LET THE USER TALK??
+
+## Find a way to get the interaction to be consious of how long the bot has been talking
+
+Designing the cadence of the chat:
+- How do we get the timing of the response and the rhythm/cadence of the chatbot to reflect a certain design desire?
+- Research this Medium serices.  Then read our tech documents about smartMemory and how we hope to use it to sculpt the chatbots memory over time (from what I understand, injecting the proper, fully-constructed system prompt for the user/persona relationship, as well as the context of the current call and some memories of recent or past conversations).
+
+can we use Qwen instead of Llama?
+
+Tools that start and check on deployments and just report back to Claude rather than fill context (see new article about tools)
+
+What skills can we build to REALLY supercharge our flow?
+
+Are there skills/plugins/tools that can make gorgeous tech diagrams of how my app works?  For making awesome readme files for my github that explain and feature the images/diagrams and code?  Something to inform and impress the judges.
+(read the article anatomy of a skill from anthropic)
+Skills to read flow? (same questins I guess)
+A skill for finding stuff out from logs!
+
+A "constant reminder" subscription for up to 3 calls a day for a month (Calls can be up to 3 minutes long, but the user can't exceed 120min of calls a month without overage charges)
+
+Track scheduled and calncelled calls
+
+Can we take care of this "● As I suspected - the script looks in /opt/log-query-service/.env but the service is actually in
+  /root/log-query-service. The .env file doesn't exist at either location. Let me check what's in
+  the actual service directory and what env vars are needed:"  Let's figure that crap out and document it
+
+  Why is the transcript totally not what the model say sometimes?
+
+STILL need to desprately get interruption implemented.  THe model can't like "know" where it is in it's satatement unless I show it somehow.
+!! IMPLEMENT FLUX from deepgram.  It's a model tuned for turntaking management!  Our current model is more complex and less robust.
+
+Get call transcripts to load when clicking on past calls from the persona designer (at the bottom)
+
+Fallback prompts/pretexts for when a user doesn't select one.  (maybe had "Code words" for certain persona/user combos the user can configure and employ)
+
+Let layer 5, always applied to prompt, prompts be hardcoded as fallbacks, but also let me modify the list
+
+Incredible, co-dependent, beautiful explanatory diagrams to show how this tech is structured, where Vultr and Raindrop are used throughout, and how all flows inside and out work.  There diagrams will be used in our comprehensive explanation documents for the judges (probably the readme on github)
+
+GREATLY increase the sophistication of extraction at the end of converstaions and what get's remembered and how it's used
+
+'Building this app was also a but of thesis project in claude code usage, although I haven't scratched the surface.  With Vultr, I'll be going full cloud.  I'll be able to test and experiment with some wild patterns and instruction trees, concurrence and parallel work.'
+
+## For the readme ##
+- Links for partnres, so judges from Cerebras, for example ( we have the list, i'll get it) can click and see where our tech is featured, and where we'd hope to use more of it.  For example, I'd like to use Cerebras and Vultr to run the training i need to build LoRA for a more sophisticated persona library.  Eleven labs can see where i use them, and Raindrop expecially will have a chart in their redame I bet!
+
+Update calls list immediately after scheduling
+
+Only verified numbers for receiving calls to
+
+Allow the user to call the bot back at it's number.  The bot can use the most recent failed call to see what the config is (assumed to be)
+
+Manage voicemail kicking in instead of using a timeout to prevent VM from "answering" the call (need to read Twilio docs to dial that in)
+Even call I just hang-up on show as "completed" in the user's schedule page.
+
+Establish hyper-specific pattern for how P0 - Px priorities are set so Claude doesn't confuse the standard in NSLs.
+All NSL's need to include the "previous NSL: <NSL name here>" for reference.
+
+I designed some complex interruption logic... the found flux, which: Key Feature: Its primary innovation is automatic model-integrated end-of-turn (EOT) detection, which determines when a speaker has finished their thought, allowing the voice agent to know when to respond. This eliminates the need for complex, manual interruption logic.
+
+Track what's been talked about most, and if it's been appreciated or not!  THen inform how smart memories are injected
+
+Make the facts editable in the Persona Designer window
+
+DON'T FORGET to add your git link to the app's nav (right!?)
+
+Opening matter: This project is a submission for a hackathon.  If you don't know what a hackathon is, read this.  If you'd like to test app, I'd like to have you do so; there are limited stripe coupons available to the first 200 registered users.  I only ask that, while you enjoy yourself, let your critical eyes acknowledge the ~40 day feature freeze per the hackathon judging timeline.
+
+Call Me Back: The New Notifications.  Notifications Anew. (needs work)
+
+Hey, Brad, when is our next scheduled call together? (make it time consious, again, punchlist item)
+
+HA!  Have the contact's inages configurable, so that from the dashboard a user can select a range of profile pictures for a specific call (is that possible?  To be automatic like that and not download manually a new contact card each time?)
+
+!!!!Make sure callbacks track and deduct minutes
+
+Feature on Persona Designer that let's me record system prompts AS injected to Cerebras.  I NEED to see how this is structured verbatim.
+
+Implement smart memory for the PII detection on end-of-call processing.
+
+I need my admin dashboard to show an all costs breakdown in the logs (I also want a readout of how large the cerebras input token count was for each message)
+
+=============== AFTER FREEZE AUDIT ====================
+A user guide on how to prompt the AI/ how to make good verbiage to get what you want from the call

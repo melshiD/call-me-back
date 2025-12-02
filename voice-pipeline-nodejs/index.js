@@ -591,19 +591,30 @@ class VoicePipeline {
         console.log(`[VoicePipeline ${this.callId}] ElevenLabs connected`);
         this.elevenLabsReady = true;
 
+        // Guard against race condition during reconnection
+        if (this.elevenLabsWs.readyState !== WebSocket.OPEN) {
+          console.warn(`[VoicePipeline ${this.callId}] ElevenLabs open event fired but readyState=${this.elevenLabsWs.readyState}, skipping init`);
+          resolve();
+          return;
+        }
+
         // Send initial config
-        this.elevenLabsWs.send(JSON.stringify({
-          text: ' ',
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.0,
-            use_speaker_boost: true
-          },
-          generation_config: {
-            chunk_length_schedule: [50, 120, 160, 290]
-          }
-        }));
+        try {
+          this.elevenLabsWs.send(JSON.stringify({
+            text: ' ',
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75,
+              style: 0.0,
+              use_speaker_boost: true
+            },
+            generation_config: {
+              chunk_length_schedule: [50, 120, 160, 290]
+            }
+          }));
+        } catch (error) {
+          console.error(`[VoicePipeline ${this.callId}] Failed to send ElevenLabs init config:`, error.message);
+        }
 
         resolve();
       });
@@ -683,7 +694,12 @@ class VoicePipeline {
 
         // Callbacks
         onSpeechStart: (audio) => {
-          if (!this.isSpeaking) {  // Only track user speech, not AI
+          if (this.isSpeaking) {
+            // User interrupted AI speech!
+            console.log(`[VoicePipeline ${this.callId}] 🔥 VAD: User interrupted AI speech`);
+            this.handleUserInterruption();
+          } else {
+            // Normal user speech
             console.log(`[VoicePipeline ${this.callId}] 🎤 VAD: User started speaking`);
             this.isUserSpeaking = true;
             this.lastSpeechTime = Date.now();
@@ -873,6 +889,12 @@ class VoicePipeline {
       } catch (error) {
         console.error(`[VoicePipeline ${this.callId}] Failed to clear Twilio audio:`, error);
       }
+    }
+
+    // Clear the playback timeout since we're interrupting
+    if (this.speakingTimeout) {
+      clearTimeout(this.speakingTimeout);
+      this.speakingTimeout = null;
     }
 
     this.isSpeaking = false;
@@ -1447,11 +1469,32 @@ Answer:`;
 
   /**
    * Mark AI as done speaking, ready for next turn
+   * Delays setting isSpeaking=false to account for Twilio playback buffer
    */
   finishSpeaking() {
-    console.log(`[VoicePipeline ${this.callId}] ✅ Finished speaking (sent ${this.sentAudioChunks || 0} chunks to Twilio), ready for user input`);
-    this.isSpeaking = false;
-    this.sentAudioChunks = 0; // Reset counter for next response
+    const chunks = this.sentAudioChunks || 0;
+    const bytes = this.sentAudioBytes || 0;
+
+    // Calculate playback time: ulaw 8kHz = 8 bytes per millisecond
+    // Add 500ms buffer for network latency
+    const playbackTimeMs = Math.ceil(bytes / 8) + 500;
+
+    console.log(`[VoicePipeline ${this.callId}] ✅ Finished sending (${chunks} chunks, ${bytes} bytes). Waiting ${playbackTimeMs}ms for playback...`);
+
+    // Reset counters
+    this.sentAudioChunks = 0;
+    this.sentAudioBytes = 0;
+
+    // Clear any existing timeout
+    if (this.speakingTimeout) {
+      clearTimeout(this.speakingTimeout);
+    }
+
+    // Delay setting isSpeaking=false until audio finishes playing
+    this.speakingTimeout = setTimeout(() => {
+      console.log(`[VoicePipeline ${this.callId}] 🔇 Playback complete, ready for user input`);
+      this.isSpeaking = false;
+    }, playbackTimeMs);
   }
 
   /**
@@ -1463,9 +1506,11 @@ Answer:`;
       return;
     }
 
-    // Track sent audio chunks
+    // Track sent audio chunks and bytes
     if (!this.sentAudioChunks) this.sentAudioChunks = 0;
+    if (!this.sentAudioBytes) this.sentAudioBytes = 0;
     this.sentAudioChunks++;
+    this.sentAudioBytes += audioBuffer.length;
 
     const payload = audioBuffer.toString('base64');
 
@@ -1688,7 +1733,7 @@ Answer:`;
             console.log(`[VoicePipeline ${this.callId}] ✅ Deducted ${minutesUsed} minute(s). New balance: ${newBalance} minutes`);
 
             // Record the credit transaction
-            const transactionId = crypto.randomUUID();
+            const transactionId = randomUUID();
             await fetch(`${env.VULTR_DB_API_URL}/query`, {
               method: 'POST',
               headers: {

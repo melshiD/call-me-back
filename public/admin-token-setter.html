@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Token Setter</title>
+  <style>
+    body {
+      font-family: 'Monaco', 'Courier New', monospace;
+      background: #0d0d0f;
+      color: #e8e6e3;
+      padding: 40px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    .container {
+      background: #1a1a1e;
+      border: 1px solid #2a2a2e;
+      border-radius: 12px;
+      padding: 30px;
+    }
+    h1 {
+      color: #fbbf24;
+      margin-bottom: 20px;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      background: #0d0d0f;
+      border: 1px solid #2a2a2e;
+      border-radius: 8px;
+      color: #e8e6e3;
+      font-family: inherit;
+      font-size: 14px;
+      margin-bottom: 15px;
+    }
+    button {
+      background: linear-gradient(135deg, #fbbf24, #ff8c42);
+      color: #0d0d0f;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-right: 10px;
+      font-size: 14px;
+    }
+    button:hover {
+      transform: translateY(-2px);
+    }
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      background: #131318;
+      border: 1px solid #2a2a2e;
+      border-radius: 8px;
+      font-size: 12px;
+    }
+    .success { color: #10b981; }
+    .error { color: #ef4444; }
+    .info { color: #06b6d4; }
+    pre {
+      background: #0d0d0f;
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Admin Dashboard Token Setter</h1>
+
+    <p class="info">This page helps you set the admin token in localStorage and test the dashboard API.</p>
+
+    <div style="margin-top: 30px;">
+      <label for="token">Admin Token:</label>
+      <input type="text" id="token" placeholder="Paste your admin token here (from .admin-token file)">
+
+      <button onclick="setToken()">Set Token</button>
+      <button onclick="testAPI()">Test API</button>
+      <button onclick="clearToken()">Clear Token</button>
+      <button onclick="goToDashboard()">Go to Dashboard</button>
+    </div>
+
+    <div id="status" class="status" style="display:none;"></div>
+  </div>
+
+  <script>
+    const API_URL = 'https://call-me-back.raindrop.run';
+
+    // Auto-load token from localStorage on page load
+    window.addEventListener('load', () => {
+      const existingToken = localStorage.getItem('adminToken');
+      if (existingToken) {
+        document.getElementById('token').value = existingToken;
+        showStatus(`Token already set: ${existingToken.substring(0, 20)}...`, 'info');
+      }
+    });
+
+    function showStatus(message, type = 'info') {
+      const status = document.getElementById('status');
+      status.style.display = 'block';
+      status.className = 'status ' + type;
+      status.innerHTML = message;
+    }
+
+    function setToken() {
+      const token = document.getElementById('token').value.trim();
+      if (!token) {
+        showStatus('❌ Please enter a token', 'error');
+        return;
+      }
+
+      localStorage.setItem('adminToken', token);
+      showStatus(`✅ Token set successfully!<br>Token: ${token.substring(0, 20)}...`, 'success');
+    }
+
+    function clearToken() {
+      localStorage.removeItem('adminToken');
+      document.getElementById('token').value = '';
+      showStatus('🗑️ Token cleared from localStorage', 'info');
+    }
+
+    async function testAPI() {
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        showStatus('❌ No token found. Please set a token first.', 'error');
+        return;
+      }
+
+      showStatus('⏳ Testing API...', 'info');
+
+      try {
+        const response = await fetch(`${API_URL}/api/admin/dashboard?period=30d`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          showStatus(`✅ API Success!<br><br><pre>${JSON.stringify(data, null, 2)}</pre>`, 'success');
+        } else {
+          showStatus(`❌ API Error (${response.status})<br><br><pre>${JSON.stringify(data, null, 2)}</pre>`, 'error');
+        }
+      } catch (error) {
+        showStatus(`❌ Network Error<br><br>${error.message}<br><br>Make sure:<br>1. You're connected to the internet<br>2. The API is running at ${API_URL}<br>3. CORS is configured correctly`, 'error');
+      }
+    }
+
+    function goToDashboard() {
+      const token = localStorage.getItem('adminToken');
+      if (!token) {
+        showStatus('❌ No token found. Please set a token first.', 'error');
+        return;
+      }
+      window.location.href = '/admin/dashboard';
+    }
+  </script>
+</body>
+</html>

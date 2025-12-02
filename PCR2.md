@@ -10,9 +10,22 @@
 1. **CRITICAL_RAINDROP_RULES.md** - Deployment commands and common mistakes
 2. **This document (PCR2.md)** - Complete consolidated project context
 <!-- 3. **MCP_DEBUGGING_SESSION_2025-11-19.md** - Latest debugging session (MCP blocked) -->
+3. **Domain Documentation** (NEW) - `documentation/domain/` - Detailed guides organized by topic:
+   - `deployment.md` - Deployment procedures (Raindrop, Vercel, Vultr)
+   - `vultr.md` - Vultr VPS operations (PM2, Caddy, PostgreSQL)
+   - `voice-pipeline.md` - Complete voice pipeline documentation
+   - `debugging.md` - Troubleshooting guide organized BY SYMPTOM
+   - `database.md` - PostgreSQL architecture and migrations
+   - `raindrop.md` - All 10 services + 1 MCP architecture
+   - `cost-tracking.md` - API costs and profitability analysis
+   - `api.md` - Complete API endpoint reference
+   - `frontend.md` - Vue 3, Pinia, Tailwind CSS architecture
+   - `auth.md` - JWT + WorkOS OAuth authentication
 4. **Additional docs indexed at bottom** - For specific deep-dives
 
 **SECURITY NOTE:** NEVER expose environment variables or secrets in logs, console output, or tracked files.
+
+**DOCUMENTATION NOTE:** For detailed technical information, reference the appropriate domain doc in `documentation/domain/` rather than scattered markdown files.
 
 ---
 
@@ -1883,7 +1896,7 @@ call-me-back-logs: ... - ✗ Failed to connect
 
 ### Authentication
 - **WORKOS_INTEGRATION_PLAN.md** ⭐ - Step-by-step WorkOS integration
-- **OAUTH_SESSION_LOG.md** - OAuth setup notes
+- **documentation/session_logs/NEXT_SESSION_LOG_2025-11-19_22-38_OAUTH.md** - OAuth setup notes
 - **OAUTH_MCP_SESSION_COMPLETE.md** - OAuth completion
 
 ### MCP & Debugging
