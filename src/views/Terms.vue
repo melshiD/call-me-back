@@ -77,7 +77,7 @@
       <article class="space-y-12">
         <!-- Section 1: Acceptance -->
         <section id="acceptance" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:200ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
             <span class="w-8 h-8 rounded-lg bg-glow/10 text-glow text-sm font-bold flex items-center justify-center">1</span>
             Acceptance of Terms
           </h2>
@@ -96,7 +96,7 @@
 
         <!-- Section 2: Service Description -->
         <section id="service" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:250ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
             <span class="w-8 h-8 rounded-lg bg-glow/10 text-glow text-sm font-bold flex items-center justify-center">2</span>
             Service Description
           </h2>
@@ -132,7 +132,7 @@
 
         <!-- Section 3: AI Limitations - CRITICAL -->
         <section id="ai-limitations" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:300ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
             <span class="w-8 h-8 rounded-lg bg-ember/20 text-ember text-sm font-bold flex items-center justify-center">3</span>
             AI Limitations & Disclaimers
           </h2>
@@ -200,7 +200,7 @@
 
         <!-- Section 4: User Responsibilities -->
         <section id="user-responsibilities" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:350ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
             <span class="w-8 h-8 rounded-lg bg-glow/10 text-glow text-sm font-bold flex items-center justify-center">4</span>
             User Responsibilities
           </h2>
@@ -237,7 +237,7 @@
 
         <!-- Section 5: Payment Terms -->
         <section id="payment" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:400ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
             <span class="w-8 h-8 rounded-lg bg-glow/10 text-glow text-sm font-bold flex items-center justify-center">5</span>
             Payment Terms
           </h2>
@@ -272,7 +272,7 @@
 
         <!-- Section 6: Acceptable Use -->
         <section id="acceptable-use" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:450ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
             <span class="w-8 h-8 rounded-lg bg-glow/10 text-glow text-sm font-bold flex items-center justify-center">6</span>
             Acceptable Use Policy
           </h2>
@@ -313,7 +313,7 @@
 
         <!-- Section 7: Intellectual Property -->
         <section id="intellectual-property" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:500ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
             <span class="w-8 h-8 rounded-lg bg-glow/10 text-glow text-sm font-bold flex items-center justify-center">7</span>
             Intellectual Property
           </h2>
@@ -349,7 +349,7 @@
 
         <!-- Section 8: Limitation of Liability -->
         <section id="liability" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:550ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
             <span class="w-8 h-8 rounded-lg bg-glow/10 text-glow text-sm font-bold flex items-center justify-center">8</span>
             Limitation of Liability
           </h2>
@@ -385,7 +385,7 @@
 
         <!-- Section 9: Termination -->
         <section id="termination" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:600ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
             <span class="w-8 h-8 rounded-lg bg-glow/10 text-glow text-sm font-bold flex items-center justify-center">9</span>
             Termination
           </h2>
@@ -420,7 +420,7 @@
 
         <!-- Section 10: Governing Law -->
         <section id="governing-law" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:650ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
             <span class="w-8 h-8 rounded-lg bg-glow/10 text-glow text-sm font-bold flex items-center justify-center">10</span>
             Governing Law
           </h2>

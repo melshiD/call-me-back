@@ -224,6 +224,84 @@ export default class extends Service<Env> {
         personaId = 'brad_001';
       }
 
+      // For INBOUND calls, create a call record in the database
+      // This is critical for cost tracking - voice pipeline will UPDATE this record on completion
+      // For outbound calls, call-orchestrator already creates the record before triggering Twilio
+      const isInboundCall = !url.searchParams.get('callId');
+      let callbackContext: string | null = null;
+
+      if (isInboundCall) {
+        this.env.logger.info('Creating call record for inbound call', { callId, userId, personaId, from });
+
+        // Check if this is a callback from a recent missed outbound call
+        // If the persona tried to call this user recently but got no answer, inject that context
+        if (userId && userId !== 'anonymous_caller' && userId !== 'demo_user') {
+          try {
+            const missedCallResult = await this.env.DATABASE_PROXY.executeQuery(
+              `SELECT id, call_pretext, call_scenario, created_at
+               FROM calls
+               WHERE user_id = $1 AND persona_id = $2
+                 AND status IN ('no-answer', 'busy', 'failed', 'canceled')
+                 AND direction = 'outbound'
+                 AND created_at > NOW() - INTERVAL '24 hours'
+               ORDER BY created_at DESC
+               LIMIT 1`,
+              [userId, personaId]
+            );
+
+            if (missedCallResult.rows && missedCallResult.rows.length > 0) {
+              const missedCall = missedCallResult.rows[0];
+              const reason = missedCall.call_pretext || missedCall.call_scenario || 'to chat';
+
+              // Build callback context for the persona's system prompt
+              // This tells the persona they tried calling earlier but got no answer
+              callbackContext = `[CALLBACK CONTEXT] You tried calling this user earlier today ${reason ? `about: "${reason}"` : ''}, but they didn't answer. Now they're calling you back! Greet them casually like you're picking up a callback - a simple "Hey!" or "Yo!" works great. Don't be overly formal.`;
+
+              this.env.logger.info('Detected callback from missed outbound call', {
+                missedCallId: missedCall.id,
+                reason,
+                callbackContext
+              });
+            }
+          } catch (lookupError) {
+            this.env.logger.warn('Failed to check for missed calls', {
+              error: lookupError instanceof Error ? lookupError.message : String(lookupError)
+            });
+          }
+        }
+
+        // Create the inbound call record with callback context if detected
+        try {
+          await this.env.DATABASE_PROXY.executeQuery(
+            `INSERT INTO calls (
+              id, user_id, persona_id, phone_number, twilio_call_sid, status, direction,
+              payment_method, payment_status, call_pretext
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+            [
+              callId,           // Use callSid as the callId for inbound
+              userId,           // Looked up by verified phone number
+              personaId,        // Looked up by Twilio number
+              from,             // Caller's phone number
+              callSid,          // Twilio's call SID
+              'in-progress',    // Call is starting
+              'inbound',        // Mark as inbound call
+              'credit',         // Inbound calls use credits
+              'pending',        // Credit deduction happens on call end
+              callbackContext   // Callback context if this is a return call from missed outbound
+            ]
+          );
+          this.env.logger.info('Successfully created inbound call record', { callId, hasCallbackContext: !!callbackContext });
+        } catch (insertError) {
+          // Log but don't fail - the call can still proceed, just won't have cost tracking
+          this.env.logger.error('Failed to create inbound call record', {
+            error: insertError instanceof Error ? insertError.message : String(insertError),
+            callId,
+            userId,
+            personaId
+          });
+        }
+      }
+
       // Build WebSocket URL for Media Streams (without query parameters)
       // Twilio Stream URLs do NOT support query parameters - use <Parameter> elements instead
       // CRITICAL: Voice pipeline now runs on Vultr (voice.ai-tools-marketplace.io) not on Workers

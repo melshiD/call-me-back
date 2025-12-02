@@ -75,8 +75,8 @@
       <article class="space-y-12">
         <!-- Section 1: Data Collection -->
         <section id="data-collection" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:200ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-6 text-cream flex items-center gap-3">
-            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center">1</span>
+          <h2 class="text-2xl font-[--font-display] font-bold mb-6 text-cream flex items-center gap-3 pt-4">
+            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center flex-shrink-0">1</span>
             Data We Collect
           </h2>
 
@@ -173,8 +173,8 @@
 
         <!-- Section 2: How We Use Data -->
         <section id="how-we-use" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:250ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
-            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center">2</span>
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
+            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center flex-shrink-0">2</span>
             How We Use Your Data
           </h2>
           <div class="prose prose-invert prose-cream max-w-none">
@@ -206,8 +206,8 @@
 
         <!-- Section 3: Third-Party Services -->
         <section id="third-parties" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:300ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-6 text-cream flex items-center gap-3">
-            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center">3</span>
+          <h2 class="text-2xl font-[--font-display] font-bold mb-6 text-cream flex items-center gap-3 pt-4">
+            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center flex-shrink-0">3</span>
             Third-Party Services
           </h2>
 
@@ -267,7 +267,7 @@
                   <td class="p-4 text-cream/70">Web hosting</td>
                 </tr>
                 <tr class="hover:bg-white/[0.02] transition-colors">
-                  <td class="p-4 text-glow font-medium">Raindrop (Anthropic)</td>
+                  <td class="p-4 text-glow font-medium">Raindrop (LiquidMetal)</td>
                   <td class="p-4 text-cream/70">Backend code, service logs</td>
                   <td class="p-4 text-cream/70">Backend hosting</td>
                 </tr>
@@ -282,8 +282,8 @@
 
         <!-- Section 4: Data Retention -->
         <section id="data-retention" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:350ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
-            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center">4</span>
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
+            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center flex-shrink-0">4</span>
             Data Retention
           </h2>
           <div class="prose prose-invert prose-cream max-w-none">
@@ -310,8 +310,8 @@
 
         <!-- Section 5: Your Rights -->
         <section id="your-rights" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:400ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
-            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center">5</span>
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
+            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center flex-shrink-0">5</span>
             Your Rights
           </h2>
           <div class="prose prose-invert prose-cream max-w-none">
@@ -363,8 +363,8 @@
 
         <!-- Section 6: Security -->
         <section id="security" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:450ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
-            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center">6</span>
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
+            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center flex-shrink-0">6</span>
             Security Measures
           </h2>
           <div class="prose prose-invert prose-cream max-w-none">
@@ -392,8 +392,8 @@
 
         <!-- Section 7: Children's Privacy -->
         <section id="children" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:500ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
-            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center">7</span>
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
+            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center flex-shrink-0">7</span>
             Children's Privacy
           </h2>
           <div class="p-6 rounded-2xl bg-white/[0.02] border border-white/10">
@@ -412,8 +412,8 @@
 
         <!-- Section 8: Changes -->
         <section id="changes" class="scroll-mt-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:550ms]">
-          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3">
-            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center">8</span>
+          <h2 class="text-2xl font-[--font-display] font-bold mb-4 text-cream flex items-center gap-3 pt-4">
+            <span class="w-8 h-8 rounded-lg bg-cyan-400/10 text-cyan-400 text-sm font-bold flex items-center justify-center flex-shrink-0">8</span>
             Changes to This Policy
           </h2>
           <div class="prose prose-invert prose-cream max-w-none">

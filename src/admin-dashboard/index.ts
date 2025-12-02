@@ -101,14 +101,19 @@ export default class extends Service<Env> {
         const recentCallsQuery = `
           SELECT
             c.id,
+            c.user_id,
             c.persona_id,
             c.duration_seconds,
             c.cost_usd,
             c.status,
+            c.direction,
             c.created_at,
-            p.name as persona_name
+            p.name as persona_name,
+            u.name as user_name,
+            u.email as user_email
           FROM calls c
           LEFT JOIN personas p ON c.persona_id = p.id
+          LEFT JOIN users u ON c.user_id = u.id
           WHERE c.created_at >= $1
           ORDER BY c.created_at DESC
           LIMIT 20
@@ -316,14 +321,19 @@ export default class extends Service<Env> {
         const recentCallsQuery = `
           SELECT
             c.id,
+            c.user_id,
             c.persona_id,
             c.duration_seconds,
             c.cost_usd,
             c.status,
+            c.direction,
             c.created_at,
-            p.name as persona_name
+            p.name as persona_name,
+            u.name as user_name,
+            u.email as user_email
           FROM calls c
           LEFT JOIN personas p ON c.persona_id = p.id
+          LEFT JOIN users u ON c.user_id = u.id
           WHERE c.created_at >= $1
           ORDER BY c.created_at DESC
           LIMIT 20

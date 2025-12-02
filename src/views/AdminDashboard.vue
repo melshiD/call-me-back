@@ -290,7 +290,9 @@
               <thead>
                 <tr class="border-b border-[#2a2a2e]">
                   <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Call ID</th>
+                  <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">User</th>
                   <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Persona</th>
+                  <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Dir</th>
                   <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Duration</th>
                   <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Cost</th>
                   <th class="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.2em] text-[#666]">Status</th>
@@ -299,8 +301,10 @@
               </thead>
               <tbody>
                 <tr v-for="call in recentCalls" :key="call.id" class="border-b border-[#2a2a2e]/50 hover:bg-[#131318] transition-colors">
-                  <td class="px-6 py-4 font-['JetBrains_Mono',monospace] text-xs text-[#999]">{{ call.id.substring(0, 12) }}...</td>
+                  <td class="px-6 py-4 font-['JetBrains_Mono',monospace] text-xs text-[#999]">{{ call.id.substring(0, 8) }}...</td>
+                  <td class="px-6 py-4 font-mono text-sm text-[#e8e6e3]" :title="call.user_email">{{ call.user_name || call.user_id?.substring(0, 8) || '?' }}</td>
                   <td class="px-6 py-4 font-mono text-sm text-[#e8e6e3]">{{ call.persona_name || 'Unknown' }}</td>
+                  <td class="px-6 py-4 font-mono text-xs" :class="call.direction === 'inbound' ? 'text-cyan-400' : 'text-amber-400'">{{ call.direction === 'inbound' ? '↙ IN' : '↗ OUT' }}</td>
                   <td class="px-6 py-4 font-['JetBrains_Mono',monospace] text-sm text-cyan-400">{{ formatSeconds(call.duration_seconds) }}</td>
                   <td class="px-6 py-4 font-['JetBrains_Mono',monospace] text-sm text-amber-400">${{ Number(call.cost_usd || 0).toFixed(4) }}</td>
                   <td class="px-6 py-4">
@@ -308,14 +312,18 @@
                       class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-mono uppercase tracking-wider"
                       :class="{
                         'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30': call.status === 'completed',
-                        'bg-amber-500/10 text-amber-400 border border-amber-500/30': call.status === 'in_progress',
-                        'bg-red-500/10 text-red-400 border border-red-500/30': call.status === 'failed'
+                        'bg-cyan-500/10 text-cyan-400 border border-cyan-500/30': call.status === 'in-progress',
+                        'bg-amber-500/10 text-amber-400 border border-amber-500/30': call.status === 'ringing' || call.status === 'initiating',
+                        'bg-orange-500/10 text-orange-400 border border-orange-500/30': call.status === 'no-answer' || call.status === 'busy',
+                        'bg-red-500/10 text-red-400 border border-red-500/30': call.status === 'failed' || call.status === 'cancelled'
                       }"
                     >
                       <div class="w-1.5 h-1.5 rounded-full" :class="{
                         'bg-emerald-500': call.status === 'completed',
-                        'bg-amber-500 animate-pulse': call.status === 'in_progress',
-                        'bg-red-500': call.status === 'failed'
+                        'bg-cyan-500 animate-pulse': call.status === 'in-progress',
+                        'bg-amber-500 animate-pulse': call.status === 'ringing' || call.status === 'initiating',
+                        'bg-orange-500': call.status === 'no-answer' || call.status === 'busy',
+                        'bg-red-500': call.status === 'failed' || call.status === 'cancelled'
                       }"></div>
                       {{ call.status }}
                     </span>
@@ -323,7 +331,7 @@
                   <td class="px-6 py-4 font-mono text-xs text-[#666]">{{ formatTime(call.created_at) }}</td>
                 </tr>
                 <tr v-if="!recentCalls || recentCalls.length === 0">
-                  <td colspan="6" class="px-6 py-12 text-center font-mono text-sm text-[#666]">
+                  <td colspan="8" class="px-6 py-12 text-center font-mono text-sm text-[#666]">
                     No call data available for selected period
                   </td>
                 </tr>
