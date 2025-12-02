@@ -231,6 +231,13 @@ class VoicePipeline {
     this.draftResponse = null;          // Cached speculative response
     this.draftTranscript = null;        // Transcript used for draft (to verify match)
 
+    // Phase 3: Interruption context tracking - know WHERE in response user interrupted
+    this.textSentToTTS = '';             // Full text sent to ElevenLabs
+    this.audioMsPerChar = [];            // Alignment data: [{ char, startMs, durationMs }, ...]
+    this.totalAudioDurationMs = 0;       // Cumulative audio duration from alignment data
+    this.sentAudioChunks = 0;            // Count of audio chunks sent to Twilio
+    this.sentAudioBytes = 0;             // Total bytes sent to Twilio
+
     console.log(`[VoicePipeline ${this.callId}] Initialized`, callParams);
   }
 
@@ -643,6 +650,28 @@ class VoicePipeline {
             this.sendAudioToTwilio(audioBuffer);
           }
 
+          // Phase 3: Capture alignment data for interruption context tracking
+          if (message.alignment || message.normalizedAlignment) {
+            const alignment = message.normalizedAlignment || message.alignment;
+            if (alignment.chars && alignment.charDurationsMs) {
+              let currentMs = this.totalAudioDurationMs;
+              for (let i = 0; i < alignment.chars.length; i++) {
+                this.audioMsPerChar.push({
+                  char: alignment.chars[i],
+                  startMs: currentMs,
+                  durationMs: alignment.charDurationsMs[i]
+                });
+                currentMs += alignment.charDurationsMs[i];
+              }
+              this.totalAudioDurationMs = currentMs;
+
+              // Log alignment data on first chunk
+              if (audioChunkCount <= 1) {
+                console.log(`[VoicePipeline ${this.callId}] 📊 Alignment: ${alignment.chars.length} chars, ${currentMs}ms total`);
+              }
+            }
+          }
+
           if (message.isFinal) {
             console.log(`[VoicePipeline ${this.callId}] ElevenLabs finished speaking (received ${audioChunkCount} audio chunks total)`);
             audioChunkCount = 0; // Reset for next response
@@ -865,6 +894,59 @@ class VoicePipeline {
    * Handle user interruption while AI is speaking
    */
   handleUserInterruption() {
+    // Phase 3: Calculate what portion of response was actually heard
+    let spokenText = '';
+    let heardPercent = 0;
+
+    if (this.textSentToTTS && this.sentAudioBytes > 0) {
+      // Calculate how much audio was played (ulaw 8kHz = 8 bytes per ms)
+      const playedMs = Math.floor(this.sentAudioBytes / 8);
+
+      // Use alignment data if available, otherwise estimate by percentage
+      if (this.audioMsPerChar.length > 0) {
+        // Find characters that were spoken before interruption
+        for (const entry of this.audioMsPerChar) {
+          if (entry.startMs <= playedMs) {
+            spokenText += entry.char;
+          } else {
+            break;
+          }
+        }
+        heardPercent = Math.round((spokenText.length / this.textSentToTTS.length) * 100);
+        console.log(`[VoicePipeline ${this.callId}] 📊 Interrupted at ${heardPercent}% (${spokenText.length}/${this.textSentToTTS.length} chars, ${playedMs}ms)`);
+      } else {
+        // Fallback: estimate based on audio duration ratio
+        if (this.totalAudioDurationMs > 0) {
+          const ratio = Math.min(playedMs / this.totalAudioDurationMs, 1.0);
+          const estimatedCharIndex = Math.floor(ratio * this.textSentToTTS.length);
+          spokenText = this.textSentToTTS.substring(0, estimatedCharIndex);
+          heardPercent = Math.round(ratio * 100);
+          console.log(`[VoicePipeline ${this.callId}] 📊 Interrupted at ~${heardPercent}% (estimated, ${playedMs}/${this.totalAudioDurationMs}ms)`);
+        } else {
+          // No timing data - use bytes ratio as rough estimate
+          // Typical speech: ~150 words/min = 2.5 words/sec = ~12.5 chars/sec
+          // At 8kHz ulaw, 1 sec = 8000 bytes, so ~640 bytes per char
+          const estimatedChars = Math.floor(this.sentAudioBytes / 640);
+          spokenText = this.textSentToTTS.substring(0, Math.min(estimatedChars, this.textSentToTTS.length));
+          heardPercent = Math.round((spokenText.length / this.textSentToTTS.length) * 100);
+          console.log(`[VoicePipeline ${this.callId}] 📊 Interrupted at ~${heardPercent}% (rough estimate from bytes)`);
+        }
+      }
+
+      // Save interrupted context to conversation history
+      if (spokenText.length > 0) {
+        this.conversationHistory.push({
+          role: 'assistant',
+          content: spokenText,
+          interrupted: true,
+          fullResponse: this.textSentToTTS,
+          heardPercent: heardPercent,
+          timestamp: Date.now()
+        });
+        console.log(`[VoicePipeline ${this.callId}] 💾 Saved interrupted context: "${spokenText.substring(0, 50)}..."`);
+      }
+    }
+
     // Stop TTS playback
     if (this.elevenLabsWs && this.elevenLabsWs.readyState === WebSocket.OPEN) {
       try {
@@ -897,9 +979,17 @@ class VoicePipeline {
       this.speakingTimeout = null;
     }
 
+    // Reset state
     this.isSpeaking = false;
     this.transcriptSegments = [];
     this.evaluationCount = 0;
+
+    // Reset Phase 3 tracking for next response
+    this.textSentToTTS = '';
+    this.audioMsPerChar = [];
+    this.totalAudioDurationMs = 0;
+    this.sentAudioBytes = 0;
+    this.sentAudioChunks = 0;
   }
 
   /**
@@ -1270,12 +1360,32 @@ Answer:`;
 
       const systemPrompt = this.buildFullSystemPrompt();
 
+      // Phase 3: Build context from interrupted messages (what user actually heard)
+      const recentInterrupted = this.conversationHistory
+        .filter(msg => msg.interrupted)
+        .slice(-2);  // Only last 2 interruptions for context
+
+      let interruptionContext = '';
+      if (recentInterrupted.length > 0) {
+        const contextParts = recentInterrupted.map(msg => {
+          if (msg.heardPercent !== undefined && msg.fullResponse) {
+            return `[You said: "${msg.content}" (${msg.heardPercent}% heard) before being interrupted. You were going to say: "${msg.fullResponse}"]`;
+          }
+          return `[You were saying: "${msg.content}" but user interrupted]`;
+        });
+        interruptionContext = `\n\nRecent interruptions:\n${contextParts.join('\n')}\nAcknowledge what you were saying if relevant, then respond naturally.`;
+      }
+
       const messages = [
         {
           role: 'system',
-          content: systemPrompt
+          content: systemPrompt + interruptionContext
         },
-        ...this.conversationHistory.slice(-10)
+        ...this.conversationHistory.slice(-20).map(msg => ({
+          role: msg.role,
+          content: msg.content
+          // Don't include interrupted/heardPercent/fullResponse in LLM messages
+        }))
       ];
 
       // Add 15-second timeout for AI response generation
@@ -1339,7 +1449,7 @@ Answer:`;
       // Build messages with the speculative transcript (not yet in conversationHistory)
       const messages = [
         { role: 'system', content: systemPrompt },
-        ...this.conversationHistory.slice(-10),
+        ...this.conversationHistory.slice(-20),
         { role: 'user', content: transcript }
       ];
 
@@ -1432,6 +1542,11 @@ Answer:`;
 
       console.log(`[VoicePipeline ${this.callId}] Speaking:`, text);
       this.isSpeaking = true;
+
+      // Phase 3: Track text for interruption context
+      this.textSentToTTS = text;
+      this.audioMsPerChar = [];
+      this.totalAudioDurationMs = 0;
 
       // Send text to ElevenLabs with flush flag
       // ElevenLabs stream-input API: Send text with flush=true to trigger generation
@@ -1850,8 +1965,8 @@ Answer:`;
       return;
     }
 
-    // Skip if conversation is too short (nothing meaningful to extract)
-    if (this.conversationHistory.length < 4) {
+    // Skip if conversation is too short (need at least 1 user message + 1 AI response)
+    if (this.conversationHistory.length < 2) {
       console.log(`[PostCallEval ${this.callId}] Skipping - conversation too short (${this.conversationHistory.length} turns)`);
       return;
     }
@@ -2203,6 +2318,13 @@ class BrowserVoicePipeline {
     // Phase 2: Context preservation for interruptions
     this.partialResponse = '';  // Accumulate AI response text as it's generated
 
+    // Phase 3: Precise interruption tracking - know WHERE in response user interrupted
+    this.textSentToTTS = '';             // Full text sent to ElevenLabs
+    this.audioMsPerChar = [];            // Alignment data: [{ char, startMs, durationMs }, ...]
+    this.totalAudioDurationMs = 0;       // Cumulative audio duration from alignment data
+    this.sentAudioChunks = 0;            // Count of audio chunks (for browser, tracks chunks sent to frontend)
+    this.sentAudioBytes = 0;             // Total bytes/duration sent
+
     // Session Management Safeguards
     this.sessionStartTime = Date.now();
     this.lastUserActivityTime = Date.now();
@@ -2504,14 +2626,37 @@ class BrowserVoicePipeline {
         try {
           const msg = JSON.parse(data.toString());
           if (msg.audio) {
+            this.sentAudioChunks++;
+            // Track approximate bytes (base64 to raw: *3/4)
+            this.sentAudioBytes += Math.floor(msg.audio.length * 0.75);
             this.send({ type: 'audio', audio: msg.audio, format: 'mp3' });
           }
+
+          // Phase 3: Capture alignment data for interruption context tracking
+          if (msg.alignment || msg.normalizedAlignment) {
+            const alignment = msg.normalizedAlignment || msg.alignment;
+            if (alignment.chars && alignment.charDurationsMs) {
+              let currentMs = this.totalAudioDurationMs;
+              for (let i = 0; i < alignment.chars.length; i++) {
+                this.audioMsPerChar.push({
+                  char: alignment.chars[i],
+                  startMs: currentMs,
+                  durationMs: alignment.charDurationsMs[i]
+                });
+                currentMs += alignment.charDurationsMs[i];
+              }
+              this.totalAudioDurationMs = currentMs;
+            }
+          }
+
           if (msg.isFinal) {
             this.isSpeaking = false;
             this.send({ type: 'speaking_done' });
           }
         } catch (e) {
           // Binary audio
+          this.sentAudioChunks++;
+          this.sentAudioBytes += data.length;
           this.send({ type: 'audio', audio: data.toString('base64'), format: 'mp3' });
         }
       });
@@ -2691,23 +2836,25 @@ class BrowserVoicePipeline {
       // Layer 5: Phone call guidelines
       fullSystemPrompt += PHONE_CALL_GUIDELINES;
 
-      // Phase 2: Build context from interrupted messages
-      const interruptedMessages = this.conversationHistory
+      // Phase 3: Build context from interrupted messages (with precise tracking of what was heard)
+      const recentInterrupted = this.conversationHistory
         .filter(msg => msg.interrupted)
-        .map(msg => `[You were saying: "${msg.content}" but user interrupted]`)
-        .join('\n');
+        .slice(-2);  // Only last 2 interruptions for context
 
-      // PROMPT INJECTION POINT #2: Interrupted context (Phase 2)
-      // Location: BrowserVoicePipeline.generateResponse()
-      // Purpose: Provide context about what AI was saying when interrupted
-      // Tunability: Can adjust instruction text, formatting, how many interrupted messages to include
-      const interruptionContext = interruptedMessages.length > 0
-        ? `\n\nContext: ${interruptedMessages}\nAcknowledge what you were saying if relevant, then respond to the user's new question.`
-        : '';
+      let interruptionContext = '';
+      if (recentInterrupted.length > 0) {
+        const contextParts = recentInterrupted.map(msg => {
+          if (msg.heardPercent !== undefined && msg.fullResponse) {
+            return `[You said: "${msg.content}" (${msg.heardPercent}% heard) before being interrupted. You were going to say: "${msg.fullResponse}"]`;
+          }
+          return `[You were saying: "${msg.content}" but user interrupted]`;
+        });
+        interruptionContext = `\n\nRecent interruptions:\n${contextParts.join('\n')}\nAcknowledge what you were saying if relevant, then respond naturally.`;
+      }
 
       const messages = [
         { role: 'system', content: fullSystemPrompt + interruptionContext },
-        ...this.conversationHistory.slice(-10).map(msg => ({
+        ...this.conversationHistory.slice(-20).map(msg => ({
           role: msg.role,
           content: msg.content
           // Note: We don't include interrupted/timestamp in actual messages sent to LLM
@@ -2751,6 +2898,14 @@ class BrowserVoicePipeline {
     }
 
     this.isSpeaking = true;
+
+    // Phase 3: Track text for interruption context
+    this.textSentToTTS = text;
+    this.audioMsPerChar = [];
+    this.totalAudioDurationMs = 0;
+    this.sentAudioChunks = 0;
+    this.sentAudioBytes = 0;
+
     this.send({ type: 'speaking_start' });
     this.elevenLabsWs.send(JSON.stringify({ text, flush: true }));
     this.elevenLabsWs.send(JSON.stringify({ text: '' }));
@@ -2759,20 +2914,60 @@ class BrowserVoicePipeline {
   handleInterruption() {
     console.log(`[BrowserPipeline ${this.sessionId}] Handling interruption - user spoke during AI response`);
 
-    // CRITICAL: Stop ElevenLabs from generating more audio!
-    if (this.elevenLabsWs && this.elevenLabsWs.readyState === WebSocket.OPEN) {
-      try {
-        // Send flush command to clear ElevenLabs queue
-        this.elevenLabsWs.send(JSON.stringify({ text: '', flush: true }));
-        console.log(`[BrowserPipeline ${this.sessionId}] Flushed ElevenLabs audio queue`);
-      } catch (err) {
-        console.error(`[BrowserPipeline ${this.sessionId}] Error flushing ElevenLabs:`, err.message);
-      }
-    }
+    // Phase 3: Calculate what portion of response was actually heard
+    let spokenText = '';
+    let heardPercent = 0;
 
-    // Phase 2: Save partial response to conversation history for context
-    if (this.partialResponse && this.partialResponse.length > 0) {
-      // Check if this response is already in history (to avoid duplicates)
+    if (this.textSentToTTS && this.sentAudioBytes > 0) {
+      // For MP3 at 44100Hz 128kbps: ~16000 bytes per second
+      // Estimate: ~128 bytes per character at normal speech rate
+      const estimatedPlayedMs = Math.floor(this.sentAudioBytes / 16);  // rough ms estimate
+
+      // Use alignment data if available, otherwise estimate by percentage
+      if (this.audioMsPerChar.length > 0) {
+        for (const entry of this.audioMsPerChar) {
+          if (entry.startMs <= estimatedPlayedMs) {
+            spokenText += entry.char;
+          } else {
+            break;
+          }
+        }
+        heardPercent = Math.round((spokenText.length / this.textSentToTTS.length) * 100);
+        console.log(`[BrowserPipeline ${this.sessionId}] 📊 Interrupted at ${heardPercent}% (${spokenText.length}/${this.textSentToTTS.length} chars)`);
+      } else if (this.totalAudioDurationMs > 0) {
+        // Fallback: estimate based on audio duration ratio
+        const ratio = Math.min(estimatedPlayedMs / this.totalAudioDurationMs, 1.0);
+        const estimatedCharIndex = Math.floor(ratio * this.textSentToTTS.length);
+        spokenText = this.textSentToTTS.substring(0, estimatedCharIndex);
+        heardPercent = Math.round(ratio * 100);
+        console.log(`[BrowserPipeline ${this.sessionId}] 📊 Interrupted at ~${heardPercent}% (estimated)`);
+      } else {
+        // Last resort: use bytes ratio
+        const estimatedChars = Math.floor(this.sentAudioBytes / 128);
+        spokenText = this.textSentToTTS.substring(0, Math.min(estimatedChars, this.textSentToTTS.length));
+        heardPercent = Math.round((spokenText.length / this.textSentToTTS.length) * 100);
+        console.log(`[BrowserPipeline ${this.sessionId}] 📊 Interrupted at ~${heardPercent}% (rough estimate)`);
+      }
+
+      // Save interrupted context with detailed info
+      if (spokenText.length > 0) {
+        const lastMessage = this.conversationHistory[this.conversationHistory.length - 1];
+        const alreadyInHistory = lastMessage?.role === 'assistant' && lastMessage?.content === spokenText;
+
+        if (!alreadyInHistory) {
+          this.conversationHistory.push({
+            role: 'assistant',
+            content: spokenText,
+            interrupted: true,
+            fullResponse: this.textSentToTTS,
+            heardPercent: heardPercent,
+            timestamp: Date.now()
+          });
+          console.log(`[BrowserPipeline ${this.sessionId}] 💾 Saved interrupted context: "${spokenText.substring(0, 50)}..."`);
+        }
+      }
+    } else if (this.partialResponse && this.partialResponse.length > 0) {
+      // Fallback to Phase 2 behavior if no Phase 3 tracking data
       const lastMessage = this.conversationHistory[this.conversationHistory.length - 1];
       const alreadyInHistory = lastMessage?.role === 'assistant' && lastMessage?.content === this.partialResponse;
 
@@ -2780,25 +2975,34 @@ class BrowserVoicePipeline {
         this.conversationHistory.push({
           role: 'assistant',
           content: this.partialResponse,
-          interrupted: true,  // Mark as interrupted for context
+          interrupted: true,
           timestamp: Date.now()
         });
-        console.log(`[BrowserPipeline ${this.sessionId}] Saved interrupted response: "${this.partialResponse.substring(0, 50)}..."`);
+        console.log(`[BrowserPipeline ${this.sessionId}] Saved interrupted response (Phase 2): "${this.partialResponse.substring(0, 50)}..."`);
       }
-
-      // Clear partial response tracker
-      this.partialResponse = '';
     }
 
-    // Mark AI as not speaking
+    // CRITICAL: Stop ElevenLabs from generating more audio!
+    if (this.elevenLabsWs && this.elevenLabsWs.readyState === WebSocket.OPEN) {
+      try {
+        this.elevenLabsWs.send(JSON.stringify({ text: '', flush: true }));
+        console.log(`[BrowserPipeline ${this.sessionId}] Flushed ElevenLabs audio queue`);
+      } catch (err) {
+        console.error(`[BrowserPipeline ${this.sessionId}] Error flushing ElevenLabs:`, err.message);
+      }
+    }
+
+    // Reset state
     this.isSpeaking = false;
-
-    // Clear transcript buffer (user will speak new question/comment)
     this.transcriptSegments = [];
+    this.partialResponse = '';
 
-    // Note: Frontend already stopped audio playback via interrupt message
-    // Note: For Phase 1, we let ElevenLabs TTS complete (safe approach)
-    // Phase 4 would add: this.elevenLabsWs.send(JSON.stringify({ text: '', flush: true }));
+    // Reset Phase 3 tracking for next response
+    this.textSentToTTS = '';
+    this.audioMsPerChar = [];
+    this.totalAudioDurationMs = 0;
+    this.sentAudioBytes = 0;
+    this.sentAudioChunks = 0;
   }
 
   send(msg) {
@@ -3029,8 +3233,8 @@ class BrowserVoicePipeline {
     const userId = this.adminId || 'browser-admin';
     const personaId = this.personaId;
 
-    // Skip if conversation is too short (nothing meaningful to extract)
-    if (this.conversationHistory.length < 4) {
+    // Skip if conversation is too short (need at least 1 user message + 1 AI response)
+    if (this.conversationHistory.length < 2) {
       console.log(`[PostCallEval ${this.sessionId}] Skipping - conversation too short (${this.conversationHistory.length} turns)`);
       return;
     }
