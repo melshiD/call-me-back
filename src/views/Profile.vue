@@ -310,8 +310,8 @@
                   <div class="flex items-center gap-3">
                     <div class="text-3xl">💳</div>
                     <div>
-                      <div class="font-bold">{{ pm.brand.toUpperCase() }} •••• {{ pm.last4 }}</div>
-                      <div class="text-sm text-cream/50">Expires {{ pm.exp_month }}/{{ pm.exp_year }}</div>
+                      <div class="font-bold" :class="{ 'blur-[3px] select-none': demoMode }">{{ pm.brand.toUpperCase() }} •••• {{ demoMode ? '••••' : pm.last4 }}</div>
+                      <div class="text-sm text-cream/50" :class="{ 'blur-[3px] select-none': demoMode }">Expires {{ demoMode ? '••/••' : `${pm.exp_month}/${pm.exp_year}` }}</div>
                     </div>
                   </div>
                   <span v-if="pm.is_default" class="px-3 py-1 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs rounded-full font-bold uppercase">
@@ -357,25 +357,21 @@
           </h2>
 
           <!-- Stats Summary -->
-          <div class="grid sm:grid-cols-3 gap-6 mb-8">
+          <div class="grid sm:grid-cols-2 gap-6 mb-8">
             <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center">
               <div class="text-4xl font-[--font-display] font-black text-glow mb-2">{{ userStore.usageStats.total_calls }}</div>
               <div class="text-sm text-cream/60 uppercase tracking-wider font-bold">Total Calls</div>
             </div>
             <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center">
               <div class="text-4xl font-[--font-display] font-black text-ember mb-2">{{ userStore.usageStats.total_minutes }}</div>
-              <div class="text-sm text-cream/60 uppercase tracking-wider font-bold">Total Minutes</div>
-            </div>
-            <div class="bg-gradient-to-br from-glow/20 to-ember/20 border-2 border-glow/40 rounded-2xl p-6 text-center">
-              <div class="text-4xl font-[--font-display] font-black mb-2">${{ parseFloat(userStore.usageStats.total_spent || 0).toFixed(2) }}</div>
-              <div class="text-sm uppercase tracking-wider font-bold">Total Spent</div>
+              <div class="text-sm text-cream/60 uppercase tracking-wider font-bold">Minutes Used</div>
             </div>
           </div>
 
           <!-- This Month -->
           <div class="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/20 rounded-2xl p-6 mb-8">
             <h3 class="text-xl font-bold mb-4">This Month</h3>
-            <div class="grid grid-cols-3 gap-6 text-center">
+            <div class="grid grid-cols-2 gap-6 text-center">
               <div>
                 <div class="text-3xl font-black mb-1">{{ userStore.usageStats.current_month.calls }}</div>
                 <div class="text-sm text-cream/60">calls</div>
@@ -384,10 +380,6 @@
                 <div class="text-3xl font-black mb-1">{{ userStore.usageStats.current_month.minutes }}</div>
                 <div class="text-sm text-cream/60">minutes</div>
               </div>
-              <div>
-                <div class="text-3xl font-black mb-1">${{ parseFloat(userStore.usageStats.current_month?.spent || 0).toFixed(2) }}</div>
-                <div class="text-sm text-cream/60">spent</div>
-              </div>
             </div>
           </div>
 
@@ -395,21 +387,19 @@
           <div>
             <h3 class="text-xl font-bold mb-4">Monthly Breakdown</h3>
             <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
-              <div class="grid grid-cols-4 gap-4 p-4 bg-white/5 font-bold text-sm uppercase tracking-wider">
+              <div class="grid grid-cols-3 gap-4 p-4 bg-white/5 font-bold text-sm uppercase tracking-wider">
                 <div>Month</div>
                 <div class="text-center">Calls</div>
-                <div class="text-center">Minutes</div>
-                <div class="text-right">Spent</div>
+                <div class="text-right">Minutes</div>
               </div>
               <div
                 v-for="month in userStore.usageStats.monthly_breakdown"
                 :key="month.month"
-                class="grid grid-cols-4 gap-4 p-4 border-t border-white/5 hover:bg-white/[0.02] transition-colors"
+                class="grid grid-cols-3 gap-4 p-4 border-t border-white/5 hover:bg-white/[0.02] transition-colors"
               >
                 <div class="font-semibold">{{ month.month }}</div>
                 <div class="text-center">{{ month.calls }}</div>
-                <div class="text-center">{{ month.minutes }}</div>
-                <div class="text-right font-semibold text-glow">${{ parseFloat(month.spent || 0).toFixed(2) }}</div>
+                <div class="text-right font-semibold text-glow">{{ month.minutes }}</div>
               </div>
             </div>
           </div>
@@ -429,22 +419,20 @@
           </div>
 
           <div v-else class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl overflow-hidden">
-            <div class="grid grid-cols-5 gap-4 p-4 bg-white/5 font-bold text-sm uppercase tracking-wider">
+            <div class="grid grid-cols-4 gap-4 p-4 bg-white/5 font-bold text-sm uppercase tracking-wider">
               <div>Persona</div>
               <div>Date</div>
               <div class="text-center">Duration</div>
-              <div class="text-center">Cost</div>
               <div class="text-center">Status</div>
             </div>
             <div
               v-for="call in callsStore.calls"
               :key="call.id"
-              class="grid grid-cols-5 gap-4 p-4 border-t border-white/5 hover:bg-white/[0.02] transition-colors items-center"
+              class="grid grid-cols-4 gap-4 p-4 border-t border-white/5 hover:bg-white/[0.02] transition-colors items-center"
             >
               <div class="font-semibold">{{ call.persona_name }}</div>
               <div class="text-sm">{{ formatDateTime(call.start_time) }}</div>
               <div class="text-center">{{ formatDuration(call.duration) }}</div>
-              <div class="text-center font-semibold text-glow">${{ parseFloat(call.cost || 0).toFixed(2) }}</div>
               <div class="text-center">
                 <span
                   class="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase"
@@ -756,7 +744,7 @@ const callsStore = useCallsStore()
 const phonesStore = usePhonesStore()
 
 // Demo mode - obscures sensitive data for screen recording
-const demoMode = ref(false)
+const demoMode = ref(true)
 
 const maskEmail = (email) => {
   if (!email || !demoMode.value) return email

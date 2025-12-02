@@ -566,6 +566,29 @@ ssh root@144.202.15.249 "cd /root/build-env/call-me-back && git pull && raindrop
 
 ---
 
+### 19. Selectable Inference Model in PersonaDesigner
+**Added:** 2025-12-02 14:00 EST
+**Status:** Open - Feature Enhancement
+**Description:** Make the Cerebras model used for chat inference selectable via dropdown in PersonaDesigner, similar to extraction settings.
+
+**Current State:**
+- Model is hardcoded in voice pipeline (llama-3.1-8b)
+- Extraction model settings are already configurable
+
+**Implementation (~30-45 min):**
+1. Add dropdown to PersonaDesigner with model options (llama-3.1-8b, llama-3.1-70b)
+2. Store in persona's `voice_settings` JSON
+3. Voice pipeline reads model from persona config
+4. Update cost tracking for different model pricing
+
+**Files to Modify:**
+- `src/views/PersonaDesigner.vue` - Add dropdown UI
+- `voice-pipeline-nodejs/index.js` - Read model from config
+
+**Priority:** Post-hackathon - current model works fine.
+
+---
+
 ## Completed Items
 _(Move items here when done)_
 
