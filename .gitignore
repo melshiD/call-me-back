@@ -33,3 +33,5 @@ eval_images
 commands-to-explain.txt
 documentation/
 scripts/
+
+.admin-token*

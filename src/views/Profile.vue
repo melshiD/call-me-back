@@ -14,6 +14,24 @@
           <span class="bg-gradient-to-r from-glow via-ember to-solar bg-clip-text text-transparent">Profile & Settings</span>
         </h1>
         <p class="text-lg text-cream/70">Manage your account and view activity</p>
+
+        <!-- Demo Mode Toggle -->
+        <div class="mt-6 inline-flex items-center gap-3 px-4 py-2 bg-white/[0.03] border border-white/10 rounded-full">
+          <svg class="w-4 h-4" :class="demoMode ? 'text-cyan-400' : 'text-cream/40'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+          </svg>
+          <span class="text-xs font-bold uppercase tracking-wider" :class="demoMode ? 'text-cyan-400' : 'text-cream/50'">Demo Mode</span>
+          <button
+            @click="demoMode = !demoMode"
+            class="relative w-11 h-6 rounded-full transition-all duration-300"
+            :class="demoMode ? 'bg-gradient-to-r from-cyan-500 to-blue-500 shadow-[0_0_12px_rgba(6,182,212,0.5)]' : 'bg-white/10'"
+          >
+            <span
+              class="absolute top-1 w-4 h-4 rounded-full transition-all duration-300 shadow-md"
+              :class="demoMode ? 'left-6 bg-white' : 'left-1 bg-cream/60'"
+            ></span>
+          </button>
+        </div>
       </div>
 
       <!-- Minutes Balance Hero Card -->
@@ -105,7 +123,7 @@
 
               <div class="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-xl p-4">
                 <div class="text-sm text-cream/50 mb-1">Email</div>
-                <div class="font-semibold">{{ authStore.user?.email }}</div>
+                <div class="font-semibold" :class="{ 'blur-[3px] select-none': demoMode }">{{ demoMode ? maskEmail(authStore.user?.email) : authStore.user?.email }}</div>
               </div>
 
               <!-- Phone Numbers Section -->
@@ -154,7 +172,7 @@
                           <button @click="cancelNicknameEdit" class="text-cream/50 hover:text-cream/70 text-xs">Cancel</button>
                         </div>
                         <div v-else class="flex items-center gap-2">
-                          <span class="font-semibold truncate">{{ phoneEntry.nickname || phonesStore.formatPhoneForDisplay(phoneEntry.phone) }}</span>
+                          <span class="font-semibold truncate" :class="{ 'blur-[3px] select-none': demoMode && !phoneEntry.nickname }">{{ phoneEntry.nickname || (demoMode ? maskPhone(phoneEntry.phone) : phonesStore.formatPhoneForDisplay(phoneEntry.phone)) }}</span>
                           <button
                             @click="startNicknameEdit(phoneEntry)"
                             class="text-cream/30 hover:text-cream/60 transition-colors"
@@ -165,7 +183,7 @@
                             </svg>
                           </button>
                         </div>
-                        <div v-if="phoneEntry.nickname" class="text-xs text-cream/40">{{ phonesStore.formatPhoneForDisplay(phoneEntry.phone) }}</div>
+                        <div v-if="phoneEntry.nickname" class="text-xs text-cream/40" :class="{ 'blur-[3px] select-none': demoMode }">{{ demoMode ? maskPhone(phoneEntry.phone) : phonesStore.formatPhoneForDisplay(phoneEntry.phone) }}</div>
                       </div>
 
                       <!-- Verified badge -->
@@ -736,6 +754,23 @@ const authStore = useAuthStore()
 const userStore = useUserStore()
 const callsStore = useCallsStore()
 const phonesStore = usePhonesStore()
+
+// Demo mode - obscures sensitive data for screen recording
+const demoMode = ref(false)
+
+const maskEmail = (email) => {
+  if (!email || !demoMode.value) return email
+  const [local, domain] = email.split('@')
+  if (!domain) return '••••••••@••••.•••'
+  return local.slice(0, 2) + '••••••@' + domain.slice(0, 2) + '••••.•••'
+}
+
+const maskPhone = (phone) => {
+  if (!phone || !demoMode.value) return phone
+  // Show only last 2 digits
+  const cleaned = phone.replace(/\D/g, '')
+  return '(•••) •••-••' + cleaned.slice(-2)
+}
 
 // Sync phones store with user data when user changes
 watch(() => authStore.user, (user) => {

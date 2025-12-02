@@ -76,6 +76,14 @@
             <p class="text-center text-cream/50 text-sm">
               Continue with Google, GitHub, or email
             </p>
+
+            <!-- Terms Agreement -->
+            <p class="text-center text-cream/40 text-xs mt-4">
+              By signing in, you agree to our
+              <router-link to="/terms" class="text-glow hover:text-ember transition-colors">Terms of Service</router-link>
+              and
+              <router-link to="/privacy" class="text-glow hover:text-ember transition-colors">Privacy Policy</router-link>
+            </p>
           </div>
         </div>
 

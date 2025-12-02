@@ -183,14 +183,21 @@
     <main class="main-content">
       <router-view />
     </main>
+
+    <!-- Terms Acceptance Modal - blocks app until user accepts -->
+    <TermsAcceptanceModal
+      :show="showTermsModal"
+      @accepted="handleTermsAccepted"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useAuthStore } from './stores/auth'
 import { useRouter, useRoute } from 'vue-router'
 import { useToast } from './stores/toast'
+import TermsAcceptanceModal from './components/TermsAcceptanceModal.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -198,9 +205,68 @@ const route = useRoute()
 const mobileMenuOpen = ref(false)
 const { toasts, removeToast } = useToast()
 
+// Terms acceptance state
+const showTermsModal = ref(false)
+const termsChecked = ref(false)
+
 // Hide main nav on admin routes
 const isAdminRoute = computed(() => {
   return route.path.startsWith('/admin')
+})
+
+// Check terms acceptance status when authenticated
+const checkTermsStatus = async () => {
+  if (!authStore.isAuthenticated) {
+    showTermsModal.value = false
+    termsChecked.value = false
+    return
+  }
+
+  // Skip terms check on admin routes
+  if (route.path.startsWith('/admin')) {
+    termsChecked.value = true
+    return
+  }
+
+  try {
+    const token = localStorage.getItem('token')
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/user/terms-status`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      showTermsModal.value = !data.termsAccepted
+      termsChecked.value = true
+    }
+  } catch (error) {
+    console.error('Error checking terms status:', error)
+    termsChecked.value = true
+  }
+}
+
+// Handle terms accepted
+const handleTermsAccepted = () => {
+  showTermsModal.value = false
+}
+
+// Watch for auth changes
+watch(() => authStore.isAuthenticated, (isAuth) => {
+  if (isAuth) {
+    checkTermsStatus()
+  } else {
+    showTermsModal.value = false
+    termsChecked.value = false
+  }
+})
+
+// Check on mount if already authenticated
+onMounted(() => {
+  if (authStore.isAuthenticated) {
+    checkTermsStatus()
+  }
 })
 
 const handleLogout = () => {

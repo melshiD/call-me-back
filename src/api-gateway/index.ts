@@ -2456,6 +2456,16 @@ export default class extends Service<Env> {
       return await this.handleVerifyPhone(request, corsHeaders);
     }
 
+    // GET /api/user/terms-status - Check if user has accepted terms
+    if (request.method === 'GET' && path === '/api/user/terms-status') {
+      return await this.handleGetTermsStatus(request, corsHeaders);
+    }
+
+    // POST /api/user/accept-terms - Accept terms of service
+    if (request.method === 'POST' && path === '/api/user/accept-terms') {
+      return await this.handleAcceptTerms(request, corsHeaders);
+    }
+
     return new Response('Not Found', { status: 404, headers: corsHeaders });
   }
 
@@ -3556,6 +3566,90 @@ export default class extends Service<Env> {
       });
       return new Response(JSON.stringify({
         error: 'Failed to verify phone'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+  }
+
+  /**
+   * GET /api/user/terms-status - Check if user has accepted terms
+   */
+  private async handleGetTermsStatus(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
+    try {
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      const result = await this.env.DATABASE_PROXY.executeQuery(
+        'SELECT terms_accepted_at FROM users WHERE id = $1',
+        [userId]
+      );
+
+      const row = result.rows?.[0];
+      const termsAccepted = row?.terms_accepted_at != null;
+
+      return new Response(JSON.stringify({
+        success: true,
+        termsAccepted,
+        termsAcceptedAt: row?.terms_accepted_at || null
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    } catch (error) {
+      this.env.logger.error('Get terms status error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return new Response(JSON.stringify({
+        error: 'Failed to get terms status'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    }
+  }
+
+  /**
+   * POST /api/user/accept-terms - Accept terms of service
+   */
+  private async handleAcceptTerms(request: Request, corsHeaders: Record<string, string>): Promise<Response> {
+    try {
+      const userId = await this.getUserIdFromAuth(request);
+      if (!userId) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders }
+        });
+      }
+
+      // Update user's terms acceptance timestamp
+      await this.env.DATABASE_PROXY.executeQuery(
+        'UPDATE users SET terms_accepted_at = NOW() WHERE id = $1',
+        [userId]
+      );
+
+      this.env.logger.info('User accepted terms', { userId });
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Terms accepted successfully',
+        termsAcceptedAt: new Date().toISOString()
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', ...corsHeaders }
+      });
+    } catch (error) {
+      this.env.logger.error('Accept terms error', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return new Response(JSON.stringify({
+        error: 'Failed to accept terms'
       }), {
         status: 500,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
