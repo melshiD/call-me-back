@@ -13,7 +13,7 @@ const clientId = process.env.WORKOS_CLIENT_ID;
 const JWT_SECRET = process.env.JWT_SECRET || process.env.ADMIN_SECRET_TOKEN;
 const JWT_EXPIRES_IN = '24h';
 const REDIRECT_URI = process.env.WORKOS_REDIRECT_URI || 'https://logs.ai-tools-marketplace.io/api/admin/auth/callback';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'https://callmeback.ai';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://callbackapp.ai';
 
 // Allowed admin emails (add more as needed)
 const ALLOWED_ADMIN_EMAILS = [

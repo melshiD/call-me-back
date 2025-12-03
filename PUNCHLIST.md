@@ -589,6 +589,39 @@ ssh root@144.202.15.249 "cd /root/build-env/call-me-back && git pull && raindrop
 
 ---
 
+### 20. Update Website URL References (callmeback.ai → callbackapp.ai)
+**Added:** 2025-12-02 17:00 EST
+**Status:** Open - Quick Fix
+**Description:** Update all references to the website URL from "callmeback.ai" to "callbackapp.ai".
+
+**Affected Files:**
+- `voice-pipeline-nodejs/index.js` - Trial caller warnings mention signup URL
+- `src/api-gateway/index.ts` - Trial caller system prompt
+- Various legal/terms pages
+
+**Quick grep to find all:**
+```bash
+grep -r "callmeback\.ai" --include="*.js" --include="*.ts" --include="*.vue"
+```
+
+**Priority:** Quick fix before demo/submission.
+
+---
+
+### 21. Three-Way Call / Multi-Speaker Handling
+**Added:** 2025-12-02 17:00 EST
+**Status:** Open - Future Feature
+**Description:** When user has a 3-way call (e.g., user + friend + Alex), Alex hears and responds to both speakers. Need to either:
+1. Implement speaker diarization to identify/handle multiple speakers
+2. Accept as "conference mode" feature
+3. Detect and warn users
+
+**Context:** Discovered when user called friend, then triggered Alex to call friend's number. Alex responded to both user and friend on the 3-way call.
+
+**Priority:** Post-hackathon - interesting edge case, not blocking.
+
+---
+
 ## Completed Items
 _(Move items here when done)_
 

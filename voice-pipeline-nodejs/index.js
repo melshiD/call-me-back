@@ -204,6 +204,16 @@ class VoicePipeline {
     this.silenceTimer = null;
     this.evaluationCount = 0;
 
+    // Max duration enforcement (for trial callers, etc.)
+    this.callStartTime = Date.now();
+    this.maxDurationMinutes = null; // Set from database if applicable
+    this.warningCheckInterval = null;
+    this.warningsSent = {
+      firstWarning: false,    // 66% of max duration
+      secondWarning: false,   // 86% of max duration
+      finalWarning: false     // 96% of max duration
+    };
+
     // Turn-taking config
     // Note: With Flux, most turn-taking is handled natively via EndOfTurn events
     // These are fallback values for legacy/VAD paths
@@ -464,7 +474,12 @@ class VoicePipeline {
       // STEP 5: Start connection health monitoring
       this.startConnectionHealthMonitoring();
 
-      // STEP 6: Wait for user to speak first (no auto-greeting)
+      // STEP 6: Start max duration enforcement if applicable
+      if (this.maxDurationMinutes) {
+        this.startMaxDurationEnforcement();
+      }
+
+      // STEP 7: Wait for user to speak first (no auto-greeting)
 
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Failed to start:`, error);
@@ -502,6 +517,87 @@ class VoicePipeline {
         }
       }
     }, 30000); // Every 30 seconds
+  }
+
+  /**
+   * Start max duration enforcement for trial callers
+   * Sends progressive warnings and terminates call at max duration
+   */
+  startMaxDurationEnforcement() {
+    const maxDurationMs = this.maxDurationMinutes * 60 * 1000;
+    console.log(`[VoicePipeline ${this.callId}] 🕐 Max duration enforcement started: ${this.maxDurationMinutes} minutes`);
+
+    // Check warnings every 15 seconds for more responsive warnings on short calls
+    this.warningCheckInterval = setInterval(() => {
+      this.checkDurationWarnings();
+    }, 15000);
+  }
+
+  checkDurationWarnings() {
+    if (!this.maxDurationMinutes) return;
+
+    const elapsed = Date.now() - this.callStartTime;
+    const maxDurationMs = this.maxDurationMinutes * 60 * 1000;
+    const percentComplete = (elapsed / maxDurationMs) * 100;
+
+    // First warning at 66% of max duration
+    if (percentComplete >= 66 && !this.warningsSent.firstWarning) {
+      this.warningsSent.firstWarning = true;
+      this.sendDurationWarning('subtle');
+    }
+
+    // Second warning at 86% of max duration
+    if (percentComplete >= 86 && !this.warningsSent.secondWarning) {
+      this.warningsSent.secondWarning = true;
+      this.sendDurationWarning('wrap-up');
+    }
+
+    // Final warning at 96% of max duration
+    if (percentComplete >= 96 && !this.warningsSent.finalWarning) {
+      this.warningsSent.finalWarning = true;
+      this.sendDurationWarning('final');
+    }
+
+    // Force terminate at 100%
+    if (percentComplete >= 100) {
+      console.log(`[VoicePipeline ${this.callId}] ⏰ Max duration reached - terminating call`);
+      this.forceTerminate();
+    }
+  }
+
+  async sendDurationWarning(level) {
+    const elapsedMin = (Date.now() - this.callStartTime) / 1000 / 60;
+    const remainingMin = this.maxDurationMinutes - elapsedMin;
+
+    const warnings = {
+      subtle: `Hey, just a heads up - we've been chatting for about ${Math.round(elapsedMin)} minutes.`,
+      'wrap-up': remainingMin > 0.5
+        ? `By the way, I should wrap up in about ${Math.round(remainingMin * 60)} seconds. If you want to keep chatting, sign up at callbackapp.ai!`
+        : "By the way, I should wrap up soon. Sign up at callbackapp.ai to keep chatting!",
+      final: "Alright, I've got to let you go now. It was great chatting! Sign up at callbackapp.ai for more. Take care!"
+    };
+
+    const message = warnings[level];
+    console.log(`[VoicePipeline ${this.callId}] 🕐 Duration warning (${level}, ${elapsedMin.toFixed(1)}/${this.maxDurationMinutes} min): ${message}`);
+
+    // Speak the warning
+    await this.speak(message);
+  }
+
+  async forceTerminate() {
+    console.log(`[VoicePipeline ${this.callId}] Force terminating call (max duration reached)`);
+
+    // Clean up and end call
+    await this.cleanup();
+
+    // Close Twilio WebSocket to end the call
+    if (this.twilioWs && this.twilioWs.readyState === WebSocket.OPEN) {
+      try {
+        this.twilioWs.close();
+      } catch (e) {
+        console.log(`[VoicePipeline ${this.callId}] Twilio WebSocket close error (ignored): ${e.message}`);
+      }
+    }
   }
 
   /**
@@ -1655,13 +1751,16 @@ Answer:`;
 
     const audioBuffer = Buffer.from(audioPayload, 'base64');
 
-    // Forward to Deepgram only when not speaking
-    if (this.deepgramWs && !this.isSpeaking) {
+    // ALWAYS forward to Deepgram (even when AI is speaking) so Flux can detect interruptions
+    // Previously only sent when !this.isSpeaking, which prevented interruption detection
+    if (this.deepgramWs && this.deepgramWs.readyState === WebSocket.OPEN) {
       this.deepgramWs.send(audioBuffer);
     }
 
     // Feed audio to VAD (decode mulaw → PCM, upsample 8kHz → 16kHz)
-    if (this.vad && this.vadEnabled && !this.isSpeaking) {
+    // IMPORTANT: Always process audio through VAD, even when AI is speaking,
+    // so we can detect interruptions (user speaking over AI)
+    if (this.vad && this.vadEnabled) {
       try {
         // Twilio sends 8kHz mulaw, VAD needs 16kHz float32
         const pcm8k = decodeMulaw(audioBuffer);
@@ -1698,6 +1797,11 @@ Answer:`;
     if (this.connectionHealthTimer) {
       clearInterval(this.connectionHealthTimer);
       this.connectionHealthTimer = null;
+    }
+
+    if (this.warningCheckInterval) {
+      clearInterval(this.warningCheckInterval);
+      this.warningCheckInterval = null;
     }
 
     if (this.deepgramWs) {
@@ -1774,7 +1878,18 @@ Answer:`;
     try {
       console.log(`[VoicePipeline ${this.callId}] Saving call completion to database...`);
 
-      // Update call record with completion status, duration, and cost
+      // Build transcript from conversation history
+      // Format: "AI: text\nUser: text\n..." (parseable by Dashboard)
+      const transcript = this.conversationHistory
+        .map(msg => {
+          const speaker = msg.role === 'assistant' ? 'AI' : 'User';
+          return `${speaker}: ${msg.content}`;
+        })
+        .join('\n');
+
+      console.log(`[VoicePipeline ${this.callId}] Saving transcript (${this.conversationHistory.length} messages, ${transcript.length} chars)`);
+
+      // Update call record with completion status, duration, cost, and transcript
       // Note: this.callId is our internal UUID (stored in calls.id column)
       // The call-orchestrator creates records with UUID as 'id' and stores Twilio SID in 'twilio_call_sid'
       const updateResult = await fetch(`${env.VULTR_DB_API_URL}/query`, {
@@ -1788,9 +1903,10 @@ Answer:`;
                 SET status = 'completed',
                     duration_seconds = $1,
                     cost_usd = $2,
+                    transcript = $3,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = $3`,
-          params: [durationSeconds, costEstimate.total, this.callId]
+                WHERE id = $4`,
+          params: [durationSeconds, costEstimate.total, transcript, this.callId]
         })
       });
 
@@ -2750,7 +2866,9 @@ class BrowserVoicePipeline {
   }
 
   handleAudio(pcmBuffer) {
-    if (this.deepgramReady && !this.isSpeaking) {
+    // ALWAYS forward to Deepgram (even when AI is speaking) so Flux can detect interruptions
+    // Previously only sent when !this.isSpeaking, which prevented interruption detection
+    if (this.deepgramReady && this.deepgramWs && this.deepgramWs.readyState === WebSocket.OPEN) {
       this.deepgramWs.send(pcmBuffer);
     }
 
@@ -3166,7 +3284,18 @@ class BrowserVoicePipeline {
     try {
       console.log(`[BrowserPipeline ${this.sessionId}] Saving call completion to database...`);
 
-      // Update call record with completion status, duration, and cost
+      // Build transcript from conversation history
+      // Format: "AI: text\nUser: text\n..." (parseable by Dashboard)
+      const transcript = this.conversationHistory
+        .map(msg => {
+          const speaker = msg.role === 'assistant' ? 'AI' : 'User';
+          return `${speaker}: ${msg.content}`;
+        })
+        .join('\n');
+
+      console.log(`[BrowserPipeline ${this.sessionId}] Saving transcript (${this.conversationHistory.length} messages, ${transcript.length} chars)`);
+
+      // Update call record with completion status, duration, cost, and transcript
       const updateResult = await fetch(`${env.VULTR_DB_API_URL}/query`, {
         method: 'POST',
         headers: {
@@ -3178,9 +3307,10 @@ class BrowserVoicePipeline {
                 SET status = 'completed',
                     duration_seconds = $1,
                     cost_usd = $2,
+                    transcript = $3,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE id = $3`,
-          params: [durationSeconds, costEstimate.total, this.callId]
+                WHERE id = $4`,
+          params: [durationSeconds, costEstimate.total, transcript, this.callId]
         })
       });
 

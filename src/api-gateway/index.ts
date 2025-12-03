@@ -276,16 +276,44 @@ export default class extends Service<Env> {
           }
         }
 
+        // Handle unknown/anonymous callers - give them a 2-minute trial
+        const isAnonymousCaller = userId === 'anonymous_caller';
+        let maxDurationMinutes: number | null = null;
+        let callPretext = callbackContext;
+
+        if (isAnonymousCaller) {
+          maxDurationMinutes = 2; // 2-minute trial for unknown callers
+          callPretext = `[TRIAL CALLER] This person is calling from an unregistered number. They're getting a FREE 2-minute trial to experience the app! Be friendly and engaging - make them want to sign up! Near the end of the call (around 1:30), naturally mention: "Hey, I'm really enjoying chatting with you! If you want to keep talking, you can sign up at callbackapp.ai - it only takes a minute." Don't be pushy, just plant the seed.`;
+          this.env.logger.info('Anonymous caller detected - applying 2-minute trial limit', { from, callId });
+
+          // Track this unknown caller number for analytics
+          try {
+            await this.env.DATABASE_PROXY.executeQuery(
+              `INSERT INTO unknown_caller_attempts (phone_number, persona_id, first_call_at, call_count)
+               VALUES ($1, $2, NOW(), 1)
+               ON CONFLICT (phone_number) DO UPDATE SET
+                 call_count = unknown_caller_attempts.call_count + 1,
+                 last_call_at = NOW()`,
+              [from, personaId]
+            );
+          } catch (trackError) {
+            // Table might not exist yet - that's fine, just log
+            this.env.logger.warn('Could not track unknown caller (table may not exist)', {
+              error: trackError instanceof Error ? trackError.message : String(trackError)
+            });
+          }
+        }
+
         // Create the inbound call record with callback context if detected
         try {
           await this.env.DATABASE_PROXY.executeQuery(
             `INSERT INTO calls (
               id, user_id, persona_id, phone_number, twilio_call_sid, status, direction,
-              payment_method, payment_status, call_pretext
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+              payment_method, payment_status, call_pretext, max_duration_minutes
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
             [
               callId,           // Use callSid as the callId for inbound
-              userId,           // Looked up by verified phone number
+              userId,           // Looked up by verified phone number (or 'anonymous_caller')
               personaId,        // Looked up by Twilio number
               from,             // Caller's phone number
               callSid,          // Twilio's call SID
@@ -293,10 +321,16 @@ export default class extends Service<Env> {
               'inbound',        // Mark as inbound call
               'credit',         // Inbound calls use credits
               'pending',        // Credit deduction happens on call end
-              callbackContext   // Callback context if this is a return call from missed outbound
+              callPretext,      // Trial caller context OR callback context
+              maxDurationMinutes // 2 min for trial callers, null for registered users
             ]
           );
-          this.env.logger.info('Successfully created inbound call record', { callId, hasCallbackContext: !!callbackContext });
+          this.env.logger.info('Successfully created inbound call record', {
+            callId,
+            isAnonymousCaller,
+            maxDurationMinutes,
+            hasCallbackContext: !!callbackContext
+          });
         } catch (insertError) {
           // Log but don't fail - the call can still proceed, just won't have cost tracking
           this.env.logger.error('Failed to create inbound call record', {
@@ -1455,7 +1489,7 @@ export default class extends Service<Env> {
 
         // Build WorkOS authorization URL
         // Using authkit provider which shows all configured auth methods (Google, GitHub, email/password, etc.)
-        const redirectUri = this.env.WORKOS_USER_REDIRECT_URI || 'https://callmeback.ai/auth/callback';
+        const redirectUri = this.env.WORKOS_USER_REDIRECT_URI || 'https://callbackapp.ai/auth/callback';
         const authUrl = new URL('https://api.workos.com/user_management/authorize');
         authUrl.searchParams.set('client_id', this.env.WORKOS_CLIENT_ID);
         authUrl.searchParams.set('redirect_uri', redirectUri);
@@ -1470,7 +1504,7 @@ export default class extends Service<Env> {
         const url = new URL(request.url);
         const code = url.searchParams.get('code');
         const error = url.searchParams.get('error');
-        const frontendUrl = this.env.FRONTEND_URL || 'https://callmeback.ai';
+        const frontendUrl = this.env.FRONTEND_URL || 'https://callbackapp.ai';
 
         if (error) {
           console.error('[API-GATEWAY] WorkOS OAuth error:', error);
@@ -2370,7 +2404,7 @@ export default class extends Service<Env> {
 
       // Get paginated calls with persona name
       const result = await this.env.DATABASE_PROXY.executeQuery(
-        `SELECT 
+        `SELECT
           c.id,
           c.user_id,
           c.persona_id,
@@ -2381,7 +2415,10 @@ export default class extends Service<Env> {
           c.duration_seconds as duration,
           c.cost_usd as cost,
           c.twilio_call_sid as sid,
-          c.error_message
+          c.error_message,
+          c.transcript,
+          c.call_scenario,
+          c.direction
         FROM calls c
         LEFT JOIN personas p ON c.persona_id = p.id
         WHERE c.user_id = $1
