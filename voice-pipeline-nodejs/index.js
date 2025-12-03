@@ -1656,8 +1656,9 @@ Answer:`;
         text: ''
       }));
 
-      // Log ElevenLabs usage for cost tracking
-      console.log(`[VoicePipeline ${this.callId}] ElevenLabs TTS: characters: ${text.length} voice_id: ${this.voiceId} model: eleven_turbo_v2_5`);
+      // Track ElevenLabs usage for cost tracking
+      this.costTracking.elevenLabsCharacters += text.length;
+      console.log(`[VoicePipeline ${this.callId}] ElevenLabs TTS: ${text.length} chars (total: ${this.costTracking.elevenLabsCharacters}) voice_id: ${this.voiceId}`);
       console.log(`[VoicePipeline ${this.callId}] Sent text with end-of-input signal to ElevenLabs`);
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Failed to speak:`, error);

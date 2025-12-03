@@ -622,6 +622,32 @@ grep -r "callmeback\.ai" --include="*.js" --include="*.ts" --include="*.vue"
 
 ---
 
+### 22. Natural Call Ending Detection
+**Added:** 2025-12-02 19:55 EST
+**Status:** Open - Polish Feature
+**Description:** Detect when both user and AI have said goodbye, and have the app hang up automatically instead of waiting for user to disconnect.
+
+**Implementation Concept:**
+```javascript
+const GOODBYE_PATTERNS = /\b(bye|later|talk soon|take care|gotta go|peace|see ya)\b/i;
+
+// After AI finishes speaking, check if both parties said goodbye
+if (GOODBYE_PATTERNS.test(lastUserMessage) && GOODBYE_PATTERNS.test(lastAIResponse)) {
+  // Both said goodbye - wait 2 sec then hang up
+  setTimeout(() => this.endCall('natural_completion'), 2000);
+}
+```
+
+**Considerations:**
+- Risk of false positives ("I'll tell you later..." isn't a goodbye)
+- Need confidence threshold
+- Handle "Bye... wait one more thing!" edge cases
+- Per-persona goodbye patterns (Brad: "Later bro", Sarah: "Talk soon!", Alex: "Peace out!")
+
+**Priority:** Post-hackathon polish - current user-hangs-up behavior works fine.
+
+---
+
 ## Completed Items
 _(Move items here when done)_
 
