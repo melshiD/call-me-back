@@ -641,6 +641,34 @@
                 />
               </div>
 
+              <!-- LLM Model Selector -->
+              <div>
+                <div class="flex items-center justify-between mb-3">
+                  <label class="font-mono text-xs uppercase tracking-wider text-[#888]">Chat Model</label>
+                  <button
+                    @click="fetchCerebrasModels"
+                    class="text-[10px] text-amber-400 hover:text-amber-300 font-mono"
+                    :disabled="loadingCerebrasModels"
+                  >
+                    {{ loadingCerebrasModels ? 'Loading...' : '↻ Refresh' }}
+                  </button>
+                </div>
+                <select
+                  v-model="llmModel"
+                  class="w-full bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg px-4 py-2.5 font-mono text-sm text-[#ccc] focus:border-amber-500/50 focus:outline-none transition-colors appearance-none cursor-pointer"
+                  :disabled="!selectedPersona"
+                >
+                  <option value="llama3.1-8b">llama3.1-8b (fast, $0.10/1M)</option>
+                  <option value="llama-3.3-70b">llama-3.3-70b (smarter, $0.60/1M)</option>
+                  <option v-for="model in availableCerebrasModels.filter(m => !['llama3.1-8b', 'llama-3.3-70b'].includes(m.id))" :key="model.id" :value="model.id">
+                    {{ model.id }}
+                  </option>
+                </select>
+                <div class="mt-2 text-[10px] text-[#555] font-mono">
+                  70B has larger context window and better reasoning
+                </div>
+              </div>
+
               <!-- Voice ID Selector -->
               <div>
                 <label class="font-mono text-xs uppercase tracking-wider text-[#888] block mb-3">Voice</label>
@@ -1247,6 +1275,7 @@ const loadingUsers = ref(false);
 const editedPrompt = ref('');
 const temperature = ref(0.7);
 const maxTokens = ref(150);
+const llmModel = ref('llama3.1-8b'); // Cerebras model for chat: 'llama3.1-8b' or 'llama-3.3-70b'
 const maxCallDuration = ref(15); // Maximum call duration in minutes
 const voiceId = ref('');
 const adminPhone = ref('');
@@ -1892,6 +1921,7 @@ const hasChanges = computed(() => {
     editedPrompt.value !== originalPrompt ||
     temperature.value !== parseFloat(selectedPersona.value.temperature || 0.7) ||
     maxTokens.value !== parseInt(selectedPersona.value.max_tokens || 150) ||
+    llmModel.value !== (selectedPersona.value.llm_model || 'llama3.1-8b') ||
     maxCallDuration.value !== parseInt(selectedPersona.value.max_call_duration || 15) ||
     voiceId.value !== originalVoice
   );
@@ -1935,6 +1965,7 @@ const selectPersona = (persona) => {
   editedPrompt.value = persona.systemPrompt || persona.core_system_prompt || '';
   temperature.value = parseFloat(persona.temperature || 0.7);
   maxTokens.value = parseInt(persona.max_tokens || 150);
+  llmModel.value = persona.llm_model || 'llama3.1-8b';
   maxCallDuration.value = parseInt(persona.max_call_duration || 15);
   // API returns 'voice' not 'default_voice_id'
   voiceId.value = persona.voice || persona.default_voice_id || '';
@@ -1956,6 +1987,7 @@ const savePersona = async () => {
         core_system_prompt: editedPrompt.value,
         temperature: temperature.value,
         max_tokens: maxTokens.value,
+        llm_model: llmModel.value,
         max_call_duration: maxCallDuration.value,
         default_voice_id: voiceId.value
       })
@@ -1967,6 +1999,7 @@ const savePersona = async () => {
     selectedPersona.value.voice = voiceId.value;
     selectedPersona.value.temperature = temperature.value;
     selectedPersona.value.max_tokens = maxTokens.value;
+    selectedPersona.value.llm_model = llmModel.value;
     selectedPersona.value.max_call_duration = maxCallDuration.value;
 
     // Update in personas array

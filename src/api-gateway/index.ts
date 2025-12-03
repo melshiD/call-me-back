@@ -1930,6 +1930,7 @@ export default class extends Service<Env> {
           voice?: string;
           temperature?: number;
           max_tokens?: number;
+          llm_model?: string;
           max_call_duration?: number;
         };
 
@@ -1947,6 +1948,9 @@ export default class extends Service<Env> {
         }
         if (body.max_tokens !== undefined) {
           updates.max_tokens = body.max_tokens;
+        }
+        if (body.llm_model !== undefined) {
+          updates.llm_model = body.llm_model;
         }
         if (body.max_call_duration !== undefined) {
           updates.max_call_duration = body.max_call_duration;

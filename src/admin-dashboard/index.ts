@@ -90,6 +90,16 @@ export default class extends Service<Env> {
             costByService[row.service] = parseFloat(row.total) || 0;
           }
         });
+
+        // Estimate Twilio costs from call duration if not logged in api_call_events
+        // Historical calls before 2025-12-03 didn't log Twilio costs
+        const TWILIO_PER_MINUTE_RATE = 0.014;
+        const totalDurationSeconds = parseFloat(String(stats.total_duration)) || 0;
+        if (costByService.twilio === 0 && totalDurationSeconds > 0) {
+          const totalMinutes = totalDurationSeconds / 60;
+          costByService.twilio = totalMinutes * TWILIO_PER_MINUTE_RATE;
+          console.log(`[ADMIN-DASHBOARD] Estimated Twilio cost from call duration: ${totalMinutes.toFixed(2)} min × $${TWILIO_PER_MINUTE_RATE} = $${costByService.twilio.toFixed(4)}`);
+        }
       } catch (error) {
         console.warn('Could not fetch cost breakdown:', error instanceof Error ? error.message : String(error));
       }
@@ -129,6 +139,100 @@ export default class extends Service<Env> {
       const totalDuration = parseInt(String(stats.total_duration)) || 0;
       const totalCost = parseFloat(String(stats.total_cost)) || 0;
 
+      // Fetch service pricing from database
+      let servicePricing: any[] = [];
+      try {
+        const pricingQuery = `
+          SELECT service, pricing_type, unit_price, metadata
+          FROM service_pricing
+          WHERE effective_to IS NULL
+          ORDER BY service
+        `;
+        const pricingResult = await dbProxy.executeQuery(pricingQuery, []);
+        servicePricing = pricingResult.rows || [];
+      } catch (error) {
+        console.warn('Could not fetch service pricing:', error instanceof Error ? error.message : String(error));
+      }
+
+      // Fetch revenue data from purchases table
+      let revenue = { total: 0, period: 0, purchaseCount: 0 };
+      try {
+        const revenueQuery = `
+          SELECT
+            COALESCE(SUM(CASE WHEN status = 'completed' THEN amount_cents END), 0) as total_revenue,
+            COALESCE(SUM(CASE WHEN status = 'completed' AND created_at >= $1 THEN amount_cents END), 0) as period_revenue,
+            COUNT(CASE WHEN status = 'completed' AND created_at >= $1 THEN 1 END) as period_purchases
+          FROM purchases
+        `;
+        const revenueResult = await dbProxy.executeQuery(revenueQuery, [startDate.toISOString()]);
+        if (revenueResult.rows?.[0]) {
+          revenue = {
+            total: parseFloat(revenueResult.rows[0].total_revenue || 0) / 100, // Convert cents to dollars
+            period: parseFloat(revenueResult.rows[0].period_revenue || 0) / 100,
+            purchaseCount: parseInt(revenueResult.rows[0].period_purchases || 0)
+          };
+        }
+      } catch (error) {
+        console.warn('Could not fetch revenue:', error instanceof Error ? error.message : String(error));
+      }
+
+      // Fetch user credits summary
+      let userCredits = { totalBalance: 0, userCount: 0 };
+      try {
+        const creditsQuery = `
+          SELECT
+            COALESCE(SUM(minutes_balance), 0) as total_balance,
+            COUNT(*) as user_count
+          FROM user_credits
+          WHERE minutes_balance > 0
+        `;
+        const creditsResult = await dbProxy.executeQuery(creditsQuery, []);
+        if (creditsResult.rows?.[0]) {
+          userCredits = {
+            totalBalance: parseFloat(creditsResult.rows[0].total_balance || 0),
+            userCount: parseInt(creditsResult.rows[0].user_count || 0)
+          };
+        }
+      } catch (error) {
+        console.warn('Could not fetch user credits:', error instanceof Error ? error.message : String(error));
+      }
+
+      // Calculate API costs from api_call_events
+      let apiCosts = { total: 0, period: 0 };
+      try {
+        const apiCostsQuery = `
+          SELECT
+            COALESCE(SUM(total_cost), 0) as total_cost,
+            COALESCE(SUM(CASE WHEN created_at >= $1 THEN total_cost END), 0) as period_cost
+          FROM api_call_events
+        `;
+        const apiCostsResult = await dbProxy.executeQuery(apiCostsQuery, [startDate.toISOString()]);
+        if (apiCostsResult.rows?.[0]) {
+          apiCosts = {
+            total: parseFloat(apiCostsResult.rows[0].total_cost || 0),
+            period: parseFloat(apiCostsResult.rows[0].period_cost || 0)
+          };
+        }
+      } catch (error) {
+        console.warn('Could not fetch API costs:', error instanceof Error ? error.message : String(error));
+      }
+
+      // Calculate profitability metrics
+      // Estimated cost per minute (from service_pricing and documented rates)
+      const estimatedCostPerMinute8B = 0.071; // $0.071/min for 8B model
+      const estimatedCostPerMinute70B = 0.101; // $0.101/min for 70B model
+      const avgCostPerMinute = (estimatedCostPerMinute8B + estimatedCostPerMinute70B) / 2; // ~$0.086
+
+      const profitability = {
+        revenue: revenue.period,
+        apiCosts: apiCosts.period,
+        grossProfit: revenue.period - apiCosts.period,
+        grossMargin: revenue.period > 0 ? ((revenue.period - apiCosts.period) / revenue.period) * 100 : 0,
+        outstandingLiability: userCredits.totalBalance * avgCostPerMinute, // What it would cost to fulfill all credits
+        projectedNetProfit: revenue.period - (userCredits.totalBalance * avgCostPerMinute),
+        avgCostPerMinute: avgCostPerMinute
+      };
+
       return {
         stats: {
           totalCalls,
@@ -137,6 +241,11 @@ export default class extends Service<Env> {
           avgCostPerCall: totalCalls > 0 ? (totalCost / totalCalls) : 0,
           costByService
         },
+        revenue,
+        userCredits,
+        apiCosts,
+        profitability,
+        servicePricing,
         recentCalls: recentCallsRows
       };
     } catch (error) {

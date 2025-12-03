@@ -130,6 +130,7 @@ export default class extends Service<Env> {
     default_voice_id?: string;
     temperature?: number;
     max_tokens?: number;
+    llm_model?: string;
     max_call_duration?: number;
   }): Promise<void> {
     try {
@@ -155,6 +156,10 @@ export default class extends Service<Env> {
       if (data.max_tokens !== undefined) {
         updates.push(`max_tokens = $${paramIndex++}`);
         values.push(data.max_tokens);
+      }
+      if (data.llm_model !== undefined) {
+        updates.push(`llm_model = $${paramIndex++}`);
+        values.push(data.llm_model);
       }
       if (data.max_call_duration !== undefined) {
         updates.push(`max_call_duration = $${paramIndex++}`);

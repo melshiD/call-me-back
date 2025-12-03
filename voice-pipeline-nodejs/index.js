@@ -87,6 +87,121 @@ envFile.split('\n').forEach(line => {
 });
 
 /**
+ * Service Pricing Cache - loaded from database on startup
+ * Keys: "service:model" or "service:operation" for specificity
+ * Values: { unitPrice, pricingType, lastLoaded }
+ */
+const servicePricing = {
+  prices: {},
+  lastLoaded: null,
+  cacheTTLMs: 5 * 60 * 1000,  // 5 minute cache
+
+  // Fallback prices if DB unavailable (should match service_pricing table)
+  // Note: Chat pricing is model-specific - 8B and 70B have different costs
+  fallbacks: {
+    'deepgram:transcription': { unitPrice: 0.0059, pricingType: 'per_minute' },
+    'deepgram:default': { unitPrice: 0.0059, pricingType: 'per_minute' },
+    'elevenlabs:tts': { unitPrice: 0.00015, pricingType: 'per_character' },
+    'elevenlabs:default': { unitPrice: 0.00015, pricingType: 'per_character' },
+    'cerebras:chat': { unitPrice: 0.0000001, pricingType: 'per_token' },  // 8b model (legacy key)
+    'cerebras:llama3.1-8b': { unitPrice: 0.0000001, pricingType: 'per_token' },  // 8b model ($0.10/1M)
+    'cerebras:llama-3.3-70b': { unitPrice: 0.0000006, pricingType: 'per_token' },  // 70b model ($0.60/1M)
+    'cerebras:extraction': { unitPrice: 0.0000006, pricingType: 'per_token' },  // 70b model (fact extraction)
+    'twilio:voice': { unitPrice: 0.014, pricingType: 'per_minute' },  // Outbound US voice calls
+    'twilio:default': { unitPrice: 0.014, pricingType: 'per_minute' }  // Fallback for Twilio
+  },
+
+  /**
+   * Load current prices from service_pricing table
+   */
+  async loadFromDatabase() {
+    try {
+      console.log('[Pricing] Loading prices from database...');
+      const response = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+        },
+        body: JSON.stringify({
+          sql: `SELECT service, pricing_type, unit_price, metadata
+                FROM service_pricing
+                WHERE effective_to IS NULL
+                ORDER BY service, effective_from DESC`
+        })
+      });
+
+      if (!response.ok) {
+        console.error('[Pricing] Failed to load from DB:', await response.text());
+        return false;
+      }
+
+      const data = await response.json();
+      if (data.rows && data.rows.length > 0) {
+        // Clear and rebuild price cache
+        this.prices = {};
+        for (const row of data.rows) {
+          const operation = row.metadata?.operation || 'default';
+          const key = `${row.service}:${operation}`;
+          // Only keep first (most recent) entry per service:operation
+          if (!this.prices[key]) {
+            this.prices[key] = {
+              unitPrice: parseFloat(row.unit_price),
+              pricingType: row.pricing_type,
+              model: row.metadata?.model
+            };
+          }
+        }
+        this.lastLoaded = Date.now();
+        console.log(`[Pricing] Loaded ${Object.keys(this.prices).length} price entries:`, this.prices);
+        return true;
+      }
+    } catch (error) {
+      console.error('[Pricing] Error loading from DB:', error);
+    }
+    return false;
+  },
+
+  /**
+   * Get price for a service/operation combo
+   * @param {string} service - Service name (deepgram, cerebras, elevenlabs, twilio)
+   * @param {string} operation - Operation type (chat, extraction, transcription, tts, call)
+   * @returns {{ unitPrice: number, pricingType: string }}
+   */
+  getPrice(service, operation = 'default') {
+    const key = `${service}:${operation}`;
+
+    // Check cache first
+    if (this.prices[key]) {
+      return this.prices[key];
+    }
+
+    // Try service:default
+    if (this.prices[`${service}:default`]) {
+      return this.prices[`${service}:default`];
+    }
+
+    // Fallback to hardcoded
+    if (this.fallbacks[key]) {
+      console.warn(`[Pricing] Using fallback for ${key}`);
+      return this.fallbacks[key];
+    }
+
+    console.error(`[Pricing] No price found for ${key}`);
+    return { unitPrice: 0, pricingType: 'unknown' };
+  },
+
+  /**
+   * Refresh cache if stale
+   */
+  async refreshIfStale() {
+    if (!this.lastLoaded || (Date.now() - this.lastLoaded) > this.cacheTTLMs) {
+      await this.loadFromDatabase();
+    }
+  }
+};
+
+/**
  * Phone Call Guidelines - Layer 5
  * Appended to all persona prompts. TODO: Move to database for per-persona or global editing.
  */
@@ -232,7 +347,9 @@ class VoicePipeline {
     this.costTracking = {
       deepgramMinutes: 0,
       elevenLabsCharacters: 0,
-      cerebrasTokens: 0,
+      cerebrasTokens: 0,  // Legacy total (sum of chat + extraction)
+      cerebrasChatTokens: 0,  // Main conversation responses (llama3.1-8b)
+      cerebrasExtractionTokens: 0,  // Post-call fact extraction (llama-3.3-70b)
       sessionDuration: 0
     };
 
@@ -269,7 +386,7 @@ class VoicePipeline {
         body: JSON.stringify({
           sql: `
             SELECT p.name, p.core_system_prompt, p.default_voice_id,
-                   p.max_tokens, p.temperature,
+                   p.max_tokens, p.temperature, p.llm_model,
                    upr.custom_system_prompt, upr.voice_id
             FROM personas p
             LEFT JOIN user_persona_relationships upr
@@ -340,6 +457,7 @@ class VoicePipeline {
         // Store AI params from database (configurable from admin panel)
         this.maxTokens = row.max_tokens || 100;  // Default: 100 tokens (prevents mid-sentence truncation)
         this.temperature = row.temperature || 0.7;  // Default: 0.7 (balanced creativity)
+        this.llmModel = row.llm_model || 'llama3.1-8b';  // Default: 8B model (faster, cheaper)
         // Note: smart_memory column doesn't exist in current schema - will be added later for static relationship context
         this.relationshipContext = '';
 
@@ -1202,6 +1320,20 @@ class VoicePipeline {
 
   /**
    * Combined heuristic + LLM evaluation with heuristic override
+   *
+   * NOTE: This is a FALLBACK mechanism. Primary turn detection is handled by Deepgram Flux's
+   * native EndOfTurn/EagerEndOfTurn events (see handleFluxTurnInfo). This LLM-based evaluation
+   * only triggers if:
+   * 1. Flux fails to fire EndOfTurn for some reason
+   * 2. The silence timer (resetSilenceTimer → onSilenceDetected) fires before Flux does
+   *
+   * In practice, Flux usually handles turn detection before this code runs. We keep this as
+   * a safety net for edge cases where Flux might miss a turn boundary.
+   *
+   * Uses hardcoded llama3.1-8b (not persona's llm_model) because:
+   * - This is a simple WAIT/RESPOND decision, not content generation
+   * - Speed matters here - 8B is faster for this quick classification
+   * - Cost is negligible (only 10 max_tokens)
    */
   async evaluateConversationalCompleteness(transcript) {
     // First check heuristic - it's fast and catches obvious cases
@@ -1496,7 +1628,7 @@ Answer:`;
           'Authorization': `Bearer ${env.CEREBRAS_API_KEY}`
         },
         body: JSON.stringify({
-          model: 'llama3.1-8b',
+          model: this.llmModel,
           messages: messages,
           max_tokens: this.maxTokens,  // Configurable from admin panel (stored in personas table)
           temperature: this.temperature,  // Configurable from admin panel (stored in personas table)
@@ -1513,9 +1645,12 @@ Answer:`;
         console.log(`[VoicePipeline ${this.callId}] AI response length: ${aiResponse.length} chars`);
         console.log(`[VoicePipeline ${this.callId}] Finish reason:`, data.choices[0]?.finish_reason);
 
-        // Log Cerebras usage for cost tracking
+        // Track Cerebras chat tokens for cost tracking
         if (data.usage) {
-          console.log(`[VoicePipeline ${this.callId}] Cerebras usage: model: ${data.model || 'llama3.1-8b'} prompt_tokens: ${data.usage.prompt_tokens} completion_tokens: ${data.usage.completion_tokens} total_tokens: ${data.usage.total_tokens}`);
+          const tokens = data.usage.total_tokens || 0;
+          this.costTracking.cerebrasChatTokens += tokens;
+          this.costTracking.cerebrasTokens += tokens;  // Legacy total
+          console.log(`[VoicePipeline ${this.callId}] Cerebras chat: ${tokens} tokens (total chat: ${this.costTracking.cerebrasChatTokens}, total all: ${this.costTracking.cerebrasTokens})`);
         }
 
         this.conversationHistory.push({
@@ -1556,7 +1691,7 @@ Answer:`;
           'Authorization': `Bearer ${env.CEREBRAS_API_KEY}`
         },
         body: JSON.stringify({
-          model: 'llama3.1-8b',
+          model: this.llmModel,
           messages: messages,
           max_tokens: this.maxTokens,
           temperature: this.temperature,
@@ -1581,9 +1716,12 @@ Answer:`;
         this.draftResponse = aiResponse;
         this.draftTranscript = transcript;
 
-        // Log Cerebras usage (speculative)
+        // Track Cerebras chat tokens (speculative response still counts)
         if (data.usage) {
-          console.log(`[VoicePipeline ${this.callId}] Cerebras (speculative): prompt=${data.usage.prompt_tokens} completion=${data.usage.completion_tokens}`);
+          const tokens = data.usage.total_tokens || 0;
+          this.costTracking.cerebrasChatTokens += tokens;
+          this.costTracking.cerebrasTokens += tokens;  // Legacy total
+          console.log(`[VoicePipeline ${this.callId}] Cerebras speculative: ${tokens} tokens (total chat: ${this.costTracking.cerebrasChatTokens})`);
         }
       }
     } catch (error) {
@@ -1834,7 +1972,7 @@ Answer:`;
     const estimatedCost = this.calculateEstimatedCost();
     const durationSeconds = Math.round(this.costTracking.sessionDuration * 60);
     console.log(`[VoicePipeline ${this.callId}] Session ended - Duration: ${this.costTracking.sessionDuration.toFixed(2)} min`);
-    console.log(`[VoicePipeline ${this.callId}] Cost estimate: $${estimatedCost.total.toFixed(4)} (Deepgram: $${estimatedCost.deepgram.toFixed(4)}, ElevenLabs: $${estimatedCost.elevenlabs.toFixed(4)}, Cerebras: $${estimatedCost.cerebras.toFixed(4)})`);
+    console.log(`[VoicePipeline ${this.callId}] Cost estimate: $${estimatedCost.total.toFixed(4)} (Twilio: $${estimatedCost.twilio.toFixed(4)}, Deepgram: $${estimatedCost.deepgram.toFixed(4)}, ElevenLabs: $${estimatedCost.elevenlabs.toFixed(4)}, Cerebras: $${estimatedCost.cerebras.toFixed(4)})`);
 
     // Save call completion data to database
     if (this.callId) {
@@ -1850,25 +1988,35 @@ Answer:`;
    * Calculate estimated cost of the call based on usage
    *
    * PRICING SOURCE: src/shared/pricing.ts (PRICING_CONFIG)
-   * Keep these values in sync with the centralized config.
-   * See also: documentation/HARDCODED_COST_VALUES.md
-   * See PUNCHLIST.md item #2 for pricing inconsistency issue
+   * Uses prices from servicePricing cache (loaded from database).
+   * Now tracks chat and extraction tokens separately.
+   * Includes Twilio voice costs for accurate P&L.
    */
   calculateEstimatedCost() {
-    // Pricing (as of 2025) - synced with BrowserVoicePipeline
-    const DEEPGRAM_COST_PER_MIN = 0.0043; // Nova-2 pricing
-    const ELEVENLABS_COST_PER_1K_CHARS = 0.18; // Turbo v2.5
-    const CEREBRAS_COST_PER_1M_TOKENS = 0.10; // Llama 3.1 8B
+    // Get prices from DB cache (with fallbacks)
+    const twilioPrice = servicePricing.getPrice('twilio', 'voice');
+    const deepgramPrice = servicePricing.getPrice('deepgram', 'transcription');
+    const elevenlabsPrice = servicePricing.getPrice('elevenlabs', 'tts');
+    // Use model-specific pricing for chat (llama3.1-8b or llama-3.3-70b)
+    const cerebrasChatPrice = servicePricing.getPrice('cerebras', this.llmModel || 'llama3.1-8b');
+    const cerebrasExtractionPrice = servicePricing.getPrice('cerebras', 'extraction');
 
-    const deepgramCost = this.costTracking.deepgramMinutes * DEEPGRAM_COST_PER_MIN;
-    const elevenlabsCost = (this.costTracking.elevenLabsCharacters / 1000) * ELEVENLABS_COST_PER_1K_CHARS;
-    const cerebrasCost = (this.costTracking.cerebrasTokens / 1000000) * CEREBRAS_COST_PER_1M_TOKENS;
+    // Twilio charges per minute for voice calls
+    const twilioCost = this.costTracking.sessionDuration * twilioPrice.unitPrice;
+    const deepgramCost = this.costTracking.deepgramMinutes * deepgramPrice.unitPrice;
+    const elevenlabsCost = this.costTracking.elevenLabsCharacters * elevenlabsPrice.unitPrice;
+    const cerebrasChatCost = this.costTracking.cerebrasChatTokens * cerebrasChatPrice.unitPrice;
+    const cerebrasExtractionCost = this.costTracking.cerebrasExtractionTokens * cerebrasExtractionPrice.unitPrice;
 
     return {
+      twilio: twilioCost,
       deepgram: deepgramCost,
       elevenlabs: elevenlabsCost,
-      cerebras: cerebrasCost,
-      total: deepgramCost + elevenlabsCost + cerebrasCost
+      cerebras: cerebrasChatCost + cerebrasExtractionCost,  // Combined for backwards compat
+      cerebrasChatCost,
+      cerebrasExtractionCost,
+      llmModel: this.llmModel || 'llama3.1-8b',  // Track which model was used
+      total: twilioCost + deepgramCost + elevenlabsCost + cerebrasChatCost + cerebrasExtractionCost
     };
   }
 
@@ -2032,35 +2180,68 @@ Answer:`;
         }
       }
 
-      // Log individual service costs to api_call_events table
-      // Pricing synced with calculateEstimatedCost() - see PUNCHLIST.md item #2
+      // Run post-call evaluation FIRST to get extraction token count
+      // This must happen before logging costs so we have complete data
+      await this.runPostCallEvaluation();
+
+      // Refresh pricing cache if stale
+      await servicePricing.refreshIfStale();
+
+      // Get current prices from database (with fallbacks)
+      // Use model-specific pricing for chat (llama3.1-8b or llama-3.3-70b)
+      const twilioPrice = servicePricing.getPrice('twilio', 'voice');
+      const deepgramPrice = servicePricing.getPrice('deepgram', 'transcription');
+      const elevenlabsPrice = servicePricing.getPrice('elevenlabs', 'tts');
+      const chatModel = this.llmModel || 'llama3.1-8b';
+      const cerebrasChatPrice = servicePricing.getPrice('cerebras', chatModel);
+      const cerebrasExtractionPrice = servicePricing.getPrice('cerebras', 'extraction');
+
+      // Calculate costs using DB prices
+      // Twilio charges per minute for voice calls
+      const twilioCost = this.costTracking.sessionDuration * twilioPrice.unitPrice;
+      const deepgramCost = this.costTracking.deepgramMinutes * deepgramPrice.unitPrice;
+      const elevenlabsCost = this.costTracking.elevenLabsCharacters * elevenlabsPrice.unitPrice;
+      const cerebrasChatCost = this.costTracking.cerebrasChatTokens * cerebrasChatPrice.unitPrice;
+      const cerebrasExtractionCost = this.costTracking.cerebrasExtractionTokens * cerebrasExtractionPrice.unitPrice;
+
+      // Include model name in operation for cost tracking visibility
+      // Twilio is logged first as it's typically the largest cost
       const services = [
-        { service: 'deepgram', cost: costEstimate.deepgram, operation: 'transcription', usageAmount: this.costTracking.deepgramMinutes, usageUnit: 'minutes', unitCost: 0.0043 },
-        { service: 'elevenlabs', cost: costEstimate.elevenlabs, operation: 'tts', usageAmount: this.costTracking.elevenLabsCharacters, usageUnit: 'characters', unitCost: 0.00018 },
-        { service: 'cerebras', cost: costEstimate.cerebras, operation: 'inference', usageAmount: this.costTracking.cerebrasTokens || 0, usageUnit: 'tokens', unitCost: 0.0000001 }
+        { service: 'twilio', cost: twilioCost, operation: 'voice', usageAmount: this.costTracking.sessionDuration, usageUnit: 'minutes', unitCost: twilioPrice.unitPrice },
+        { service: 'deepgram', cost: deepgramCost, operation: 'transcription', usageAmount: this.costTracking.deepgramMinutes, usageUnit: 'minutes', unitCost: deepgramPrice.unitPrice },
+        { service: 'elevenlabs', cost: elevenlabsCost, operation: 'tts', usageAmount: this.costTracking.elevenLabsCharacters, usageUnit: 'characters', unitCost: elevenlabsPrice.unitPrice },
+        { service: 'cerebras', cost: cerebrasChatCost, operation: `chat:${chatModel}`, usageAmount: this.costTracking.cerebrasChatTokens || 0, usageUnit: 'tokens', unitCost: cerebrasChatPrice.unitPrice },
+        { service: 'cerebras', cost: cerebrasExtractionCost, operation: 'extraction', usageAmount: this.costTracking.cerebrasExtractionTokens || 0, usageUnit: 'tokens', unitCost: cerebrasExtractionPrice.unitPrice }
       ];
 
+      let insertedCount = 0;
       for (const { service, cost, operation, usageAmount, usageUnit, unitCost } of services) {
-        if (cost > 0) {
-          await fetch(`${env.VULTR_DB_API_URL}/query`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
-            },
-            body: JSON.stringify({
-              sql: `INSERT INTO api_call_events (call_id, service, operation, usage_amount, usage_unit, unit_cost, total_cost, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
-              params: [this.callId, service, operation, usageAmount, usageUnit, unitCost, cost]
-            })
-          });
+        if (cost > 0 || usageAmount > 0) {  // Log even if cost is 0 but usage exists
+          try {
+            const insertResult = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+              },
+              body: JSON.stringify({
+                sql: `INSERT INTO api_call_events (call_id, service, operation, usage_amount, usage_unit, unit_cost, total_cost, created_at)
+                      VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
+                params: [this.callId, service, operation, usageAmount, usageUnit, unitCost, cost]
+              })
+            });
+            if (insertResult.ok) {
+              insertedCount++;
+            } else {
+              console.error(`[VoicePipeline ${this.callId}] Failed to insert ${service}/${operation} cost:`, await insertResult.text());
+            }
+          } catch (insertError) {
+            console.error(`[VoicePipeline ${this.callId}] INSERT error for ${service}/${operation}:`, insertError);
+          }
         }
       }
 
-      console.log(`[VoicePipeline ${this.callId}] ✅ Cost breakdown logged to api_call_events`);
-
-      // Run post-call evaluation to extract and store facts
-      await this.runPostCallEvaluation();
+      console.log(`[VoicePipeline ${this.callId}] ✅ Cost breakdown logged (${insertedCount}/${services.length} services) - Chat: ${this.costTracking.cerebrasChatTokens} tokens, Extraction: ${this.costTracking.cerebrasExtractionTokens} tokens`);
 
     } catch (error) {
       console.error(`[VoicePipeline ${this.callId}] Error saving call completion:`, error);
@@ -2208,6 +2389,15 @@ Example:
       }
 
       const data = await response.json();
+
+      // Track Cerebras extraction tokens (uses 70b model)
+      if (data.usage) {
+        const tokens = data.usage.total_tokens || 0;
+        this.costTracking.cerebrasExtractionTokens += tokens;
+        this.costTracking.cerebrasTokens += tokens;  // Legacy total
+        console.log(`[PostCallEval ${this.callId}] Cerebras extraction: ${tokens} tokens (total extraction: ${this.costTracking.cerebrasExtractionTokens})`);
+      }
+
       const text = data.choices?.[0]?.message?.content || '[]';
 
       let jsonText = text.trim();
@@ -2460,7 +2650,9 @@ class BrowserVoicePipeline {
     this.costTracking = {
       deepgramMinutes: 0,
       elevenLabsCharacters: 0,
-      cerebrasTokens: 0,
+      cerebrasTokens: 0,  // Legacy total (sum of chat + extraction)
+      cerebrasChatTokens: 0,  // Main conversation responses (llama3.1-8b)
+      cerebrasExtractionTokens: 0,  // Post-call fact extraction (llama-3.3-70b)
       sessionDuration: 0
     };
 
@@ -2476,7 +2668,7 @@ class BrowserVoicePipeline {
           'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
         },
         body: JSON.stringify({
-          sql: `SELECT name, core_system_prompt, default_voice_id, max_tokens, temperature, max_call_duration FROM personas WHERE id = $1`,
+          sql: `SELECT name, core_system_prompt, default_voice_id, max_tokens, temperature, max_call_duration, llm_model FROM personas WHERE id = $1`,
           params: [this.personaId]
         })
       });
@@ -2490,6 +2682,7 @@ class BrowserVoicePipeline {
           this.systemPrompt = this.overrides.core_system_prompt || row.core_system_prompt;
           this.maxTokens = this.overrides.max_tokens ?? row.max_tokens ?? 100;
           this.temperature = this.overrides.temperature ?? row.temperature ?? 0.7;
+          this.llmModel = this.overrides.llm_model ?? row.llm_model ?? 'llama3.1-8b';
 
           // Update max session duration from persona settings (convert minutes to milliseconds)
           // Priority: override > persona setting > default (15)
@@ -2987,7 +3180,7 @@ class BrowserVoicePipeline {
       const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.CEREBRAS_API_KEY}` },
-        body: JSON.stringify({ model: 'llama3.1-8b', messages, max_tokens: this.maxTokens, temperature: this.temperature })
+        body: JSON.stringify({ model: this.llmModel, messages, max_tokens: this.maxTokens, temperature: this.temperature })
       });
 
       const data = await response.json();
@@ -2998,8 +3191,13 @@ class BrowserVoicePipeline {
         // Phase 2: Start tracking this response in case of interruption
         this.partialResponse = aiResponse;
 
-        // Track cost: Cerebras tokens (estimate)
-        this.costTracking.cerebrasTokens += Math.ceil(aiResponse.length / 4);
+        // Track Cerebras chat tokens (use actual API usage, not estimate)
+        if (data.usage) {
+          const tokens = data.usage.total_tokens || 0;
+          this.costTracking.cerebrasChatTokens += tokens;
+          this.costTracking.cerebrasTokens += tokens;  // Legacy total
+          console.log(`[BrowserPipeline ${this.sessionId}] Cerebras chat: ${tokens} tokens (total chat: ${this.costTracking.cerebrasChatTokens})`);
+        }
         this.costTracking.elevenLabsCharacters += aiResponse.length;
 
         this.conversationHistory.push({ role: 'assistant', content: aiResponse });
@@ -3224,20 +3422,26 @@ class BrowserVoicePipeline {
   }
 
   calculateEstimatedCost() {
-    // Pricing (as of 2025)
-    const DEEPGRAM_COST_PER_MIN = 0.0043; // Nova-3 pricing
-    const ELEVENLABS_COST_PER_1K_CHARS = 0.18; // Turbo v2.5
-    const CEREBRAS_COST_PER_1M_TOKENS = 0.10; // Llama 3.1 8B
+    // Get prices from DB cache (with fallbacks)
+    const deepgramPrice = servicePricing.getPrice('deepgram', 'transcription');
+    const elevenlabsPrice = servicePricing.getPrice('elevenlabs', 'tts');
+    // Use model-specific pricing for chat (llama3.1-8b or llama-3.3-70b)
+    const cerebrasChatPrice = servicePricing.getPrice('cerebras', this.llmModel || 'llama3.1-8b');
+    const cerebrasExtractionPrice = servicePricing.getPrice('cerebras', 'extraction');
 
-    const deepgramCost = this.costTracking.deepgramMinutes * DEEPGRAM_COST_PER_MIN;
-    const elevenlabsCost = (this.costTracking.elevenLabsCharacters / 1000) * ELEVENLABS_COST_PER_1K_CHARS;
-    const cerebrasCost = (this.costTracking.cerebrasTokens / 1000000) * CEREBRAS_COST_PER_1M_TOKENS;
+    const deepgramCost = this.costTracking.deepgramMinutes * deepgramPrice.unitPrice;
+    const elevenlabsCost = this.costTracking.elevenLabsCharacters * elevenlabsPrice.unitPrice;
+    const cerebrasChatCost = this.costTracking.cerebrasChatTokens * cerebrasChatPrice.unitPrice;
+    const cerebrasExtractionCost = this.costTracking.cerebrasExtractionTokens * cerebrasExtractionPrice.unitPrice;
 
     return {
       deepgram: deepgramCost,
       elevenlabs: elevenlabsCost,
-      cerebras: cerebrasCost,
-      total: deepgramCost + elevenlabsCost + cerebrasCost
+      cerebras: cerebrasChatCost + cerebrasExtractionCost,  // Combined for backwards compat
+      cerebrasChatCost,
+      cerebrasExtractionCost,
+      llmModel: this.llmModel || 'llama3.1-8b',  // Track which model was used
+      total: deepgramCost + elevenlabsCost + cerebrasChatCost + cerebrasExtractionCost
     };
   }
 
@@ -3322,34 +3526,63 @@ class BrowserVoicePipeline {
 
       console.log(`[BrowserPipeline ${this.sessionId}] ✅ Call marked as completed - Duration: ${durationSeconds}s, Cost: $${costEstimate.total.toFixed(4)}`);
 
+      // Run post-call evaluation FIRST to get extraction token count
+      await this.runPostCallEvaluation();
+
+      // Refresh pricing cache if stale
+      await servicePricing.refreshIfStale();
+
+      // Get current prices from database (with fallbacks)
+      // Use model-specific pricing for chat (llama3.1-8b or llama-3.3-70b)
+      const deepgramPrice = servicePricing.getPrice('deepgram', 'transcription');
+      const elevenlabsPrice = servicePricing.getPrice('elevenlabs', 'tts');
+      const chatModel = this.llmModel || 'llama3.1-8b';
+      const cerebrasChatPrice = servicePricing.getPrice('cerebras', chatModel);
+      const cerebrasExtractionPrice = servicePricing.getPrice('cerebras', 'extraction');
+
+      // Calculate costs using DB prices
+      const deepgramCost = this.costTracking.deepgramMinutes * deepgramPrice.unitPrice;
+      const elevenlabsCost = this.costTracking.elevenLabsCharacters * elevenlabsPrice.unitPrice;
+      const cerebrasChatCost = this.costTracking.cerebrasChatTokens * cerebrasChatPrice.unitPrice;
+      const cerebrasExtractionCost = this.costTracking.cerebrasExtractionTokens * cerebrasExtractionPrice.unitPrice;
+
       // Log individual service costs to api_call_events table
+      // Include model name in operation for cost tracking visibility
       const services = [
-        { service: 'deepgram', cost: costEstimate.deepgram, operation: 'transcription', usageAmount: this.costTracking.deepgramMinutes, usageUnit: 'minutes', unitCost: 0.0043 },
-        { service: 'elevenlabs', cost: costEstimate.elevenlabs, operation: 'tts', usageAmount: this.costTracking.elevenLabsCharacters, usageUnit: 'characters', unitCost: 0.00003 },
-        { service: 'cerebras', cost: costEstimate.cerebras, operation: 'inference', usageAmount: this.costTracking.cerebrasTokens || 0, usageUnit: 'tokens', unitCost: 0.0000001 }
+        { service: 'deepgram', cost: deepgramCost, operation: 'transcription', usageAmount: this.costTracking.deepgramMinutes, usageUnit: 'minutes', unitCost: deepgramPrice.unitPrice },
+        { service: 'elevenlabs', cost: elevenlabsCost, operation: 'tts', usageAmount: this.costTracking.elevenLabsCharacters, usageUnit: 'characters', unitCost: elevenlabsPrice.unitPrice },
+        { service: 'cerebras', cost: cerebrasChatCost, operation: `chat:${chatModel}`, usageAmount: this.costTracking.cerebrasChatTokens || 0, usageUnit: 'tokens', unitCost: cerebrasChatPrice.unitPrice },
+        { service: 'cerebras', cost: cerebrasExtractionCost, operation: 'extraction', usageAmount: this.costTracking.cerebrasExtractionTokens || 0, usageUnit: 'tokens', unitCost: cerebrasExtractionPrice.unitPrice }
       ];
 
+      let insertedCount = 0;
       for (const { service, cost, operation, usageAmount, usageUnit, unitCost } of services) {
-        if (cost > 0) {
-          await fetch(`${env.VULTR_DB_API_URL}/query`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
-            },
-            body: JSON.stringify({
-              sql: `INSERT INTO api_call_events (call_id, service, operation, usage_amount, usage_unit, unit_cost, total_cost, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
-              params: [this.callId, service, operation, usageAmount, usageUnit, unitCost, cost]
-            })
-          });
+        if (cost > 0 || usageAmount > 0) {  // Log even if cost is 0 but usage exists
+          try {
+            const insertResult = await fetch(`${env.VULTR_DB_API_URL}/query`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${env.VULTR_DB_API_KEY}`
+              },
+              body: JSON.stringify({
+                sql: `INSERT INTO api_call_events (call_id, service, operation, usage_amount, usage_unit, unit_cost, total_cost, created_at)
+                      VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
+                params: [this.callId, service, operation, usageAmount, usageUnit, unitCost, cost]
+              })
+            });
+            if (insertResult.ok) {
+              insertedCount++;
+            } else {
+              console.error(`[BrowserPipeline ${this.sessionId}] Failed to insert ${service}/${operation} cost:`, await insertResult.text());
+            }
+          } catch (insertError) {
+            console.error(`[BrowserPipeline ${this.sessionId}] INSERT error for ${service}/${operation}:`, insertError);
+          }
         }
       }
 
-      console.log(`[BrowserPipeline ${this.sessionId}] ✅ Cost breakdown logged to api_call_events`);
-
-      // Run post-call evaluation to extract and store facts
-      await this.runPostCallEvaluation();
+      console.log(`[BrowserPipeline ${this.sessionId}] ✅ Cost breakdown logged (${insertedCount}/${services.length} services) - Chat: ${this.costTracking.cerebrasChatTokens} tokens, Extraction: ${this.costTracking.cerebrasExtractionTokens} tokens`);
 
     } catch (error) {
       console.error(`[BrowserPipeline ${this.sessionId}] Error saving call completion:`, error);
@@ -3492,6 +3725,15 @@ Example:
       }
 
       const data = await response.json();
+
+      // Track Cerebras extraction tokens (uses 70b model)
+      if (data.usage) {
+        const tokens = data.usage.total_tokens || 0;
+        this.costTracking.cerebrasExtractionTokens += tokens;
+        this.costTracking.cerebrasTokens += tokens;  // Legacy total
+        console.log(`[PostCallEval ${this.sessionId}] Cerebras extraction: ${tokens} tokens (total extraction: ${this.costTracking.cerebrasExtractionTokens})`);
+      }
+
       const text = data.choices?.[0]?.message?.content || '[]';
 
       // Parse JSON - handle potential markdown code blocks
@@ -3697,9 +3939,12 @@ browserWss.on('connection', async (ws) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`✅ Voice Pipeline running on port ${PORT}`);
   console.log(`   Twilio WebSocket: ws://localhost:${PORT}/stream`);
   console.log(`   Browser WebSocket: ws://localhost:${PORT}/browser-stream`);
   console.log(`   Health: http://localhost:${PORT}/health`);
+
+  // Load service pricing from database on startup
+  await servicePricing.loadFromDatabase();
 });

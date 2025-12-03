@@ -86,6 +86,7 @@ export default class extends Service<Env> {
     voice?: string;
     temperature?: number;
     max_tokens?: number;
+    llm_model?: string;
     max_call_duration?: number;
   }): Promise<void> {
     try {
@@ -93,7 +94,7 @@ export default class extends Service<Env> {
 
       // Map API field names to database field names
       const dbUpdates: any = {};
-      
+
       if (updates.systemPrompt !== undefined) {
         dbUpdates.core_system_prompt = updates.systemPrompt;
       }
@@ -105,6 +106,9 @@ export default class extends Service<Env> {
       }
       if (updates.max_tokens !== undefined) {
         dbUpdates.max_tokens = updates.max_tokens;
+      }
+      if (updates.llm_model !== undefined) {
+        dbUpdates.llm_model = updates.llm_model;
       }
       if (updates.max_call_duration !== undefined) {
         dbUpdates.max_call_duration = updates.max_call_duration;
