@@ -147,10 +147,19 @@
                 <div
                   v-for="(fact, index) in (contactFacts[contact.id] || [])"
                   :key="index"
-                  class="flex items-center gap-2 group"
+                  class="flex items-start gap-2 group"
                 >
-                  <div class="flex-1 px-3 py-2 bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg text-sm text-[#ccc]">
-                    {{ fact }}
+                  <div class="flex-1 px-3 py-2 bg-[#1a1a1e] border border-[#2a2a2e] rounded-lg">
+                    <div class="flex items-start gap-2">
+                      <span
+                        v-if="getFactCategory(fact)"
+                        class="shrink-0 px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide"
+                        :class="getCategoryStyle(getFactCategory(fact))"
+                      >
+                        {{ getFactCategory(fact) }}
+                      </span>
+                      <span class="text-sm text-[#ccc]">{{ getFactText(fact) }}</span>
+                    </div>
                   </div>
                   <button
                     @click="removeFact(contact.id, index)"
@@ -438,10 +447,13 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { usePersonasStore } from '../stores/personas'
+import { useAuthStore } from '../stores/auth'
 import { useToast } from '../stores/toast'
 
 const personasStore = usePersonasStore()
+const authStore = useAuthStore()
 const toast = useToast()
+const API_BASE = import.meta.env.VITE_API_URL
 
 // State
 const loading = ref(true)
@@ -489,6 +501,29 @@ const relationshipStyles = [
   { id: 'balanced', label: 'Balanced' },
   { id: 'challenging', label: 'Challenging' }
 ]
+
+// Helper functions for displaying facts
+const getFactText = (fact) => {
+  if (typeof fact === 'string') return fact
+  return fact.content || fact.fact || JSON.stringify(fact)
+}
+
+const getFactCategory = (fact) => {
+  if (typeof fact === 'string') return null
+  return fact.category || null
+}
+
+const getCategoryStyle = (category) => {
+  const styles = {
+    personal: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
+    work: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+    relationships: 'bg-pink-500/20 text-pink-400 border border-pink-500/30',
+    health: 'bg-green-500/20 text-green-400 border border-green-500/30',
+    goals: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+    preferences: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+  }
+  return styles[category?.toLowerCase()] || 'bg-gray-500/20 text-gray-400 border border-gray-500/30'
+}
 
 // Computed
 const filteredPersonas = computed(() => {
@@ -567,28 +602,79 @@ const removeContact = (contactId, contactName) => {
   openRemoveConfirm(contactId, contactName)
 }
 
-// Fact management (stored in localStorage for now)
-const loadContactFacts = () => {
-  try {
-    const saved = localStorage.getItem('cmb_contact_facts')
-    if (saved) contactFacts.value = JSON.parse(saved)
-    const savedStyles = localStorage.getItem('cmb_contact_styles')
-    if (savedStyles) contactStyles.value = JSON.parse(savedStyles)
-  } catch (e) {
-    console.warn('Failed to load contact facts:', e)
+// Fact management - synced with backend KV storage
+// Key pattern: user_context:{userId}:{personaId} (matches voice pipeline)
+const loadContactFacts = async () => {
+  const userId = authStore.user?.id
+  if (!userId) return
+
+  const token = localStorage.getItem('token')
+  if (!token) return
+
+  // Load facts for all user contacts
+  for (const contact of personasStore.userContacts || []) {
+    const key = `user_context:${userId}:${contact.id}`
+    try {
+      const response = await fetch(`${API_BASE}/api/userdata/${encodeURIComponent(key)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (response.ok) {
+        const result = await response.json()
+        if (result.data?.facts) {
+          contactFacts.value[contact.id] = result.data.facts
+        }
+        if (result.data?.style) {
+          contactStyles.value[contact.id] = result.data.style
+        }
+      }
+    } catch (e) {
+      console.warn(`Failed to load facts for ${contact.id}:`, e)
+    }
   }
 }
 
-const saveContactFacts = () => {
+const saveContactFactsForPersona = async (personaId) => {
+  const userId = authStore.user?.id
+  if (!userId) return
+
+  const token = localStorage.getItem('token')
+  if (!token) return
+
+  const key = `user_context:${userId}:${personaId}`
+
   try {
-    localStorage.setItem('cmb_contact_facts', JSON.stringify(contactFacts.value))
-    localStorage.setItem('cmb_contact_styles', JSON.stringify(contactStyles.value))
+    // Load existing data first to preserve other fields (callPretext, relationshipPrompt, etc.)
+    let existingData = {}
+    const getResponse = await fetch(`${API_BASE}/api/userdata/${encodeURIComponent(key)}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (getResponse.ok) {
+      const result = await getResponse.json()
+      existingData = result.data || {}
+    }
+
+    // Merge with new facts data
+    const value = {
+      ...existingData,
+      facts: contactFacts.value[personaId] || [],
+      style: contactStyles.value[personaId] || null,
+      updatedAt: new Date().toISOString()
+    }
+
+    await fetch(`${API_BASE}/api/userdata`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ key, value })
+    })
   } catch (e) {
-    console.warn('Failed to save contact facts:', e)
+    console.warn(`Failed to save facts for ${personaId}:`, e)
   }
 }
 
-const addFact = (contactId) => {
+const addFact = async (contactId) => {
   const fact = newFactInputs.value[contactId]?.trim()
   if (!fact) return
 
@@ -597,14 +683,14 @@ const addFact = (contactId) => {
   }
   contactFacts.value[contactId].push(fact)
   newFactInputs.value[contactId] = ''
-  saveContactFacts()
+  await saveContactFactsForPersona(contactId)
   toast.success('Fact added')
 }
 
-const removeFact = (contactId, index) => {
+const removeFact = async (contactId, index) => {
   if (contactFacts.value[contactId]) {
     contactFacts.value[contactId].splice(index, 1)
-    saveContactFacts()
+    await saveContactFactsForPersona(contactId)
   }
 }
 
@@ -622,14 +708,14 @@ const closePresetModal = () => {
   presetModal.value = { open: false, contactId: null, label: '', prompt: '', value: '' }
 }
 
-const submitPresetModal = () => {
+const submitPresetModal = async () => {
   const { contactId, value } = presetModal.value
   if (value?.trim()) {
     if (!contactFacts.value[contactId]) {
       contactFacts.value[contactId] = []
     }
     contactFacts.value[contactId].push(value.trim())
-    saveContactFacts()
+    await saveContactFactsForPersona(contactId)
     toast.success('Fact added')
   }
   closePresetModal()
@@ -639,16 +725,17 @@ const addPresetFact = (contactId, label, prompt) => {
   openPresetModal(contactId, label, prompt)
 }
 
-const setRelationshipStyle = (contactId, styleId) => {
+const setRelationshipStyle = async (contactId, styleId) => {
   contactStyles.value[contactId] = styleId
-  saveContactFacts()
+  await saveContactFactsForPersona(contactId)
 }
 
 // Lifecycle
 onMounted(async () => {
-  loadContactFacts()
   loading.value = true
   await personasStore.fetchContacts()
+  // Load facts after contacts are fetched (needs persona IDs)
+  await loadContactFacts()
   loading.value = false
 })
 </script>
