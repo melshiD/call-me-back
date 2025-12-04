@@ -934,12 +934,13 @@ const verifyCode = async () => {
       throw new Error(data.error || 'Invalid verification code')
     }
 
-    // Update local user state
+    // Update local user state and persist to localStorage
     authStore.user = {
       ...authStore.user,
       phone: e164Phone,
-      phone_verified: true
+      phoneVerified: true
     }
+    localStorage.setItem('user', JSON.stringify(authStore.user))
 
     // Add to phones store with nickname (make primary if first number)
     const isFirstNumber = phonesStore.verifiedPhones.length === 0

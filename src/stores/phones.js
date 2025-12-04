@@ -171,7 +171,7 @@ export const usePhonesStore = defineStore('phones', () => {
   // Sync with user data from auth store
   // Called when user logs in to ensure their verified phone is in the list
   const syncWithUser = (user) => {
-    if (user?.phone && user?.phone_verified) {
+    if (user?.phone && user?.phoneVerified) {
       // Only add if not already present
       if (!hasPhone(user.phone)) {
         addVerifiedPhone(user.phone, 'My Phone', true)
