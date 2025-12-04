@@ -117,7 +117,7 @@
 
 This core innovation brings us **sub-1000ms voice-to-voice latency** through streaming everything.
 
-![Voice Call Flow](documentation/diagrams/voice_call_flow_complete.png)
+![Voice Call Flow](eval_images/voice_call_flow_complete.png)
 *Complete call flow: From button click through Twilio, Voice Pipeline, Deepgram STT, Cerebras inference, ElevenLabs TTS, and back to the user's phone*
 
 The sequence diagram above shows the full journey of a call:
@@ -134,7 +134,7 @@ The sequence diagram above shows the full journey of a call:
 
 Before each AI response, we assemble a rich system prompt from multiple data sources. This isn't a static prompt—it's dynamically built for each call based on who's calling, why they're calling, and everything the AI knows about them.
 
-<img src="documentation/diagrams/prompt_injection.svg" alt="Prompt Injection Architecture" width="600">
+<img src="eval_images/prompt_injection.svg" alt="Prompt Injection Architecture" width="600">
 
 The 5 layers combine to create contextual, personalized responses:
 - **Layer 1 (Core Identity):** The persona's personality, speaking style, and behavioral guidelines
