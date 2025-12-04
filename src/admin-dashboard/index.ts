@@ -8,6 +8,32 @@ import { Env } from './raindrop.gen';
  * REASON: ServiceStub.fetch() has "Illegal invocation" binding issues in Cloudflare Workers
  * SOLUTION: Follow Raindrop pattern - expose public methods called directly from api-gateway
  * REFERENCE: documentation/domain/raindrop.md lines 274-298
+ *
+ * =============================================================================
+ * TODO: ACCOUNTING REVIEW NEEDED (2025-12-03)
+ * =============================================================================
+ * The following financial calculations need review by an accountant:
+ *
+ * 1. CREDIT EXPOSURE / OUTSTANDING LIABILITY
+ *    - Currently: userCredits.totalBalance * avgCostPerMinute
+ *    - Question: Is this the right way to calculate fulfillment liability?
+ *    - Should prepaid credits be treated as deferred revenue?
+ *
+ * 2. PROJECTED NET PROFIT
+ *    - Currently: revenue.period - outstandingLiability (missing apiCosts?)
+ *    - Question: Should liability be subtracted from period profit at all,
+ *      since credits may be used over multiple periods?
+ *
+ * 3. COST COMPOSITION DISPLAY
+ *    - Possible dollar formatting issues in frontend display
+ *    - Verify units are consistent (cents vs dollars)
+ *
+ * 4. MONTHLY RECURRING COSTS
+ *    - Not currently factored in (Raindrop, Vultr, Vercel, etc.)
+ *    - Should these be amortized per-call or shown separately?
+ *
+ * DO NOT modify financial calculations without accounting guidance.
+ * =============================================================================
  */
 export default class extends Service<Env> {
 
