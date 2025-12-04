@@ -43,3 +43,19 @@ Good overview! Let me unpack this and give you my thoughts:
   - Cards show persona name + relationship type + quick actions
   - Click card → Modal with Layer 3/4 editing
   - Larger fonts, accessibility-focused as you mentioned
+
+
+I think we should design around an experience.  What is it like to visit my repo?
+The top should have a brief header to orient the reader, with a large heading and, in smaller font, our one-or-two sentence tagline for the app.  The heading should include the partner badges as well as a bold sentence stating that the was built and submitted during the Devpost AI Champion Ship hackathon. 
+(Check out annu12340/Haven repo on github to see what a winning submission might look like.  I think we can be even heavier hitting!  We need to spruce our probelem statement)
+
+Under this we grab attention with  a colorful image from our homepage.  I will supply an image. (all images should be accommpanied with proper metadata and be accessible)
+
+
+
+
+
+
+
+(unsure about twilio)
+Then I started to realize something.  Now that the phone was ringing, the personas were dialed right into that'ol brainstem.  And all of the suprise and premonition we experience as smart phone users; those feelings are now being produced by and originating from CallbackApp AI.  And once that settles in; once you realize that the app is supplying many of the positive elements of smartphone usership (specifically getting call), it dawns on you that this is NOT a normal smartphone usership experience; this is an experience you've had control over the entire time!  You still get the bump of excitement even if you planned it for yourself and knew it was coming.
