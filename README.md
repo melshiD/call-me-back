@@ -32,7 +32,7 @@
 
 ---
 
-![CallbackApp AI Homepage](eval_images/hero_section.png)
+![CallbackApp AI Homepage](submission_docs/images/hero_section.png)
 *AI companions you can actually call—and who remember you.*
 
 ---
@@ -72,7 +72,7 @@
 
 ## The User Experience
 
-![User Flow - From contacts to call to transcript](eval_images/user_flow.png)
+![User Flow - From contacts to call to transcript](submission_docs/images/user_flow.png)
 *The complete user journey: Configure your relationship → Schedule a call → Receive the call → Review transcripts*
 
 ---
@@ -117,7 +117,7 @@
 
 This core innovation brings us **sub-1000ms voice-to-voice latency** through streaming everything.
 
-![Voice Call Flow](eval_images/voice_call_flow_complete.png)
+![Voice Call Flow](submission_docs/images/voice_call_flow_complete.png)
 *Complete call flow: From button click through Twilio, Voice Pipeline, Deepgram STT, Cerebras inference, ElevenLabs TTS, and back to the user's phone*
 
 The sequence diagram above shows the full journey of a call:
@@ -134,7 +134,7 @@ The sequence diagram above shows the full journey of a call:
 
 Before each AI response, we assemble a rich system prompt from multiple data sources. This isn't a static prompt—it's dynamically built for each call based on who's calling, why they're calling, and everything the AI knows about them.
 
-<img src="eval_images/prompt_injection.svg" alt="Prompt Injection Architecture" width="600">
+<img src="submission_docs/images/prompt_injection.svg" alt="Prompt Injection Architecture" width="600">
 
 The 5 layers combine to create contextual, personalized responses:
 - **Layer 1 (Core Identity):** The persona's personality, speaking style, and behavioral guidelines
@@ -149,7 +149,7 @@ The 5 layers combine to create contextual, personalized responses:
 
 Beyond the user-facing app, we built a comprehensive admin tool for designing and debugging personas. This is where the prompt engineering happens.
 
-![Persona Designer Dashboard](eval_images/persona_designer.png)
+![Persona Designer Dashboard](submission_docs/images/persona_designer.png)
 *The Persona Designer showing Alex's configuration: core prompt editor, live "Compiled Final Prompt" preview, and 43 extracted user facts*
 
 **What makes this powerful:**
