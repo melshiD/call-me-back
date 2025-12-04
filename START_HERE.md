@@ -1,4 +1,4 @@
-# Start Here - Call Me Back Quick Context
+# Start Here - CallbackApp AI Quick Context
 
 **Purpose:** Minimal context to get started. Read domain docs as needed for your specific task.
 
@@ -249,7 +249,7 @@ call-me-back/
 
 ## One-Line Summary for Bots
 
-"Call Me Back" is a Vue 3 + Raindrop + Vultr app for AI voice calls. Read domain docs in `documentation/domain/` on-demand for your specific task. Start with `debugging.md` if debugging (organized by symptom), or the relevant domain doc for your area of work.
+"CallbackApp AI" is a Vue 3 + Raindrop + Vultr app for AI voice calls. Read domain docs in `documentation/domain/` on-demand for your specific task. Start with `debugging.md` if debugging (organized by symptom), or the relevant domain doc for your area of work.
 
 Now that you have an understanding of what this app is and how to navigate youself to the resoures you need to work on it, return to the user to ask them what they want to focus on this session.  The user will have a primary focus, but may have a secondary and terciary as well.  He will tell you if this is the case, or you can infer from his answer.
 
