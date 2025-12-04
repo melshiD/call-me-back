@@ -1,3 +1,5 @@
+> **Navigation:** [← Back to README](../README.md) | [Documentation Catalog](./CATALOG.md)
+
 # Punchlist
 **Created:** 2025-11-26 01:34 EST
 **Purpose:** Running list of items to fix/implement later - not blocking, but should be addressed
@@ -547,14 +549,14 @@ jobs:
 **Quick Alternative: Vultr Build Box**
 ```bash
 # One-time setup on Vultr (already have server)
-ssh root@144.202.15.249
+ssh root@[VULTR_VPS_IP]
 mkdir -p /root/build-env && cd /root/build-env
 git clone <repo>
 npm install -g @anthropic-ai/raindrop
 raindrop auth login
 
 # To deploy:
-ssh root@144.202.15.249 "cd /root/build-env/call-me-back && git pull && raindrop build deploy"
+ssh root@[VULTR_VPS_IP] "cd /root/build-env/call-me-back && git pull && raindrop build deploy"
 ```
 
 **Files to Create:**
@@ -651,3 +653,7 @@ if (GOODBYE_PATTERNS.test(lastUserMessage) && GOODBYE_PATTERNS.test(lastAIRespon
 ## Completed Items
 _(Move items here when done)_
 
+
+---
+
+> **Navigation:** [← Back to README](../README.md) | [Documentation Catalog](./CATALOG.md)

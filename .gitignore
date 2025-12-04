@@ -41,3 +41,5 @@ wysbd*
 after_midterm
 *.sh
 feature-to-add*
+.env.production
+.env.vercel.production

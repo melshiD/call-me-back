@@ -1,284 +1,366 @@
+<!--
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  📋 DAVID'S TODO - DELETE THIS SECTION BEFORE SUBMISSION                      ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  [ ] Demo video URL - replace <!-- VIDEO_URL -->                             ║
+║  [ ] Video thumbnail - replace <!-- VIDEO_THUMBNAIL --> (or use hero image)  ║
+║  [ ] GitHub username - replace <!-- GITHUB_USERNAME --> (3 places)           ║
+║  [ ] LinkedIn URL - replace <!-- LINKEDIN_URL --> (2 places)                 ║
+║  [ ] Email address - replace <!-- EMAIL --> in Judges Letter                 ║
+║  [ ] Verify coupon code DEVPOSTJUDGE2025 works and has 50 min credit         ║
+║  [ ] Review closing thoughts - personalize if desired                        ║
+║  [ ] Delete this TODO block                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+-->
+
 # CallbackApp AI
 
-**AI Voice Companions That Call You Back**
-
-A production-ready AI voice calling platform where users receive phone calls from customizable AI personas. Built for the [Raindrop AI Championship Hackathon](https://devpost.com/).
-
-**Live App:** [https://callbackapp.ai](https://callbackapp.ai)
+**Your AI companion, just a phone call away.**
 
 ---
 
-## What It Does
+[![Built for AI Championship](https://img.shields.io/badge/Hackathon-AI_Championship_2025-gold?style=for-the-badge)](https://liquidmetal.devpost.com/)
 
-Call Me Back enables real-time AI voice conversations over the phone:
+[![Cloudflare Raindrop](https://img.shields.io/badge/Built_with-Raindrop-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://raindrop.run)
+[![Vultr](https://img.shields.io/badge/Powered_by-Vultr-007BFC?style=for-the-badge&logo=vultr&logoColor=white)](https://www.vultr.com/)
+[![Cerebras](https://img.shields.io/badge/Inference-Cerebras-FF6B00?style=for-the-badge)](https://cerebras.ai/)
+[![Deepgram](https://img.shields.io/badge/STT-Deepgram-13EF93?style=for-the-badge)](https://deepgram.com/)
+[![ElevenLabs](https://img.shields.io/badge/TTS-ElevenLabs-000000?style=for-the-badge)](https://elevenlabs.io/)
+[![Twilio](https://img.shields.io/badge/Voice-Twilio-F22F46?style=for-the-badge&logo=twilio&logoColor=white)](https://www.twilio.com/)
 
-- **Schedule calls** from AI personas (Brad the Coach, Sarah the Friend, Alex the Creative)
-- **Receive inbound calls** - call your persona directly at their Twilio number
-- **Persistent memory** - personas remember facts about you across conversations
-- **Per-persona customization** - adjust prompts, voices, and LLM models
-- **Real-time transcription** - see live conversation transcripts
-- **Cost tracking** - per-call cost breakdown with budget controls
+**Built for and submitted to the [AI Championship Hackathon](https://liquidmetal.devpost.com/) by LiquidMetal.AI + Vultr**
 
 ---
 
-## Architecture
+![CallbackApp AI Homepage](eval_images/hero_section.png)
+*AI companions you can actually call—and who remember you.*
 
-![Call Flow Sequence Diagram](eval_images/screenshot_20251130_013719.png)
+---
 
-### Multi-Cloud Design
+## The Problem
 
-The system runs across three cloud platforms due to technical constraints:
+**Loneliness is an epidemic.** 60% of US adults report feeling lonely. People need someone to talk to—not type at.
 
-| Platform | Purpose | Why Here |
-|----------|---------|----------|
-| **Vercel** | Vue 3 Frontend | Static hosting, global CDN |
-| **Raindrop (Cloudflare Workers)** | 12 Microservices | Serverless API, auth, orchestration |
-| **Vultr VPS** | Voice Pipeline + PostgreSQL | Workers can't make outbound WebSockets |
+**Chat isn't enough.** Text-based AI feels transactional. Voice creates presence, warmth, connection.
 
-### Voice Pipeline Flow
+**Existing solutions forget you.** Every conversation starts from zero. There's no relationship, no continuity, no one who knows your dog's name.
+
+---
+
+## The Solution
+
+**CallbackApp AI** gives you AI companions you can actually *call*—and who *remember* you.
+
+| Feature | Description |
+|---------|-------------|
+| **Real phone calls** | Your phone rings. You answer. You talk. |
+| **Persistent memory** | The AI remembers your life—your job, your family, your ongoing situations |
+| **Scheduled callbacks** | Daily check-ins, wake-up calls, accountability reminders |
+| **Custom personas** | Create AI friends with the personality you want |
+| **Sub-second responses** | Natural conversation flow powered by Cerebras |
+
+---
+
+## See It In Action
+
+<!-- VIDEO: Replace with your demo video thumbnail when ready -->
+[![Watch the Demo Video](<!-- VIDEO_THUMBNAIL -->)](<!-- VIDEO_URL -->)
+
+*3-minute walkthrough of the complete experience*
+
+---
+
+## The User Experience
+
+![User Flow - From contacts to call to transcript](eval_images/user_flow.png)
+*The complete user journey: Configure your relationship → Schedule a call → Receive the call → Review transcripts*
+
+---
+
+## Under the Hood
+
+### Architecture Overview
 
 ```
-User speaks → Twilio (phone) → Voice Pipeline (Vultr)
-                                      ↓
-                              Deepgram Flux (STT)
-                                      ↓
-                              Cerebras AI (LLM)
-                                      ↓
-                              ElevenLabs (TTS)
-                                      ↓
-                              Twilio → User hears response
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           CALLBACKAPP AI ARCHITECTURE                        │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│   ┌──────────────┐     ┌──────────────────────────────────────────────┐    │
+│   │   VERCEL     │     │         CLOUDFLARE RAINDROP                  │    │
+│   │   Vue 3 SPA  │────▶│  12 Microservices + SmartSQL + KV Cache      │    │
+│   └──────────────┘     └──────────────────────────────────────────────┘    │
+│                                         │                                   │
+│                                         ▼                                   │
+│                        ┌────────────────────────────────┐                  │
+│                        │         VULTR VPS              │                  │
+│                        │  ┌─────────────────────────┐   │                  │
+│                        │  │    Voice Pipeline       │   │                  │
+│                        │  │  Twilio ↔ Deepgram ↔    │   │                  │
+│                        │  │  Cerebras ↔ ElevenLabs  │   │                  │
+│                        │  └─────────────────────────┘   │                  │
+│                        │  ┌─────────────────────────┐   │                  │
+│                        │  │    PostgreSQL 14        │   │                  │
+│                        │  └─────────────────────────┘   │                  │
+│                        └────────────────────────────────┘                  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Latency:** Sub-1-second responses using Cerebras inference + Deepgram Flux turn-taking
+**Why multi-cloud?** Cloudflare Workers can't make outbound WebSocket connections—required for real-time voice streaming. We run the voice pipeline on Vultr VPS while keeping the API layer on Raindrop for edge performance.
+
+[View full documentation catalog →](submission_docs/CATALOG.md)
 
 ---
 
-## Key Features
+### The Voice Pipeline
 
-### 1. Deepgram Flux Turn-Taking
-Native end-of-turn detection using Deepgram's Flux model. No silence-based heuristics - the AI knows when you're done speaking.
+This core innovation brings us **sub-1000ms voice-to-voice latency** through streaming everything.
 
-- `EndOfTurn` - User finished speaking
-- `EagerEndOfTurn` - Speculative early response
-- `TurnResumed` - User continued, cancel speculative response
+![Voice Call Flow](documentation/diagrams/voice_call_flow_complete.png)
+*Complete call flow: From button click through Twilio, Voice Pipeline, Deepgram STT, Cerebras inference, ElevenLabs TTS, and back to the user's phone*
 
-### 2. Per-Persona LLM Model Selection
-Choose between speed and intelligence per persona:
+The sequence diagram above shows the full journey of a call:
+1. **Call Initiation** — User clicks "Call Now", API Gateway routes to Call Orchestrator, credits checked, Twilio initiates outbound call
+2. **WebSocket Establishment** — Phone answers, Twilio connects media stream to Voice Pipeline on Vultr
+3. **Real-Time Voice Loop** — Audio streams to Deepgram for transcription, Cerebras generates response in <1 second, ElevenLabs streams audio back
+4. **Call Termination** — Hang up triggers cleanup, credits deducted, call logged to PostgreSQL
 
-| Model | Speed | Cost | Use Case |
-|-------|-------|------|----------|
-| Llama 3.1 8B | Fastest | $0.10/1M tokens | Quick responses, casual chat |
-| Llama 3.3 70B | Fast | $0.60/1M tokens | Complex reasoning, coaching |
+**Key insight:** We use Deepgram Flux for its native turn-taking *events* (`EagerEndOfTurn`, `EndOfTurn`), not just transcription. This enables **speculative response generation**—the AI starts thinking before you finish speaking.
 
-### 3. 4-Layer Prompt Architecture
-Personas use a composable prompt system:
+[Deep dive: Voice Pipeline →](submission_docs/voice-pipeline.md)
 
-1. **Core System Prompt** - Base personality and traits
-2. **Call Context** - Current call situation and goals
-3. **Relationship Context** - History with this user
-4. **User Knowledge** - Facts learned about the user
+#### Prompt Assembly (5-Layer Context Injection)
 
-### 4. Cost Tracking
-Real-time per-call cost calculation:
+Before each AI response, we assemble a rich system prompt from multiple data sources. This isn't a static prompt—it's dynamically built for each call based on who's calling, why they're calling, and everything the AI knows about them.
 
-- Twilio voice minutes
-- Deepgram STT usage
-- Cerebras token consumption
-- ElevenLabs character usage
+<img src="documentation/diagrams/prompt_injection.svg" alt="Prompt Injection Architecture" width="600">
 
-### 5. WorkOS Authentication
-Enterprise-grade OAuth with:
-- Google/GitHub social login
-- Email/password authentication
-- Secure session management
-
-### 6. Stripe Payments
-Production payment processing with:
-- Credit-based billing
-- Coupon codes (JUDGE2025, HACKATHON2025, DEMO2025)
-- Webhook-driven credit allocation
+The 5 layers combine to create contextual, personalized responses:
+- **Layer 1 (Core Identity):** The persona's personality, speaking style, and behavioral guidelines
+- **Layer 2 (Call Context):** Why the user is calling right now ("I need help practicing for a job interview")
+- **Layer 3 (Relationship):** How long they've known each other, the nature of their relationship
+- **Layer 4 (User Knowledge):** Facts extracted from previous conversations (job, family, hobbies, ongoing situations)
+- **Layer 5 (Guidelines):** Phone-specific rules like brevity, natural speech patterns, handling interruptions
 
 ---
 
-## Tech Stack
+### The Persona Designer (Admin Tool)
 
-### Frontend
-- **Vue 3** with Composition API
-- **Pinia** for state management
-- **Tailwind CSS v4** for styling
-- **Vite** for build tooling
+Beyond the user-facing app, we built a comprehensive admin tool for designing and debugging personas. This is where the prompt engineering happens.
 
-### Backend (Raindrop)
-12 microservices on Cloudflare Workers:
+![Persona Designer Dashboard](eval_images/persona_designer.png)
+*The Persona Designer showing Alex's configuration: core prompt editor, live "Compiled Final Prompt" preview, and 43 extracted user facts*
+
+**What makes this powerful:**
+- **Real-time preview:** See exactly what system prompt the AI receives, including all injected context
+- **Layer visibility:** Expand/collapse each layer to understand how context flows
+- **Fact inspection:** View all facts the AI has learned about a user across conversations
+- **Parameter tuning:** Adjust temperature and token limits per-persona for different conversation styles
+- **Multi-persona switching:** Quickly compare how different personas handle the same user context
+
+---
+
+### The 12 Microservices
+
+All running on Cloudflare Raindrop:
 
 | Service | Purpose |
 |---------|---------|
 | `api-gateway` | Request routing, CORS, JWT validation |
-| `auth-manager` | JWT auth, WorkOS OAuth integration |
-| `persona-manager` | Persona CRUD, favorites, customization |
-| `call-orchestrator` | Twilio call lifecycle, scheduling |
-| `database-proxy` | Bridge to Vultr PostgreSQL |
-| `payment-processor` | Stripe integration |
-| `webhook-handler` | Twilio/Stripe webhook processing |
-| `cost-analytics` | Usage tracking, cost calculation |
-| `scheduled-call-executor` | Cron-based call execution |
-| `voice-coordinator` | TwiML generation, stream routing |
-| `admin-dashboard` | Admin API and OAuth |
-| `billing-manager` | Credit management |
+| `auth-manager` | User registration, WorkOS OAuth |
+| `persona-manager` | Persona CRUD, favorites |
+| `call-orchestrator` | Trigger calls, track status |
+| `userdata-manager` | KV-backed user preferences |
+| `payment-processor` | Stripe checkout sessions |
+| `webhook-handler` | Twilio + Stripe webhooks |
+| `database-proxy` | HTTP → PostgreSQL bridge |
+| `log-ingest` | Call logs and analytics |
+| `cost-analytics` | Usage dashboards |
+| `scheduled-call-executor` | Cron-triggered callbacks |
+| `mcp-query-service` | AI-assisted log analysis |
 
-### Voice Pipeline (Vultr)
-- **Node.js** with WebSocket servers
-- **PM2** for process management
-- **Caddy** for SSL termination
+[Full documentation →](submission_docs/CATALOG.md)
 
-### External APIs
-| Service | Purpose | Model |
-|---------|---------|-------|
-| **Twilio** | Phone calls, SMS verification | Programmable Voice |
-| **Deepgram** | Speech-to-text | Flux (streaming) |
-| **Cerebras** | LLM inference | Llama 3.1 8B / 3.3 70B |
-| **ElevenLabs** | Text-to-speech | Turbo v2.5 |
-| **WorkOS** | Authentication | AuthKit |
-| **Stripe** | Payments | Checkout + Webhooks |
+---
 
-### Database
-- **PostgreSQL 14** on Vultr VPS
-- 12+ tables (users, personas, calls, credits, etc.)
-- HTTP proxy for Cloudflare Workers access
+### Data & Memory Architecture
+
+**PostgreSQL on Vultr** — 12 tables including:
+- `users`, `personas`, `calls`, `credits`
+- `user_persona_context` — Per-relationship memory
+- `persona_facts` — Extracted knowledge about users
+
+**Raindrop KV Cache** — 4 namespaces:
+- `user_context:{userId}:{personaId}` — Hot memory for calls
+- `rate-limit-cache` — API protection
+- `token-blacklist` — JWT revocation
+- `call-state` — In-progress call tracking
+
+[Full documentation →](submission_docs/CATALOG.md)
 
 ---
 
 ## Cost Economics
 
-### Per 5-Minute Call Breakdown
+We optimized for **real business viability**, not just a demo.
 
-| Service | Cost |
-|---------|------|
-| Twilio (voice) | $0.070 |
-| Deepgram (STT) | $0.030 |
-| Cerebras (8B model) | $0.005 |
-| ElevenLabs (TTS) | $0.300 |
-| Infrastructure | $0.020 |
-| **Total** | **~$0.43** |
+| Component | Cost per Minute | % of Total |
+|-----------|-----------------|------------|
+| ElevenLabs (TTS) | $0.059 | 70% |
+| Deepgram (STT) | $0.015 | 18% |
+| Cerebras (LLM) | $0.002 | 2% |
+| Twilio (Voice) | $0.009 | 10% |
+| **Total** | **$0.085/min** | 100% |
 
-ElevenLabs TTS represents ~70% of per-call costs.
+**At $0.15/min retail pricing = 54% gross margin**
 
----
+Cerebras is the hero here—sub-second inference at $0.10/1M tokens makes the entire architecture viable.
 
-## Demo Access
-
-### Test the App
-1. Visit [https://callbackapp.ai](https://callbackapp.ai)
-2. Sign up with Google/GitHub or email
-3. Use coupon code `JUDGE2025` for free credits
-4. Schedule a call or add a persona to contacts
-
-### Demo Account
-```
-Email:    demo@callmeback.ai
-Password: demo123
-Credits:  100
-```
-
-### System Personas
-- **Brad** - Your bro who keeps it real (Coach)
-- **Sarah** - Warm, empathetic friend (Friend)
-- **Alex** - Energetic creative thinker (Creative)
+[Full cost analysis →](submission_docs/cost-tracking.md)
 
 ---
 
-## Project Structure
+## Hardships & Breakthroughs
 
-```
-call-me-back/
-├── src/
-│   ├── views/                 # Vue components
-│   ├── stores/                # Pinia state management
-│   ├── api-gateway/           # Main API router
-│   ├── auth-manager/          # Authentication service
-│   ├── persona-manager/       # Persona CRUD
-│   ├── call-orchestrator/     # Call lifecycle
-│   ├── database-proxy/        # PostgreSQL bridge
-│   ├── payment-processor/     # Stripe integration
-│   └── ...                    # 6 more services
-├── voice-pipeline-nodejs/     # Real-time voice (Vultr)
-├── vultr-db-proxy/           # Database HTTP API (Vultr)
-├── migrations/               # PostgreSQL migrations
-├── documentation/
-│   ├── domain/               # Technical deep-dives
-│   └── session_logs/         # Development history
-└── raindrop.manifest         # Service definitions
-```
+Building this wasn't smooth. Here's the real story:
+
+### The WebSocket Audio Nightmare
+**12 hours** debugging μ-law audio encoding between Twilio and our pipeline. Turned out to be a sample rate mismatch that produced nothing but static. Breakthrough: raw PCM inspection with `ffprobe`.
+
+### The Raindrop ↔ PostgreSQL Bridge
+Workers can't connect to external databases directly. We built a `database-proxy` service on Vultr that accepts HTTP requests and translates them to SQL. Now it handles 100% of our DB traffic.
+
+[See full documentation →](submission_docs/CATALOG.md)
+
+### The Turn-Taking Puzzle
+Early versions had awful timing—AI would talk over users or wait too long. Deepgram Flux's turn-taking events solved this. We now start generating responses at `EagerEndOfTurn` and abort if the user keeps talking.
+
+[See voice pipeline documentation →](submission_docs/voice-pipeline.md)
 
 ---
 
-## Development
+## Tech Stack
 
-### Prerequisites
-- Node.js 18+
-- Raindrop CLI (`npm install -g raindrop-cli`)
-- Vercel CLI (`npm install -g vercel`)
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| **Frontend** | Vue 3, Pinia, Tailwind CSS | SPA on Vercel |
+| **API** | Cloudflare Raindrop (Hono) | 12 edge microservices |
+| **Database** | PostgreSQL 14 on Vultr | Persistent storage |
+| **Cache** | Raindrop KV | Hot data, rate limiting |
+| **Voice** | Vultr VPS (Node.js) | WebSocket streaming |
+| **STT** | Deepgram Flux | Real-time transcription + turn-taking |
+| **LLM** | Cerebras (Llama 3.1 8B) | Sub-200ms inference |
+| **TTS** | ElevenLabs (turbo_v2.5) | Natural voice synthesis |
+| **Telephony** | Twilio | Outbound/inbound calls |
+| **Auth** | WorkOS | OAuth + session management |
+| **Payments** | Stripe | Subscriptions + credits |
 
-### Local Development
-```bash
-# Install dependencies
-npm install
+---
 
-# Start frontend dev server
-npm run dev
+## Letter to the Judges
 
-# Deploy backend (Raindrop)
-cd services && raindrop build deploy
+Building CallbackApp AI has been a six-week journey that made me a better engineer.
 
-# Deploy frontend (Vercel)
-vercel --prod
-```
+When I discovered that Cloudflare Workers can't make outbound WebSocket connections, I had a choice: give up on real-time voice or pivot. The pivot led me to **Vultr**—a hackathon partner I might have overlooked otherwise. That frustrating limitation became an opportunity to explore the full landscape of tools available.
 
-### Environment Variables
-See `CRITICAL_RAINDROP_RULES.md` for complete list. Key secrets:
-- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`
-- `DEEPGRAM_API_KEY`
-- `CEREBRAS_API_KEY`
-- `ELEVENLABS_API_KEY`
-- `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`
-- `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`
+Having to move one service off Raindrop got me thinking like an engineer about *every* resource in this hackathon. Vultr isn't just hosting my voice pipeline and PostgreSQL database—it's now where I build and deploy Raindrop services (after 5 weeks of the `raindrop build` command trying to burn down my laptop). The VPS has become my development workhorse.
+
+This experience opened my eyes to future possibilities. I'm planning to use Cerebras and Vultr together to generate synthetic training data for LoRA fine-tuning of the 8B models my personas use. Cerebras inference is so fast it's worth keeping in the stack for data generation, while Vultr can handle the actual training workloads.
+
+No certificate course could have offered the lab-time I've enjoyed experimenting with these services. The documentation methodology I developed—62 session logs, 160+ markdown files, AI-assisted technical audits—became its own innovation story that I'm refining independently.
+
+We're all pretty much cyborgs now. This hackathon proved it.
+
+### For Demo Access
+
+| Resource | Link |
+|----------|------|
+| **Live App** | [callbackapp.ai](https://callbackapp.ai) |
+| **Judge Coupon** | `DEVPOSTJUDGE2025` (50 free minutes) |
+
+The documentation represents 6 weeks of engineering work across 60+ logged sessions. I treated this like a production product, not a prototype.
 
 ---
 
 ## Documentation
 
-| Document | Purpose |
-|----------|---------|
-| `PCR2.md` | Complete project context |
-| `CRITICAL_RAINDROP_RULES.md` | Deployment rules |
-| `documentation/domain/voice-pipeline.md` | Voice architecture |
-| `documentation/domain/api.md` | API reference |
-| `documentation/domain/cost-tracking.md` | Cost analysis |
+This project includes 160+ documentation files developed during the hackathon. Selected technical documentation is available in the [submission_docs/](submission_docs/CATALOG.md) folder:
+
+| Topic | Document |
+|-------|----------|
+| **Full Documentation Catalog** | [submission_docs/CATALOG.md](submission_docs/CATALOG.md) |
+| **Voice Pipeline** | [submission_docs/voice-pipeline.md](submission_docs/voice-pipeline.md) |
+| **Cost Tracking** | [submission_docs/cost-tracking.md](submission_docs/cost-tracking.md) |
+| **Punchlist (Roadmap)** | [submission_docs/PUNCHLIST.md](submission_docs/PUNCHLIST.md) |
+| **Session Logs (4 selected)** | [submission_docs/session_logs/](submission_docs/session_logs/) |
 
 ---
 
-## Hackathon Submission
+## Quick Start (Local Development)
 
-**Event:** Raindrop AI Championship (Devpost)
+```bash
+# Clone
+git clone https://github.com/<!-- GITHUB_USERNAME -->/call-me-back.git
+cd call-me-back
 
-### Raindrop Features Used
-- **12 Microservices** - Full serverless backend
-- **Environment Variables** - Secure secret management
-- **Database Proxy Pattern** - PostgreSQL access from Workers
-- **Scheduled Tasks** - Cron-based call execution
+# Install
+npm install
 
-### What Makes This Special
-1. **Real voice calls** - Not a chatbot, actual phone conversations
-2. **Sub-second latency** - Cerebras + Deepgram Flux = natural conversations
-3. **Persistent memory** - Personas remember you across calls
-4. **Production-ready** - Stripe payments, WorkOS auth, cost tracking
+# Run frontend
+npm run dev
+
+# Open http://localhost:3000
+```
+
+[Full documentation →](submission_docs/CATALOG.md)
+
+---
+
+## Closing Thoughts
+
+This started as a hackathon project and became something I genuinely want to exist in the world.
+
+Loneliness is real, and voice creates connection in a way text can't. The engineering challenge was significant—multi-cloud architecture, sub-second latency, persistent memory—but the goal was simple: **make it feel like calling a friend.**
+
+Whether this wins or not, I'm going to keep building it.
+
+— David
+
+---
+
+## Acknowledgments
+
+Built with support from the AI Championship partners:
+
+| Partner | Contribution |
+|---------|--------------|
+| [**LiquidMetal.AI**](https://liquidmetal.ai) | Raindrop platform, hackathon sponsorship |
+| [**Vultr**](https://www.vultr.com/) | Cloud compute, PostgreSQL hosting |
+| [**Cerebras**](https://cerebras.ai/) | Lightning-fast LLM inference |
+| [**Deepgram**](https://deepgram.com/) | Real-time STT with turn-taking |
+| [**ElevenLabs**](https://elevenlabs.io/) | Natural voice synthesis |
+| [**Twilio**](https://www.twilio.com/) | Programmable voice infrastructure |
+
+---
+
+## Author
+
+**David Melsheimer**
+
+- GitHub: [<!-- GITHUB_USERNAME -->](https://github.com/<!-- GITHUB_USERNAME -->)
+- LinkedIn: [<!-- LINKEDIN_URL -->](<!-- LINKEDIN_URL -->)
 
 ---
 
 ## License
 
-MIT
+MIT License — See [LICENSE](LICENSE) for details.
 
 ---
 
-Built with Raindrop, Cerebras, Deepgram, ElevenLabs, and Twilio.
+<p align="center">
+  <b>CallbackApp AI</b> — Because sometimes you just need someone to talk to.
+  <br><br>
+  <a href="https://callbackapp.ai">Try the Live Demo →</a>
+</p>
