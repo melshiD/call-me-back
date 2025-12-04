@@ -1,6 +1,6 @@
 # Call Me Back - Project Context Review 2.0
-**Version:** 2.0
-**Last Updated:** 2025-11-19
+**Version:** 2.1
+**Last Updated:** 2025-12-04 06:10 EST
 **Project:** AI Championship Hackathon (Devpost)
 **Architecture:** Multi-cloud hybrid (Vercel + Raindrop/Cloudflare Workers + Vultr VPS)
 
@@ -36,9 +36,9 @@
 ### Technical Architecture Overview
 
 **Multi-Cloud Deployment Model:**
-- **Vercel:** Vue.js frontend SPA with Tailwind CSS v4 (chosen for simplicity, considering Netlify migration for hackathon partner benefits)
-- **Raindrop (Cloudflare Workers):** 7 microservices (API Gateway, Auth Manager, Database Proxy, Persona Manager, Call Orchestrator, Payment Processor, Webhook Handler)
-- **Vultr VPS (144.202.15.249):** Voice Pipeline (Node.js/PM2), PostgreSQL database, Database Proxy HTTP API
+- **Vercel:** Vue.js frontend SPA with Tailwind CSS v4 (production: https://callbackapp.ai)
+- **Raindrop (Cloudflare Workers):** 12 microservices (api-gateway, auth-manager, call-orchestrator, persona-manager, database-proxy, payment-processor, webhook-handler, admin-dashboard, cost-analytics, voice-coordinator, billing-manager, scheduled-tasks)
+- **Vultr VPS (144.202.15.249):** Voice Pipeline (Node.js/PM2), PostgreSQL database, Admin API (https://api.callbackapp.ai)
 
 **Why Multi-Cloud:**
 1. Cloudflare Workers CANNOT make outbound WebSocket connections → Voice pipeline moved to Vultr
@@ -46,28 +46,28 @@
 3. Raindrop SmartSQL has critical SQL limitations → Full PostgreSQL on Vultr required
 
 **Current Complexity:**
-- 9 services total (7 on Raindrop, 2 on Vultr)
+- 14 services total (12 on Raindrop, 2 on Vultr)
 - 3 deployment targets with independent lifecycles
 - 4 external AI/telephony APIs (Twilio, Deepgram, Cerebras, ElevenLabs)
-- 12 database tables across PostgreSQL
+- 12+ database tables across PostgreSQL
 - WebSocket connections from 3 sources (Twilio, Deepgram, ElevenLabs)
 
 ---
 
-## Current State (2025-11-19)
+## Current State (2025-12-04)
 
 ### ✅ Working & Verified
 
-**Voice Pipeline (CRITICAL SUCCESS - 2025-11-17):**
-- ✅ First successful talk-response volley confirmed
+**Voice Pipeline (PRODUCTION READY - 2025-12-04):**
+- ✅ Complete voice conversation flow working
 - ✅ Twilio → Deepgram → Cerebras → ElevenLabs → Twilio flow working
 - ✅ WebSocket connections stable (wss://voice.ai-tools-marketplace.io/stream)
-- ✅ Sub-1-second inference with Cerebras Llama 3.1 8B
+- ✅ Sub-1-second inference with Cerebras (choice of Llama 3.1 8B or Llama 3.3 70B)
 - ✅ Real-time TTS streaming from ElevenLabs
-- ✅ Deepgram streaming STT with interim results
-- ⚠️ Only 1 complete volley tested (multi-turn needs validation)
-- ❌ Turn-taking logic NOT implemented (users can interrupt but no VAD)
-- ❌ Conversation state management minimal
+- ✅ **Deepgram Flux integration** for native turn-taking (EndOfTurn events)
+- ✅ EagerEndOfTurn + TurnResumed for speculative responses
+- ✅ Per-persona LLM model selection (8B fast/cheap or 70B smarter)
+- ✅ Path: `/opt/voice-pipeline/` on Vultr
 
 **Authentication & User Management:**
 - ✅ JWT-based auth working (registration, login, logout, token validation)
@@ -84,77 +84,84 @@
 - ✅ User-persona relationships tracking favorites and call history
 
 **Deployment Infrastructure:**
-- ✅ Frontend deployed to Vercel (https://call-me-back-nugbql1rx-david-melsheimers-projects.vercel.app)
-- ✅ Tailwind CSS v4 installed and configured for UI redesign (2025-11-19)
-- ✅ Backend services deployed to Raindrop main branch (@01ka41s1...)
+- ✅ Frontend deployed to Vercel (production: https://callbackapp.ai)
+- ✅ Tailwind CSS v4 installed and configured
+- ✅ Backend services deployed to Raindrop main branch (12 services)
 - ✅ Voice pipeline running on Vultr via PM2 with Caddy SSL termination
-- ✅ API Gateway accessible (https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run)
+- ✅ API Gateway accessible via Raindrop
+- ✅ Admin API on Vultr: https://api.callbackapp.ai
+
+**WorkOS Authentication (PRODUCTION - 2025-12-04):**
+- ✅ Production environment enabled (sk_prod_... keys deployed)
+- ✅ User OAuth: https://callbackapp.ai/auth/callback
+- ✅ Admin OAuth: https://api.callbackapp.ai/api/admin/auth/callback
+- ✅ Both user and admin OAuth flows working
+
+**Cost Tracking (IMPLEMENTED - 2025-12-02):**
+- ✅ Per-call cost calculation implemented
+- ✅ Model-specific pricing (Cerebras 8B: $0.10/1M, 70B: $0.60/1M)
+- ✅ `api_call_events` table populated with costs
+- ✅ `service_pricing` table with real pricing data
+- ✅ Service pricing cached with 5-minute refresh
+
+**Stripe Payments (PRODUCTION - 2025-12-04):**
+- ✅ Production Stripe keys deployed
+- ✅ Credit purchase flow working
+- ✅ Coupon codes: JUDGE2025, HACKATHON2025, DEMO2025
+- ✅ Webhook handler processing events
+
+**Inbound Calls (IMPLEMENTED - 2025-12-01):**
+- ✅ Users can call personas directly at their Twilio numbers
+- ✅ Caller identified by verified phone number
+- ✅ Persona determined by called number lookup
+
+**Phone Verification (IMPLEMENTED - 2025-12-01):**
+- ✅ Twilio Verify for SMS codes
+- ✅ One verified phone per user (uniqueness enforced)
+- ✅ Required for inbound call identification
 
 ### ⚠️ Partially Working / Needs Testing
 
 **Voice Conversation Quality:**
-- Multi-turn conversations not thoroughly tested
-- Turn detection may have timing issues (see VOICE_PIPELINE_DEBUG_FINDINGS.md)
-- Interrupt handling not implemented (users can talk over AI but no VAD cutoff)
-- Conversation memory between calls doesn't persist (no SmartMemory integration)
+- Multi-turn conversations working but may need tuning
+- Deepgram Flux handles turn detection (native EndOfTurn events)
+- Conversation memory between calls via KV storage (basic implementation)
 
 **Call Orchestration:**
-- Immediate calls work via `/api/calls/trigger`
-- Scheduled calls stored in database but NEVER executed (no cron job)
-- Call duration tracking exists but no timers enforced
-- Call cost events table exists but NOT populated
+- ✅ Immediate calls work via `/api/calls/trigger`
+- ✅ Scheduled calls implemented with cron execution
+- ✅ Call duration tracking with cost calculation
+- ⚠️ Call duration limits may need tuning
 
 **Twilio Integration:**
 - ✅ API integration fully functional
-- ⚠️ Trial account limitation: Can only call verified phone numbers
-- ⚠️ Need to verify numbers at console.twilio.com or upgrade to paid account
+- ✅ Production account (upgraded from trial)
+- ✅ Inbound and outbound calls working
 
-### ❌ Critical Gaps (Blocking Production/Hackathon)
+### Remaining Work Items
 
-**P0 - Must Fix Before Demo:**
-1. **Cost Tracking System** (0% implemented)
-   - `call_cost_events` table exists but never written to
-   - No per-call cost calculation
-   - No real-time cost accumulation during calls
-   - No user spending limits enforced
-   - No profitability visibility
-   - **Impact:** Cannot price product, cannot track burn rate, no budget controls
+**P1 - Post-Hackathon Improvements:**
 
-2. **Scheduled Calls Execution** (0% implemented)
-   - Scheduled calls stored but never executed
-   - No Task (cron) definition in raindrop.manifest
-   - No `executeScheduledCalls` function implemented
-   - **Impact:** Advertised feature doesn't work at all
+1. **SmartMemory Integration** (not using Raindrop SmartMemory API)
+   - Currently using basic KV storage for conversation context
+   - Raindrop SmartMemory API would provide semantic search
+   - **Impact:** Would enhance persona memory capabilities
 
-3. **WorkOS Authentication** (0% implemented)
-   - Hackathon partner integration requirement
-   - Currently using custom JWT (works but not impressive)
-   - No SSO, no MFA, no enterprise features
-   - **Impact:** Missing hackathon judging criteria, no enterprise readiness
+2. **Advanced Cost Dashboard** (basic implementation complete)
+   - Core cost tracking works
+   - Could add more detailed analytics and visualizations
+   - Budget alerts and spending limits UI
 
-**P1 - Required for Competitive Submission:**
-4. **Pricing & Payment Logic** (0% implemented)
-   - No call duration selection in frontend
-   - No pricing calculation in payment-processor
-   - No Twilio call timers (5-min default not enforced)
-   - No mid-call extension prompts
-   - No Stripe subscription management
-   - **Impact:** Cannot launch, no monetization
+**P2 - Future Enhancements:**
 
-5. **SmartMemory Integration** (0% implemented)
-   - Have `smart_memory` TEXT column but not using Raindrop SmartMemory API
-   - Personas don't remember past conversations
-   - No semantic search across interactions
-   - **Impact:** Personas feel stateless, not intelligent
-
-**P2 - Post-Hackathon Blockers:**
-6. **MCP Log Aggregation Service** (BLOCKED - Framework Issue)
+3. **MCP Log Aggregation Service** (DEFERRED - Framework Issue)
    - Custom MCP service deploys successfully
    - MCP protocol handshake fails with "Internal Server Error"
-   - Extensive debugging completed (7+ code variations, all fail)
-   - Likely framework bug or undocumented requirement
    - **Status:** Deferred pending framework support
-   - **See:** MCP_DEBUGGING_SESSION_2025-11-19.md for complete debugging log
+
+4. **SmartBuckets Integration** (not started)
+   - Could enable document-based persona training
+   - RAG capabilities for richer conversations
 
 ---
 
@@ -1375,7 +1382,7 @@ raindrop build env list --application call-me-back
 ssh root@144.202.15.249
 
 # Voice pipeline secrets
-nano /root/voice-pipeline/.env
+nano /opt/voice-pipeline/.env
 # Contains: DEEPGRAM_API_KEY, CEREBRAS_API_KEY, ELEVENLABS_API_KEY, etc.
 
 # Restart services after changing secrets
@@ -1613,7 +1620,7 @@ cd voice-pipeline-nodejs
 
 # Manual deployment (if script fails)
 ssh root@144.202.15.249
-cd /root/voice-pipeline
+cd /opt/voice-pipeline
 git pull  # If using git, OR
 # ... upload files manually ...
 pm2 restart voice-pipeline
@@ -1915,11 +1922,13 @@ call-me-back-logs: ... - ✗ Failed to connect
 
 ### Current URLs
 ```
-Frontend:       https://call-me-back-nugbql1rx-david-melsheimers-projects.vercel.app
-API Gateway:    https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run
-Voice Pipeline: wss://voice.ai-tools-marketplace.io/stream
-DB Proxy:       https://db.ai-tools-marketplace.io
-Vultr Server:   144.202.15.249 (SSH: root@144.202.15.249)
+Frontend (Production): https://callbackapp.ai
+Frontend (Preview):    https://call-me-back.vercel.app
+Admin API:             https://api.callbackapp.ai
+API Gateway:           https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run
+Voice Pipeline:        wss://voice.ai-tools-marketplace.io/stream
+DB Proxy:              https://db.ai-tools-marketplace.io
+Vultr Server:          144.202.15.249 (SSH: root@144.202.15.249)
 ```
 
 ### Demo User
@@ -1965,25 +1974,32 @@ pm2 logs voice-pipeline
 
 1. **Multi-Cloud Architecture** - Services split across Vercel/Raindrop/Vultr due to technical constraints (not preference)
 2. **Database-Proxy Pattern** - Cloudflare Workers can't fetch external URLs, all database calls go through proxy
-3. **Voice Pipeline on Vultr** - Cloudflare Workers can't do outbound WebSockets, voice must be on Vultr
+3. **Voice Pipeline on Vultr** - Cloudflare Workers can't do outbound WebSockets, voice must be on Vultr at `/opt/voice-pipeline/`
 4. **SmartSQL Avoided** - Too many limitations, using full PostgreSQL on Vultr instead
 5. **Secrets Reset After Generate** - Always run ./set-all-secrets.sh after raindrop build generate
 6. **Frontend Separate** - Vercel frontend deploys independently with vercel --prod (NOT git push)
-7. **WorkOS NOT Implemented** - Critical P0 hackathon requirement
-8. **Cost Tracking NOT Implemented** - Critical P0 business gap, table exists but empty
-9. **Scheduled Calls Don't Work** - Need Task cron job (P0)
-10. **MCP Service BLOCKED** - Framework issue, deferred (see MCP_DEBUGGING_SESSION_2025-11-19.md)
-11. **SmartMemory Unused** - High-value P1 opportunity, have TEXT column but should use Raindrop API
-12. **SmartBuckets Unused** - High-value P2 opportunity for document training, RAG
+7. **Production Domain** - https://callbackapp.ai (frontend), https://api.callbackapp.ai (admin API)
+8. **WorkOS IMPLEMENTED** - Production OAuth working for both user and admin flows
+9. **Cost Tracking IMPLEMENTED** - Per-call costs tracked with model-specific pricing
+10. **Scheduled Calls WORKING** - Cron execution implemented
+11. **Stripe IMPLEMENTED** - Production payments with coupon codes
+12. **Deepgram Flux** - Native turn-taking via EndOfTurn events (replaced silence detection)
+13. **MCP Service BLOCKED** - Framework issue, deferred (see MCP_DEBUGGING_SESSION_2025-11-19.md)
+14. **SmartMemory/SmartBuckets Unused** - Post-hackathon enhancement opportunities
 
-**Raindrop Feature Utilization: ~30% → Target: ~70%**
+**Raindrop Feature Utilization: ~50%**
 
-**Critical Priorities:**
-- **P0 (This Week):** Cost tracking, scheduled calls cron, WorkOS auth
-- **P1 (Next 2 Weeks):** SmartMemory integration, pricing/payment logic
-- **P2 (Post-Hackathon):** SmartBuckets, dynamic pricing, MCP (if unblocked)
+**Current Status: PRODUCTION READY**
+- All core features implemented
+- Production environment deployed
+- Stripe payments working
+- WorkOS authentication enabled
+- Cost tracking active
 
-**The app has working voice pipeline but needs cost tracking, scheduled calls execution, and WorkOS to be hackathon-competitive.**
+**Remaining Improvements (P1-P2):**
+- SmartMemory integration for enhanced persona memory
+- Advanced cost analytics dashboard
+- SmartBuckets for document-based persona training
 
 ---
 

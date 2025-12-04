@@ -1,250 +1,284 @@
-# Call Me Back - Frontend Application
+# CallbackApp AI
 
-A Vue.js frontend for an AI-powered phone companion that calls you on demand with customizable personas.
+**AI Voice Companions That Call You Back**
 
-## Overview
+A production-ready AI voice calling platform where users receive phone calls from customizable AI personas. Built for the [Raindrop AI Championship Hackathon](https://devpost.com/).
 
-Call Me Back is a phone-based AI companion app that allows users to:
-- Schedule immediate or future AI-powered phone calls
-- Choose from pre-built personas (Friend, Boss, Agent, etc.) or create custom ones
-- Manage billing and track usage
-- View call history and statistics
+**Live App:** [https://callbackapp.ai](https://callbackapp.ai)
+
+---
+
+## What It Does
+
+Call Me Back enables real-time AI voice conversations over the phone:
+
+- **Schedule calls** from AI personas (Brad the Coach, Sarah the Friend, Alex the Creative)
+- **Receive inbound calls** - call your persona directly at their Twilio number
+- **Persistent memory** - personas remember facts about you across conversations
+- **Per-persona customization** - adjust prompts, voices, and LLM models
+- **Real-time transcription** - see live conversation transcripts
+- **Cost tracking** - per-call cost breakdown with budget controls
+
+---
+
+## Architecture
+
+![Call Flow Sequence Diagram](eval_images/screenshot_20251130_013719.png)
+
+### Multi-Cloud Design
+
+The system runs across three cloud platforms due to technical constraints:
+
+| Platform | Purpose | Why Here |
+|----------|---------|----------|
+| **Vercel** | Vue 3 Frontend | Static hosting, global CDN |
+| **Raindrop (Cloudflare Workers)** | 12 Microservices | Serverless API, auth, orchestration |
+| **Vultr VPS** | Voice Pipeline + PostgreSQL | Workers can't make outbound WebSockets |
+
+### Voice Pipeline Flow
+
+```
+User speaks → Twilio (phone) → Voice Pipeline (Vultr)
+                                      ↓
+                              Deepgram Flux (STT)
+                                      ↓
+                              Cerebras AI (LLM)
+                                      ↓
+                              ElevenLabs (TTS)
+                                      ↓
+                              Twilio → User hears response
+```
+
+**Latency:** Sub-1-second responses using Cerebras inference + Deepgram Flux turn-taking
+
+---
+
+## Key Features
+
+### 1. Deepgram Flux Turn-Taking
+Native end-of-turn detection using Deepgram's Flux model. No silence-based heuristics - the AI knows when you're done speaking.
+
+- `EndOfTurn` - User finished speaking
+- `EagerEndOfTurn` - Speculative early response
+- `TurnResumed` - User continued, cancel speculative response
+
+### 2. Per-Persona LLM Model Selection
+Choose between speed and intelligence per persona:
+
+| Model | Speed | Cost | Use Case |
+|-------|-------|------|----------|
+| Llama 3.1 8B | Fastest | $0.10/1M tokens | Quick responses, casual chat |
+| Llama 3.3 70B | Fast | $0.60/1M tokens | Complex reasoning, coaching |
+
+### 3. 4-Layer Prompt Architecture
+Personas use a composable prompt system:
+
+1. **Core System Prompt** - Base personality and traits
+2. **Call Context** - Current call situation and goals
+3. **Relationship Context** - History with this user
+4. **User Knowledge** - Facts learned about the user
+
+### 4. Cost Tracking
+Real-time per-call cost calculation:
+
+- Twilio voice minutes
+- Deepgram STT usage
+- Cerebras token consumption
+- ElevenLabs character usage
+
+### 5. WorkOS Authentication
+Enterprise-grade OAuth with:
+- Google/GitHub social login
+- Email/password authentication
+- Secure session management
+
+### 6. Stripe Payments
+Production payment processing with:
+- Credit-based billing
+- Coupon codes (JUDGE2025, HACKATHON2025, DEMO2025)
+- Webhook-driven credit allocation
+
+---
 
 ## Tech Stack
 
-- **Vue 3** - Progressive JavaScript framework
-- **Vite** - Next-generation frontend build tool
-- **Vue Router** - Official routing library
-- **Pinia** - Official state management library
-- **Modern CSS** - Mobile-first responsive design
+### Frontend
+- **Vue 3** with Composition API
+- **Pinia** for state management
+- **Tailwind CSS v4** for styling
+- **Vite** for build tooling
+
+### Backend (Raindrop)
+12 microservices on Cloudflare Workers:
+
+| Service | Purpose |
+|---------|---------|
+| `api-gateway` | Request routing, CORS, JWT validation |
+| `auth-manager` | JWT auth, WorkOS OAuth integration |
+| `persona-manager` | Persona CRUD, favorites, customization |
+| `call-orchestrator` | Twilio call lifecycle, scheduling |
+| `database-proxy` | Bridge to Vultr PostgreSQL |
+| `payment-processor` | Stripe integration |
+| `webhook-handler` | Twilio/Stripe webhook processing |
+| `cost-analytics` | Usage tracking, cost calculation |
+| `scheduled-call-executor` | Cron-based call execution |
+| `voice-coordinator` | TwiML generation, stream routing |
+| `admin-dashboard` | Admin API and OAuth |
+| `billing-manager` | Credit management |
+
+### Voice Pipeline (Vultr)
+- **Node.js** with WebSocket servers
+- **PM2** for process management
+- **Caddy** for SSL termination
+
+### External APIs
+| Service | Purpose | Model |
+|---------|---------|-------|
+| **Twilio** | Phone calls, SMS verification | Programmable Voice |
+| **Deepgram** | Speech-to-text | Flux (streaming) |
+| **Cerebras** | LLM inference | Llama 3.1 8B / 3.3 70B |
+| **ElevenLabs** | Text-to-speech | Turbo v2.5 |
+| **WorkOS** | Authentication | AuthKit |
+| **Stripe** | Payments | Checkout + Webhooks |
+
+### Database
+- **PostgreSQL 14** on Vultr VPS
+- 12+ tables (users, personas, calls, credits, etc.)
+- HTTP proxy for Cloudflare Workers access
+
+---
+
+## Cost Economics
+
+### Per 5-Minute Call Breakdown
+
+| Service | Cost |
+|---------|------|
+| Twilio (voice) | $0.070 |
+| Deepgram (STT) | $0.030 |
+| Cerebras (8B model) | $0.005 |
+| ElevenLabs (TTS) | $0.300 |
+| Infrastructure | $0.020 |
+| **Total** | **~$0.43** |
+
+ElevenLabs TTS represents ~70% of per-call costs.
+
+---
+
+## Demo Access
+
+### Test the App
+1. Visit [https://callbackapp.ai](https://callbackapp.ai)
+2. Sign up with Google/GitHub or email
+3. Use coupon code `JUDGE2025` for free credits
+4. Schedule a call or add a persona to contacts
+
+### Demo Account
+```
+Email:    demo@callmeback.ai
+Password: demo123
+Credits:  100
+```
+
+### System Personas
+- **Brad** - Your bro who keeps it real (Coach)
+- **Sarah** - Warm, empathetic friend (Friend)
+- **Alex** - Energetic creative thinker (Creative)
+
+---
 
 ## Project Structure
 
 ```
 call-me-back/
 ├── src/
-│   ├── assets/
-│   │   └── styles/
-│   │       └── main.css          # Global styles
-│   ├── components/               # Reusable Vue components
-│   ├── router/
-│   │   └── index.js             # Vue Router configuration
-│   ├── stores/
-│   │   ├── auth.js              # Authentication state & API specs
-│   │   ├── calls.js             # Call management state & API specs
-│   │   ├── personas.js          # Persona management state & API specs
-│   │   └── user.js              # User/billing state & API specs
-│   ├── views/
-│   │   ├── Login.vue            # Login page
-│   │   ├── Register.vue         # Registration page
-│   │   ├── Dashboard.vue        # Main dashboard
-│   │   ├── Schedule.vue         # Call scheduling interface
-│   │   ├── Contacts.vue         # User's favorite personas
-│   │   ├── Personas.vue         # Browse & create personas
-│   │   └── Profile.vue          # User profile & billing
-│   ├── App.vue                  # Root component
-│   └── main.js                  # Application entry point
-├── index.html                   # HTML entry point
-├── vite.config.js              # Vite configuration
-├── package.json                # Dependencies
-└── README.md                   # This file
+│   ├── views/                 # Vue components
+│   ├── stores/                # Pinia state management
+│   ├── api-gateway/           # Main API router
+│   ├── auth-manager/          # Authentication service
+│   ├── persona-manager/       # Persona CRUD
+│   ├── call-orchestrator/     # Call lifecycle
+│   ├── database-proxy/        # PostgreSQL bridge
+│   ├── payment-processor/     # Stripe integration
+│   └── ...                    # 6 more services
+├── voice-pipeline-nodejs/     # Real-time voice (Vultr)
+├── vultr-db-proxy/           # Database HTTP API (Vultr)
+├── migrations/               # PostgreSQL migrations
+├── documentation/
+│   ├── domain/               # Technical deep-dives
+│   └── session_logs/         # Development history
+└── raindrop.manifest         # Service definitions
 ```
-
-## Installation
-
-### Prerequisites
-
-- Node.js 16+ and npm
-
-### Setup
-
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-2. Start development server:
-   ```bash
-   npm run dev
-   ```
-
-3. Open your browser to `http://localhost:3000`
-
-### Build for Production
-
-```bash
-npm run build
-```
-
-The built files will be in the `dist/` directory.
-
-## Features
-
-### 1. Authentication
-- User registration with email, password, name, and phone
-- Login/logout functionality
-- Protected routes (requires authentication)
-- Session persistence via localStorage
-
-### 2. Dashboard
-- Usage statistics overview
-- Recent call history
-- Quick actions to schedule calls, manage contacts, and explore personas
-- Upcoming scheduled calls
-
-### 3. Call Scheduling
-- **Quick Call**: Immediate call with estimated cost calculation
-- **Schedule Future Call**: Set specific date and time
-- View and cancel upcoming scheduled calls
-- Integration with Stripe for payment pre-authorization
-
-### 4. Personas
-- Browse public personas (Friend, Boss, Agent, Doctor, Family Member)
-- Create custom personas with:
-  - Name and description
-  - ElevenLabs voice selection
-  - Custom system prompts
-  - Tags for organization
-  - Public/private visibility
-- Edit and delete custom personas
-- Search and filter functionality
-
-### 5. Contacts
-- Save favorite personas for quick access
-- Remove personas from contacts
-- Quick call scheduling from contacts
-
-### 6. Profile & Billing
-- Edit profile information
-- Manage payment methods
-- View usage statistics (calls, minutes, costs)
-- Monthly breakdown of usage
-- Complete call history
-
-## Mock Data
-
-The application uses mock data for demonstration purposes. All API calls are simulated with:
-- Realistic delays (300-500ms)
-- Mock responses matching expected API formats
-- localStorage for session persistence
-
-### Test Credentials
-
-Since authentication is mocked, you can login with any email/password combination:
-- Email: `test@example.com`
-- Password: `anything`
-
-Or create a new account through registration.
-
-## API Integration Points
-
-All API specifications are documented in the store files with detailed comments. Each API call includes:
-- Endpoint URL and HTTP method
-- Required headers
-- Request body structure with types
-- Expected response structure with status codes
-- Error response formats
-
-### Key API Endpoints to Implement
-
-#### Authentication (`stores/auth.js`)
-- `POST /api/auth/login` - User login
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/logout` - User logout
-- `GET /api/auth/me` - Check authentication status
-
-#### Calls (`stores/calls.js`)
-- `GET /api/calls` - Fetch call history (paginated)
-- `POST /api/call` - Trigger immediate call
-- `POST /api/calls/schedule` - Schedule future call
-- `GET /api/calls/scheduled` - Fetch scheduled calls
-- `DELETE /api/calls/schedule/:id` - Cancel scheduled call
-
-#### Personas (`stores/personas.js`)
-- `GET /api/personas` - Fetch public personas (with search/filter)
-- `POST /api/personas` - Create custom persona
-- `PUT /api/personas/:id` - Update custom persona
-- `DELETE /api/personas/:id` - Delete custom persona
-- `GET /api/contacts` - Fetch user's contacts
-- `POST /api/contacts` - Add persona to contacts
-- `DELETE /api/contacts/:personaId` - Remove from contacts
-
-#### User/Billing (`stores/user.js`)
-- `GET /api/user/billing` - Fetch billing information
-- `POST /api/user/payment-method` - Add payment method
-- `DELETE /api/user/payment-method/:id` - Remove payment method
-- `PUT /api/user/payment-method/:id/default` - Set default payment
-- `GET /api/user/usage` - Fetch usage statistics
-- `POST /api/user/create-payment-intent` - Create Stripe PaymentIntent
-- `PUT /api/user/profile` - Update user profile
-
-## Backend Integration
-
-To connect this frontend to a real backend:
-
-1. **Update Store Files**: Replace mock implementations with actual API calls using `fetch` or `axios`
-
-2. **Add Base URL**: Create an environment variable for your API base URL:
-   ```js
-   // .env
-   VITE_API_BASE_URL=http://localhost:3001
-   ```
-
-3. **Implement Error Handling**: Add proper error handling for network failures
-
-4. **Add Loading States**: The UI already has loading states - connect them to actual API calls
-
-5. **Stripe Integration**:
-   - Add Stripe.js to the project
-   - Implement Stripe Elements for secure payment collection
-   - Replace mock payment collection in Profile.vue
-
-6. **WebSocket for Live Calls**: Add WebSocket connection for real-time call status updates
-
-## Pricing Model
-
-- Connection Fee: $0.25 per call
-- Per-Minute Rate: $0.40/minute
-- Pre-authorization via Stripe PaymentIntent
-- Actual charge based on call duration after completion
-
-## Mobile Responsive
-
-The application is fully responsive and mobile-friendly with:
-- Flexible grid layouts
-- Touch-friendly buttons and inputs
-- Responsive navigation
-- Optimized for screens from 320px to 1920px
-
-## Color Scheme
-
-- Primary: Purple gradient (#667eea to #764ba2)
-- Success: Green (#28a745)
-- Danger: Red (#dc3545)
-- Info: Blue (#17a2b8)
-- Muted: Gray (#6c757d)
-
-## Next Steps
-
-1. **Backend Development**: Implement the REST API endpoints documented in the store files
-2. **Twilio Integration**: Set up Twilio Programmable Voice for outbound calls
-3. **AI Pipeline**: Integrate STT, AI model (Cerebras/OpenAI), and ElevenLabs TTS
-4. **Stripe Setup**: Configure Stripe for payment processing
-5. **WebSocket Server**: Implement real-time call status updates
-6. **Production Deployment**: Deploy frontend to Netlify/Vercel and backend to Fly.io
-
-## Development Notes
-
-- All components use Vue 3 Composition API (`<script setup>`)
-- State management via Pinia stores
-- Route protection via navigation guards
-- Mock data allows full UI testing without backend
-- All API specs are thoroughly documented in store files
-
-## Support
-
-For questions or issues, please refer to the API documentation in the store files or contact the development team.
 
 ---
 
-Built with Vue.js for the Call Me Back hackathon project.
+## Development
+
+### Prerequisites
+- Node.js 18+
+- Raindrop CLI (`npm install -g raindrop-cli`)
+- Vercel CLI (`npm install -g vercel`)
+
+### Local Development
+```bash
+# Install dependencies
+npm install
+
+# Start frontend dev server
+npm run dev
+
+# Deploy backend (Raindrop)
+cd services && raindrop build deploy
+
+# Deploy frontend (Vercel)
+vercel --prod
+```
+
+### Environment Variables
+See `CRITICAL_RAINDROP_RULES.md` for complete list. Key secrets:
+- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`
+- `DEEPGRAM_API_KEY`
+- `CEREBRAS_API_KEY`
+- `ELEVENLABS_API_KEY`
+- `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`
+- `STRIPE_API_KEY`, `STRIPE_WEBHOOK_SECRET`
+
+---
+
+## Documentation
+
+| Document | Purpose |
+|----------|---------|
+| `PCR2.md` | Complete project context |
+| `CRITICAL_RAINDROP_RULES.md` | Deployment rules |
+| `documentation/domain/voice-pipeline.md` | Voice architecture |
+| `documentation/domain/api.md` | API reference |
+| `documentation/domain/cost-tracking.md` | Cost analysis |
+
+---
+
+## Hackathon Submission
+
+**Event:** Raindrop AI Championship (Devpost)
+
+### Raindrop Features Used
+- **12 Microservices** - Full serverless backend
+- **Environment Variables** - Secure secret management
+- **Database Proxy Pattern** - PostgreSQL access from Workers
+- **Scheduled Tasks** - Cron-based call execution
+
+### What Makes This Special
+1. **Real voice calls** - Not a chatbot, actual phone conversations
+2. **Sub-second latency** - Cerebras + Deepgram Flux = natural conversations
+3. **Persistent memory** - Personas remember you across calls
+4. **Production-ready** - Stripe payments, WorkOS auth, cost tracking
+
+---
+
+## License
+
+MIT
+
+---
+
+Built with Raindrop, Cerebras, Deepgram, ElevenLabs, and Twilio.

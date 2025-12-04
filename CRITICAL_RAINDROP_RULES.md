@@ -63,15 +63,34 @@ raindrop build env set env:SECRET_NAME "value"
 ./set-all-secrets.sh
 ```
 
-### Required Secrets for This Project
+### Required Secrets for This Project (15 total)
+
+**Authentication & Database:**
 - JWT_SECRET
 - VULTR_DB_API_URL
 - VULTR_DB_API_KEY
+
+**Twilio (Voice & Verification):**
 - TWILIO_ACCOUNT_SID
 - TWILIO_AUTH_TOKEN
 - TWILIO_PHONE_NUMBER
+- TWILIO_VERIFY_SERVICE_SID
+
+**AI Services:**
 - ELEVENLABS_API_KEY
 - CEREBRAS_API_KEY
+- DEEPGRAM_API_KEY
+
+**WorkOS (OAuth):**
+- WORKOS_API_KEY
+- WORKOS_CLIENT_ID
+
+**Stripe (Payments):**
+- STRIPE_SECRET_KEY
+- STRIPE_WEBHOOK_SECRET
+- STRIPE_PRICE_TWENTY_FIVE_MIN
+- STRIPE_PRICE_FIFTY_MIN
+- STRIPE_PRICE_ONE_HUNDRED_MIN
 
 ## Frontend Deployment (Vercel)
 
@@ -141,10 +160,36 @@ vercel logs <deployment-url>
 
 ## Current Project URLs
 
-**API Gateway**: https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run
-**Frontend**: https://call-me-back-nugbql1rx-david-melsheimers-projects.vercel.app
-**Vultr DB Proxy**: http://144.202.15.249:3000
-**Branch**: main (@01ka41s1...)
+**Production:**
+- **Frontend**: https://callbackapp.ai
+- **Admin API**: https://api.callbackapp.ai
+
+**Development/Internal:**
+- **API Gateway**: https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run
+- **Frontend (Preview)**: https://call-me-back.vercel.app
+- **Vultr DB Proxy**: https://db.ai-tools-marketplace.io
+- **Voice Pipeline**: wss://voice.ai-tools-marketplace.io/stream
+- **Branch**: main
+
+## Recommended Deployment Method (2025-12-03+)
+
+The preferred deployment method uses Vultr as a build server to avoid WSL/Windows npm issues:
+
+```bash
+# Deploy backend via Vultr (recommended)
+./deploy-via-vultr.sh
+
+# What it does:
+# 1. Syncs code to Vultr
+# 2. Runs npm install
+# 3. Runs raindrop build deploy
+# 4. Shows deployment status
+```
+
+**Why use this?**
+- Avoids WSL/Windows npm issues
+- Consistent build environment
+- Faster than local builds
 
 ## When Things Go Wrong
 
@@ -152,7 +197,7 @@ vercel logs <deployment-url>
 2. Check deployment status: `raindrop build status`
 3. Check if secrets are set: They reset after `generate`
 4. Check for stuck deployments: Kill and redeploy
-5. Read RAINDROP_DEPLOYMENT_GUIDE.md for details
+5. Read `documentation/domain/deployment.md` for details
 
 ---
 **This file must be read at the start of EVERY conversation continuation**
