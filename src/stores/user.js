@@ -38,8 +38,8 @@ export const useUserStore = defineStore('user', () => {
     ]
   }
 
-  billingInfo.value = mockBillingInfo
-  usageStats.value = mockUsageStats
+  // Don't initialize with mock data - let the API populate real data
+  // billingInfo and usageStats stay null until fetched
 
   /**
    * Fetch billing information
@@ -219,8 +219,9 @@ export const useUserStore = defineStore('user', () => {
     const token = localStorage.getItem('token')
 
     if (!token) {
-      // Return mock data if not authenticated
-      return { usage: mockUsageStats }
+      // Not authenticated - return null/empty state
+      usageStats.value = null
+      return { usage: null }
     }
 
     try {
@@ -245,8 +246,8 @@ export const useUserStore = defineStore('user', () => {
       }
     } catch (error) {
       console.error('Error fetching usage stats:', error)
-      // Fall back to mock data on error
-      return { usage: mockUsageStats }
+      // On error, keep null state - don't fall back to mock data
+      return { usage: null, error: error.message }
     }
   }
 

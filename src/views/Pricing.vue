@@ -424,7 +424,7 @@
             class="inline-flex items-center justify-center px-12 py-5 text-xl font-black text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-[20px] overflow-hidden transition-all duration-500 hover:scale-[1.05] hover:bg-[position:100%_0] shadow-[0_0_0_2px_rgba(251,191,36,0.5),0_20px_60px_rgba(251,191,36,0.4)] hover:shadow-[0_0_0_2px_rgba(251,191,36,0.8),0_24px_80px_rgba(251,191,36,0.5)] group"
           >
             <span class="relative z-10 flex items-center gap-3">
-              Start Free Trial
+              Get 5 Free Minutes
               <svg class="w-5 h-5 group-hover:translate-x-2 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>

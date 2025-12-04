@@ -42,8 +42,8 @@ export const useCallsStore = defineStore('calls', () => {
     }
   ]
 
-  calls.value = mockCalls
-  scheduledCalls.value = mockScheduledCalls
+  // Don't initialize with mock data - let the API populate real data
+  // calls and scheduledCalls stay empty until fetched
 
   /**
    * Fetch user's call history
@@ -121,10 +121,11 @@ export const useCallsStore = defineStore('calls', () => {
     const token = localStorage.getItem('token')
 
     if (!token) {
-      // Return mock data if not authenticated
+      // Not authenticated - return empty state
+      calls.value = []
       return {
-        calls: mockCalls,
-        pagination: { page, limit, total: mockCalls.length, pages: 1 }
+        calls: [],
+        pagination: { page, limit, total: 0, pages: 0 }
       }
     }
 
@@ -153,10 +154,11 @@ export const useCallsStore = defineStore('calls', () => {
       }
     } catch (error) {
       console.error('Error fetching calls:', error)
-      // Fall back to mock data on error
+      // On error, keep empty state - don't fall back to mock data
       return {
-        calls: mockCalls,
-        pagination: { page, limit, total: mockCalls.length, pages: 1 }
+        calls: [],
+        pagination: { page, limit, total: 0, pages: 0 },
+        error: error.message
       }
     }
   }

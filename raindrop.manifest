@@ -56,12 +56,12 @@ application "call-me-back" {
 
   env "FRONTEND_URL" {
     # Frontend URL for OAuth redirects and Stripe redirect URLs
-    default = "https://call-me-back.vercel.app"
+    default = "https://callbackapp.ai"
   }
 
   env "LOG_QUERY_SERVICE_URL" {
     # SECURE: Uses Caddy reverse proxy with SSL (see SECURE_REVERSE_PROXY_PATTERN.md)
-    default = "https://logs.ai-tools-marketplace.io"
+    default = "https://api.callbackapp.ai"
   }
 
   env "ADMIN_SECRET_TOKEN" {

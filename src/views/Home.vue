@@ -58,7 +58,7 @@
                 class="group relative inline-flex items-center justify-center px-10 py-6 text-lg font-bold text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-2xl overflow-hidden transition-all duration-500 hover:scale-[1.05] hover:bg-[position:100%_0] shadow-[0_0_0_1px_rgba(251,191,36,0.5),0_16px_50px_rgba(251,191,36,0.4)] hover:shadow-[0_0_0_1px_rgba(251,191,36,0.8),0_20px_60px_rgba(251,191,36,0.5)] magnetic-hover"
               >
                 <span class="relative z-10 flex items-center gap-2">
-                  Start Free Trial
+                  Get 5 Free Minutes
                   <svg class="w-5 h-5 group-hover:translate-x-2 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>
@@ -79,19 +79,85 @@
                 <svg class="w-4 h-4 text-glow" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                 </svg>
-                First call free
+                5 minutes free
               </span>
               <span class="text-cream/30">·</span>
               <span class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-glow" fill="currentColor" viewBox="0 0 20 20">
                   <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                 </svg>
-                No credit card
+                No commitment
               </span>
             </div>
           </div>
 
-          <!-- Right: Interactive Persona Showcase -->
+          <!-- Mobile Persona Cards (horizontal scroll) -->
+          <div class="lg:hidden mt-12 -mx-6 px-6 overflow-x-auto scrollbar-hide">
+            <div class="flex gap-4 pb-4 snap-x snap-mandatory">
+              <!-- Brad -->
+              <div class="flex-shrink-0 w-[280px] snap-center bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-2 border-glow rounded-2xl p-6 shadow-[0_12px_40px_rgba(251,191,36,0.3)]">
+                <div class="flex items-center gap-3 mb-3">
+                  <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-glow/30 to-ember/30 border-2 border-glow flex items-center justify-center text-2xl font-black text-glow/80">B</div>
+                  <div>
+                    <h3 class="text-xl font-black text-glow uppercase">Brad</h3>
+                    <span class="text-xs text-glow/70 font-bold uppercase tracking-wide">Coach</span>
+                  </div>
+                </div>
+                <div class="bg-glow text-deep px-2 py-1 inline-block font-bold text-xs uppercase tracking-wider mb-2 rounded">NO EXCUSES</div>
+                <p class="text-sm text-cream/80 leading-relaxed">Wake up to REAL motivation. Remembers your goals. Tracks progress. Zero tolerance for BS.</p>
+              </div>
+              <!-- Sarah -->
+              <div class="flex-shrink-0 w-[280px] snap-center bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-2 border-cyan-400 rounded-2xl p-6 shadow-[0_12px_40px_rgba(34,211,238,0.3)]">
+                <div class="flex items-center gap-3 mb-3">
+                  <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-400/30 to-cyan-500/30 border-2 border-cyan-400 flex items-center justify-center text-2xl font-black text-cyan-400/80">S</div>
+                  <div>
+                    <h3 class="text-xl font-black text-cyan-400 uppercase">Sarah</h3>
+                    <span class="text-xs text-cyan-400/70 font-bold uppercase tracking-wide">Friend</span>
+                  </div>
+                </div>
+                <div class="bg-cyan-400 text-deep px-2 py-1 inline-block font-bold text-xs uppercase tracking-wider mb-2 rounded">ALWAYS THERE</div>
+                <p class="text-sm text-cream/80 leading-relaxed">Emergency contact. Social escape artist. Knows your story. Gets you out gracefully.</p>
+              </div>
+              <!-- Alex -->
+              <div class="flex-shrink-0 w-[280px] snap-center bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-2 border-solar rounded-2xl p-6 shadow-[0_12px_40px_rgba(255,107,53,0.3)]">
+                <div class="flex items-center gap-3 mb-3">
+                  <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-solar/30 to-ember/30 border-2 border-solar flex items-center justify-center text-2xl font-black text-solar/80">A</div>
+                  <div>
+                    <h3 class="text-xl font-black text-solar uppercase">Alex</h3>
+                    <span class="text-xs text-solar/70 font-bold uppercase tracking-wide">Pro</span>
+                  </div>
+                </div>
+                <div class="bg-solar text-deep px-2 py-1 inline-block font-bold text-xs uppercase tracking-wider mb-2 rounded">LEVEL UP</div>
+                <p class="text-sm text-cream/80 leading-relaxed">Practice hard conversations. Nail interviews. Push limits. Competitive growth mindset.</p>
+              </div>
+              <!-- Marcus -->
+              <div class="flex-shrink-0 w-[280px] snap-center bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-2 border-purple-500 rounded-2xl p-6 shadow-[0_12px_40px_rgba(168,85,247,0.3)]">
+                <div class="flex items-center gap-3 mb-3">
+                  <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500/30 to-purple-600/30 border-2 border-purple-500 flex items-center justify-center text-2xl font-black text-purple-500/80">M</div>
+                  <div>
+                    <h3 class="text-xl font-black text-purple-400 uppercase">Marcus</h3>
+                    <span class="text-xs text-purple-400/70 font-bold uppercase tracking-wide">Closer</span>
+                  </div>
+                </div>
+                <div class="bg-purple-500 text-deep px-2 py-1 inline-block font-bold text-xs uppercase tracking-wider mb-2 rounded">CLOSE DEALS</div>
+                <p class="text-sm text-cream/80 leading-relaxed">Negotiation leverage. Strategic timing. Close with confidence.</p>
+              </div>
+              <!-- Jamie -->
+              <div class="flex-shrink-0 w-[280px] snap-center bg-gradient-to-br from-black via-deep/95 to-black backdrop-blur-xl border-2 border-lime-400 rounded-2xl p-6 shadow-[0_12px_40px_rgba(163,230,53,0.3)]">
+                <div class="flex items-center gap-3 mb-3">
+                  <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-lime-400/30 to-lime-500/30 border-2 border-lime-400 flex items-center justify-center text-2xl font-black text-lime-400/80">J</div>
+                  <div>
+                    <h3 class="text-xl font-black text-lime-400 uppercase">Jamie</h3>
+                    <span class="text-xs text-lime-400/70 font-bold uppercase tracking-wide">Wild</span>
+                  </div>
+                </div>
+                <div class="bg-lime-400 text-deep px-2 py-1 inline-block font-bold text-xs uppercase tracking-wider mb-2 rounded">LET'S GO!</div>
+                <p class="text-sm text-cream/80 leading-relaxed">Random challenges. Road trip decision maker. Break routine. Say yes to life.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Interactive Persona Showcase (Desktop) -->
           <div class="lg:col-span-5 relative h-[600px] hidden lg:flex items-center justify-center opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.3s]">
             <!-- Gradient fade masks at top and bottom -->
             <div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-midnight to-transparent z-20 pointer-events-none"></div>
@@ -844,7 +910,7 @@
             class="group relative inline-flex items-center justify-center px-16 py-8 text-2xl lg:text-3xl font-black text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-[28px] overflow-hidden transition-all duration-500 hover:scale-[1.08] hover:bg-[position:100%_0] shadow-[0_0_0_2px_rgba(251,191,36,0.5),0_24px_80px_rgba(251,191,36,0.5)] hover:shadow-[0_0_0_2px_rgba(251,191,36,0.8),0_32px_100px_rgba(251,191,36,0.6)] magnetic-hover"
           >
             <span class="relative z-10 flex items-center gap-3">
-              Start Your Free Trial
+              Get 5 Free Minutes
               <svg class="w-7 h-7 group-hover:translate-x-3 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
@@ -857,7 +923,7 @@
               <svg class="w-5 h-5 text-glow" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
               </svg>
-              No credit card
+              5 minutes free
             </span>
             <span class="text-cream/30">•</span>
             <span class="flex items-center gap-2 font-medium">
@@ -871,7 +937,7 @@
               <svg class="w-5 h-5 text-glow" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
               </svg>
-              Cancel anytime
+              Pay-as-you-go
             </span>
           </div>
         </div>

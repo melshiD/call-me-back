@@ -50,7 +50,7 @@
           </div>
         </router-link>
 
-        <router-link to="/personas" class="group relative bg-gradient-to-br from-white/[0.06] to-white/[0.02] backdrop-blur-xl border border-white/10 rounded-3xl p-8 transition-all duration-500 hover:bg-white/[0.1] hover:border-solar/40 hover:-translate-y-1 hover:shadow-[0_30px_80px_rgba(255,107,53,0.15)] overflow-hidden">
+        <router-link to="/contacts" class="group relative bg-gradient-to-br from-white/[0.06] to-white/[0.02] backdrop-blur-xl border border-white/10 rounded-3xl p-8 transition-all duration-500 hover:bg-white/[0.1] hover:border-solar/40 hover:-translate-y-1 hover:shadow-[0_30px_80px_rgba(255,107,53,0.15)] overflow-hidden">
           <div class="absolute inset-0 bg-gradient-to-br from-solar/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
           <div class="relative z-10">
             <div class="w-14 h-14 bg-gradient-to-br from-solar/20 to-glow/10 rounded-2xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-500">
@@ -58,8 +58,8 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
             </div>
-            <h3 class="text-xl font-bold mb-2 text-cream group-hover:text-solar transition-colors duration-300">Meet Someone New</h3>
-            <p class="text-sm text-cream/50">Discover new companions</p>
+            <h3 class="text-xl font-bold mb-2 text-cream group-hover:text-solar transition-colors duration-300">Explore Personas</h3>
+            <p class="text-sm text-cream/50">Discover & add new companions</p>
           </div>
         </router-link>
       </div>

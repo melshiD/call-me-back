@@ -577,12 +577,14 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useCallsStore } from '../stores/calls'
 import { usePersonasStore } from '../stores/personas'
 import { useUserStore } from '../stores/user'
 import { useToast } from '../stores/toast'
 import { usePhonesStore } from '../stores/phones'
 
+const route = useRoute()
 const callsStore = useCallsStore()
 const personasStore = usePersonasStore()
 const userStore = useUserStore()
@@ -971,6 +973,19 @@ onMounted(async () => {
   try {
     await personasStore.fetchContacts()
     if (!isMounted) return
+
+    // Pre-select persona from query param if provided
+    const personaIdFromQuery = route.query.personaId
+    if (personaIdFromQuery) {
+      // Verify the persona exists in user's contacts
+      const contactExists = personasStore.userContacts.some(
+        c => c.id === personaIdFromQuery || c.persona_id === personaIdFromQuery
+      )
+      if (contactExists) {
+        callForm.value.personaId = personaIdFromQuery
+      }
+    }
+
     await callsStore.fetchScheduledCalls()
     if (!isMounted) return
     await callsStore.fetchCalls()

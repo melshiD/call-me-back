@@ -2,7 +2,9 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref(null)
+  // Restore both token AND user from localStorage on init
+  const storedUser = localStorage.getItem('user')
+  const user = ref(storedUser ? JSON.parse(storedUser) : null)
   const token = ref(localStorage.getItem('token') || null)
 
   const isAuthenticated = computed(() => !!user.value && !!token.value)
@@ -232,11 +234,13 @@ export const useAuthStore = defineStore('auth', () => {
    *   - Optional: Log logout event for security auditing
    */
   const logout = () => {
-    // Mock implementation - replace with actual API call
+    // Clear auth state
     user.value = null
     token.value = null
     localStorage.removeItem('token')
     localStorage.removeItem('user')
+    // Also clear terms acceptance cache on logout
+    localStorage.removeItem('termsAcceptedAt')
   }
 
   /**
@@ -282,10 +286,37 @@ export const useAuthStore = defineStore('auth', () => {
    */
   const checkAuth = async () => {
     if (token.value) {
-      // Mock implementation - replace with actual API call
-      const storedUser = localStorage.getItem('user')
-      if (storedUser) {
-        user.value = JSON.parse(storedUser)
+      const apiUrl = import.meta.env.VITE_API_URL
+      try {
+        const response = await fetch(`${apiUrl}/api/auth/me`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token.value}`,
+            'Content-Type': 'application/json'
+          }
+        })
+        if (response.ok) {
+          const data = await response.json()
+          user.value = data.user
+          localStorage.setItem('user', JSON.stringify(data.user))
+        } else if (response.status === 401) {
+          // Token invalid/expired, clear auth
+          logout()
+        } else {
+          // Server error (500, 503, etc.) - keep existing user from localStorage
+          // Don't logout on transient errors
+          const storedUser = localStorage.getItem('user')
+          if (storedUser) {
+            user.value = JSON.parse(storedUser)
+          }
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error)
+        // On network error, keep existing localStorage user but don't block
+        const storedUser = localStorage.getItem('user')
+        if (storedUser) {
+          user.value = JSON.parse(storedUser)
+        }
       }
     }
   }

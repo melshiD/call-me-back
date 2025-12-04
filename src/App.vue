@@ -48,7 +48,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
             </svg>
           </div>
-          <span class="brand-text">Call Me Back</span>
+          <span class="brand-text">CallbackApp.ai</span>
         </router-link>
 
         <!-- Desktop Navigation -->
@@ -59,16 +59,16 @@
               <span>Home</span>
             </router-link>
             <router-link to="/personas" class="nav-item">
-              <span>Personas</span>
+              <span>Explore</span>
             </router-link>
             <router-link to="/pricing" class="nav-item">
               <span>Pricing</span>
             </router-link>
             <router-link to="/login" class="nav-item">
-              <span>Login</span>
+              <span>Sign In</span>
             </router-link>
             <router-link to="/login" class="nav-item-primary">
-              <span class="relative z-10">Start Free Trial</span>
+              <span class="relative z-10">Get Started</span>
               <div class="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-full blur-md"></div>
             </router-link>
           </template>
@@ -87,11 +87,11 @@
               </svg>
               <span>Schedule</span>
             </router-link>
-            <router-link to="/personas/config" class="nav-item">
+            <router-link to="/contacts" class="nav-item">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
               </svg>
-              <span>My Personas</span>
+              <span>Contacts</span>
             </router-link>
             <router-link to="/profile" class="nav-item">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -130,16 +130,16 @@
                 <span>Home</span>
               </router-link>
               <router-link to="/personas" class="mobile-nav-item" @click="mobileMenuOpen = false">
-                <span>Browse Personas</span>
+                <span>Explore Personas</span>
               </router-link>
               <router-link to="/pricing" class="mobile-nav-item" @click="mobileMenuOpen = false">
                 <span>Pricing</span>
               </router-link>
               <router-link to="/login" class="mobile-nav-item" @click="mobileMenuOpen = false">
-                <span>Login</span>
+                <span>Sign In</span>
               </router-link>
               <router-link to="/login" class="mobile-nav-item-primary" @click="mobileMenuOpen = false">
-                <span>Start Free Trial</span>
+                <span>Get Started</span>
               </router-link>
             </template>
 
@@ -156,11 +156,11 @@
                 </svg>
                 <span>Schedule</span>
               </router-link>
-              <router-link to="/personas/config" class="mobile-nav-item" @click="mobileMenuOpen = false">
+              <router-link to="/contacts" class="mobile-nav-item" @click="mobileMenuOpen = false">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                <span>My Personas</span>
+                <span>Contacts</span>
               </router-link>
               <router-link to="/profile" class="mobile-nav-item" @click="mobileMenuOpen = false">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -228,6 +228,14 @@ const checkTermsStatus = async () => {
     return
   }
 
+  // Check localStorage first for instant UX
+  const cachedAcceptance = localStorage.getItem('termsAcceptedAt')
+  if (cachedAcceptance) {
+    showTermsModal.value = false
+    termsChecked.value = true
+    return
+  }
+
   try {
     const token = localStorage.getItem('token')
     const response = await fetch(`${import.meta.env.VITE_API_URL}/api/user/terms-status`, {
@@ -240,6 +248,10 @@ const checkTermsStatus = async () => {
       const data = await response.json()
       showTermsModal.value = !data.termsAccepted
       termsChecked.value = true
+      // Cache acceptance if already accepted
+      if (data.termsAccepted) {
+        localStorage.setItem('termsAcceptedAt', new Date().toISOString())
+      }
     }
   } catch (error) {
     console.error('Error checking terms status:', error)
@@ -250,6 +262,8 @@ const checkTermsStatus = async () => {
 // Handle terms accepted
 const handleTermsAccepted = () => {
   showTermsModal.value = false
+  // Cache acceptance in localStorage for faster UX
+  localStorage.setItem('termsAcceptedAt', new Date().toISOString())
 }
 
 // Watch for auth changes

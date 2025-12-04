@@ -2769,7 +2769,7 @@ export default class extends Service<Env> {
       }
 
       // Use configured frontend URL - don't trust Origin header (could be spoofed)
-      const frontendUrl = this.env.FRONTEND_URL || 'https://call-me-back.vercel.app';
+      const frontendUrl = this.env.FRONTEND_URL || 'https://callbackapp.ai';
 
       const stripeResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
         method: 'POST',

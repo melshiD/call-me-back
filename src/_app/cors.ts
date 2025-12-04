@@ -64,8 +64,9 @@ import { createCorsHandler } from '@liquidmetal-ai/raindrop-framework/core/cors'
 // Enable CORS for specific trusted origins (SECURE for production)
 export const cors = createCorsHandler({
   origin: [
-    'https://call-me-back.vercel.app',      // Production frontend (Vercel)
-    'https://call-me-back.raindrop.run',    // Raindrop backend
+    'https://callbackapp.ai',               // Production frontend (custom domain)
+    'https://www.callbackapp.ai',           // Production frontend (www)
+    'https://call-me-back.vercel.app',      // Legacy Vercel domain
     'http://localhost:3002',                 // Local dev (primary)
     'http://localhost:3000',                 // Local dev (alt)
     'http://localhost:5173',                 // Vite default

@@ -59,7 +59,8 @@ const routes = [
   {
     path: '/personas',
     name: 'Personas',
-    component: () => import('../views/Personas.vue')
+    component: () => import('../views/Personas.vue'),
+    meta: { requiresGuest: true }
   },
   {
     path: '/personas/config',
@@ -138,7 +139,12 @@ router.beforeEach((to, from, next) => {
   else if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next('/login')
   } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
-    next('/dashboard')
+    // Special case: /personas should redirect to /contacts for logged-in users
+    if (to.path === '/personas') {
+      next('/contacts')
+    } else {
+      next('/dashboard')
+    }
   } else {
     next()
   }
