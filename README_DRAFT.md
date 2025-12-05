@@ -147,7 +147,9 @@ The 5 layers combine to create contextual, personalized responses:
 
 ### The Persona Designer (Admin Tool)
 
-Beyond the user-facing app, we built a comprehensive admin tool for designing and debugging personas. This is where the prompt engineering happens.
+Beyond the user-facing app, we built a comprehensive admin tool for designing and debugging personas. From this panel, site admins can quickly modify aspects of a persona.  An admin can engineer new core persona prompts, edit the contents of a persona's "User Knowledge" store, and set the standard call configurations as well as additional "AI parameteres".
+
+Once the site admin has a configuration they want to test, they can call the persona through Twilio (as all user call are handled) or through a separate web audio pipeline.
 
 ![Persona Designer Dashboard](eval_images/persona_designer.png)
 *The Persona Designer showing Alex's configuration: core prompt editor, live "Compiled Final Prompt" preview, and 43 extracted user facts*

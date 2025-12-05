@@ -19,31 +19,51 @@
 
 ---
 
-[![Built for AI Champion Ship](https://img.shields.io/badge/Hackathon-AI_Championship_2025-gold?style=for-the-badge)](https://liquidmetal.devpost.com/)
+[![Built for AI Champion Ship](https://img.shields.io/badge/Hackathon-AI_Champion_Ship_2025-gold?style=for-the-badge)](https://liquidmetal.devpost.com/)
 
-[![Cloudflare Raindrop](https://img.shields.io/badge/Built_with-Raindrop-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://raindrop.run)
-[![Vultr](https://img.shields.io/badge/Powered_by-Vultr-007BFC?style=for-the-badge&logo=vultr&logoColor=white)](https://www.vultr.com/)
-[![Cerebras](https://img.shields.io/badge/Inference-Cerebras-FF6B00?style=for-the-badge)](https://cerebras.ai/)
-[![Deepgram](https://img.shields.io/badge/STT-Deepgram-13EF93?style=for-the-badge)](https://deepgram.com/)
-[![ElevenLabs](https://img.shields.io/badge/TTS-ElevenLabs-000000?style=for-the-badge)](https://elevenlabs.io/)
-[![Twilio](https://img.shields.io/badge/Voice-Twilio-F22F46?style=for-the-badge&logo=twilio&logoColor=white)](https://www.twilio.com/)
-
-**Built for and submitted to the [AI Champion Ship Hackathon](https://liquidmetal.devpost.com/) by LiquidMetal.AI + Vultr**
+**Built for the [AI Champion Ship Hackathon](https://liquidmetal.devpost.com/) by LiquidMetal.AI + Vultr**
 
 ---
 
 ![CallbackApp AI Homepage](submission_docs/images/hero_section.png)
 *AI companions you can actually call—and who remember you.*
 
+**Platform**
+[![Raindrop](https://img.shields.io/badge/Backend-Raindrop-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://raindrop.run)
+[![Vultr](https://img.shields.io/badge/DB\/VPS-Vultr-007BFC?style=for-the-badge&logo=vultr&logoColor=white)](https://www.vultr.com/)
+[![Vercel](https://img.shields.io/badge/Frontend-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com/)
+[![Cloudflare](https://img.shields.io/badge/DNS-Cloudflare-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://www.cloudflare.com/)
+
+**AI & Voice**
+[![Cerebras](https://img.shields.io/badge/Inference-Cerebras-FF6B00?style=for-the-badge)](https://cerebras.ai/)
+[![Deepgram](https://img.shields.io/badge/STT-Deepgram-13EF93?style=for-the-badge)](https://deepgram.com/)
+[![ElevenLabs](https://img.shields.io/badge/TTS-ElevenLabs-000000?style=for-the-badge)](https://elevenlabs.io/)
+[![Twilio](https://img.shields.io/badge/Telephony-Twilio-F22F46?style=for-the-badge&logo=twilio&logoColor=white)](https://www.twilio.com/)
+
+**Services**
+[![Stripe](https://img.shields.io/badge/Payments-Stripe-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://stripe.com/)
+[![WorkOS](https://img.shields.io/badge/Auth-WorkOS-6363F1?style=for-the-badge)](https://workos.com/)
+
+*Engineered with [Claude Code](https://claude.ai/code)*
+
 ---
 
 ## The Problem
 
-**Loneliness is an epidemic.** 60% of US adults report feeling lonely. People need someone to talk to—not type at.
+**Sometimes you need a call... and no one's available.** Loneliness affects between 20-60% of adults worldwide. But beyond that, life happens at inconvenient times. The 3am anxiety. The pep talk before a big interview. The moment you need to think out loud.
 
-**Chat isn't enough.** Text-based AI feels transactional. Voice creates presence, warmth, connection.
+**People need to talk through things:**
+- Practice difficult conversations—job interviews, salary negotiations, tough talks with family
+- Accountability check-ins for goals and habits (from someone who actually calls)
+- Social anxiety practice with low-stakes
+- Thinking out loud with a partner who listens and responds
 
-**Existing solutions forget you.** Every conversation starts from zero. There's no relationship, no continuity, no one who knows your dog's name.
+**Life doesn't fit a schedule:**
+- Night shift workers, remote workers, travelers across time zones
+- Elderly users who struggle with apps but can answer a phone
+- Escape calls—"save me from this awkward date"
+
+**Existing solutions forget you.** Every conversation starts from zero. No relationship, no continuity, no one who remembers your dog's name or that you're interviewing at Google next week.
 
 ---
 
@@ -72,6 +92,8 @@
 
 ## The User Experience
 
+New users sign up through a production-ready WorkOS authentication flow (email/password, Google, or GitHub OAuth). Once authenticated, they're ready to verify their phone number and start building relationships with AI personas.
+
 ![User Flow - From contacts to call to transcript](submission_docs/images/user_flow.png)
 *The complete user journey: Configure your relationship → Schedule a call → Receive the call → Review transcripts*
 
@@ -81,33 +103,14 @@
 
 ### Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           CALLBACKAPP AI ARCHITECTURE                        │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│   ┌──────────────┐     ┌──────────────────────────────────────────────┐    │
-│   │   VERCEL     │     │         CLOUDFLARE RAINDROP                  │    │
-│   │   Vue 3 SPA  │────▶│  12 Microservices + SmartSQL + KV Cache      │    │
-│   └──────────────┘     └──────────────────────────────────────────────┘    │
-│                                         │                                   │
-│                                         ▼                                   │
-│                        ┌────────────────────────────────┐                  │
-│                        │         VULTR VPS              │                  │
-│                        │  ┌─────────────────────────┐   │                  │
-│                        │  │    Voice Pipeline       │   │                  │
-│                        │  │  Twilio ↔ Deepgram ↔    │   │                  │
-│                        │  │  Cerebras ↔ ElevenLabs  │   │                  │
-│                        │  └─────────────────────────┘   │                  │
-│                        │  ┌─────────────────────────┐   │                  │
-│                        │  │    PostgreSQL 14        │   │                  │
-│                        │  └─────────────────────────┘   │                  │
-│                        └────────────────────────────────┘                  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+| Layer | Technology | Purpose |
+|-------|------------|---------|
+| **Frontend** | Vercel + Vue 3 | SPA with real-time call UI |
+| **Backend** | Raindrop (Cloudflare Workers) | API Gateway, KV Cache for user context, SmartMemory for config |
+| **Voice Pipeline** | Vultr VPS | Real-time WebSocket orchestration (Twilio ↔ Deepgram ↔ Cerebras ↔ ElevenLabs) |
+| **Database** | Vultr PostgreSQL | Personas, users, call history, cost tracking |
 
-**Why multi-cloud?** Cloudflare Workers can't make outbound WebSocket connections—required for real-time voice streaming. We run the voice pipeline on Vultr VPS while keeping the API layer on Raindrop for edge performance.
+**Why multi-cloud?** Cloudflare Workers can't make outbound WebSocket connections—required for real-time voice streaming. The voice pipeline runs on Vultr while Raindrop handles the API layer at the edge.
 
 [View full documentation catalog →](submission_docs/CATALOG.md)
 
@@ -115,7 +118,7 @@
 
 ### The Voice Pipeline
 
-This core innovation brings us **sub-1000ms voice-to-voice latency** through streaming everything.
+This core innovation brings us **sub-1000ms voice-to-voice latency** through streaming everything.  Liquidmetal's Raindrop at the edge with Cerebras inference is FAST!
 
 ![Voice Call Flow](submission_docs/images/voice_call_flow_complete.png)
 *Complete call flow: From button click through Twilio, Voice Pipeline, Deepgram STT, Cerebras inference, ElevenLabs TTS, and back to the user's phone*
@@ -132,9 +135,9 @@ The sequence diagram above shows the full journey of a call:
 
 #### Prompt Assembly (5-Layer Context Injection)
 
-Before each AI response, we assemble a rich system prompt from multiple data sources. This isn't a static prompt—it's dynamically built for each call based on who's calling, why they're calling, and everything the AI knows about them.
+Before each AI response, we assemble a rich system prompt from multiple data sources. This isn't a static prompt—it's dynamically built for each call based on who's calling, why they're calling, and everything the AI knows about them.  Some elements of the prompt are injected on a per-request basis, allowing the call context to develop purposefully during a single call.
 
-<img src="submission_docs/images/prompt_injection.svg" alt="Prompt Injection Architecture" width="600">
+<img src="submission_docs/images/prompt_compilation_and_injection.png" alt="Prompt Compilation and Injection Architecture">
 
 The 5 layers combine to create contextual, personalized responses:
 - **Layer 1 (Core Identity):** The persona's personality, speaking style, and behavioral guidelines
@@ -142,6 +145,7 @@ The 5 layers combine to create contextual, personalized responses:
 - **Layer 3 (Relationship):** How long they've known each other, the nature of their relationship
 - **Layer 4 (User Knowledge):** Facts extracted from previous conversations (job, family, hobbies, ongoing situations)
 - **Layer 5 (Guidelines):** Phone-specific rules like brevity, natural speech patterns, handling interruptions
+- **Additional Layers:** Varous prompt elements can be injected during a single conversation.  For example, when a call is approaching the user's max-call duration, the app has the persona tell the user "Hey, we're about done with our time".  That information will be fed into the persona's context so that the persona can maintain a most accurate assessment of what the user and persona are experiencing together.
 
 ---
 
@@ -293,10 +297,10 @@ This project includes 160+ documentation files developed during the hackathon. S
 | **Voice Pipeline** | [submission_docs/voice-pipeline.md](submission_docs/voice-pipeline.md) |
 | **Cost Tracking** | [submission_docs/cost-tracking.md](submission_docs/cost-tracking.md) |
 | **Punchlist (Roadmap)** | [submission_docs/PUNCHLIST.md](submission_docs/PUNCHLIST.md) |
-| **Session Log: WebSocket Fixed** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-22_01-55_WEBSOCKET_FIXED.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-22_01-55_WEBSOCKET_FIXED.md) |
-| **Session Log: Cost Tracking** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-20_11-48-03_COST_TRACKING_IMPLEMENTATION.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-20_11-48-03_COST_TRACKING_IMPLEMENTATION.md) |
-| **Session Log: Layer 4 & Turn-Taking** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_16-18_LAYER4_AND_TURN_TAKING.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_16-18_LAYER4_AND_TURN_TAKING.md) |
-| **Session Log: KV Migration & Strategy** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_18-15_KV_MIGRATION_COMPLETE_AND_HACKATHON_STRATEGY.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_18-15_KV_MIGRATION_COMPLETE_AND_HACKATHON_STRATEGY.md) |
+| **Session Log: WebSocket Fixed** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-22_WEBSOCKET_FIXED.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-22_WEBSOCKET_FIXED.md) |
+| **Session Log: Cost Tracking** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-20_COST_TRACKING_IMPLEMENTATION.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-20_COST_TRACKING_IMPLEMENTATION.md) |
+| **Session Log: Layer 4 & Turn-Taking** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_LAYER4_AND_TURN_TAKING.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_LAYER4_AND_TURN_TAKING.md) |
+| **Session Log: KV Migration & Strategy** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_KV_MIGRATION_COMPLETE_AND_HACKATHON_STRATEGY.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_KV_MIGRATION_COMPLETE_AND_HACKATHON_STRATEGY.md) |
 
 ---
 
@@ -344,6 +348,17 @@ Built with support from the AI Champion Ship partners:
 | [**Deepgram**](https://deepgram.com/) | Real-time STT with turn-taking |
 | [**ElevenLabs**](https://elevenlabs.io/) | Natural voice synthesis |
 | [**Twilio**](https://www.twilio.com/) | Programmable voice infrastructure |
+| [**Stripe**](https://stripe.com/) | Payment processing |
+| [**WorkOS**](https://workos.com/) | Authentication |
+| [**Cloudflare**](https://cloudflare.com/) | DNS, domains, edge network |
+
+### Development Approach
+
+This is a **vibe-coding hackathon submission**—built with AI assistance from start to finish.
+
+The backend was scaffolded using the **Raindrop MCP workflow**, which provided a solid foundation for the API gateway, smart component bindings, and database proxy patterns. From there, [Claude Code](https://claude.ai/code) served as my engineering partner throughout development.  Claude aided in research, planning, designing architecture, debugging real-time WebSocket issues, and iterating on the voice pipeline.
+
+Over 100 session logs helped me document and structure my time during the AI-assisted development process.
 
 ---
 
@@ -365,5 +380,21 @@ MIT License — See [LICENSE](LICENSE) for details.
 <p align="center">
   <b>CallbackApp AI</b> — Because sometimes you just need someone to talk to.
   <br><br>
-  <a href="https://callbackapp.ai">Try the Live App →</a>
+  <a href="https://callbackapp.ai">🚀 Try the Live App →</a>
+  <br><br>
+  <b>Share this project:</b>
+  <br><br>
+  <a href="https://twitter.com/intent/tweet?text=Check%20out%20CallbackApp%20AI%20-%20AI%20companions%20you%20can%20actually%20call%20%F0%9F%93%9E&url=https://callbackapp.ai">
+    <img src="https://img.shields.io/badge/Twitter-Share-1DA1F2?style=for-the-badge&logo=twitter&logoColor=white" alt="Share on Twitter">
+  </a>
+  <a href="https://www.linkedin.com/sharing/share-offsite/?url=https://callbackapp.ai">
+    <img src="https://img.shields.io/badge/LinkedIn-Share-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" alt="Share on LinkedIn">
+  </a>
+  <a href="https://www.facebook.com/sharer/sharer.php?u=https://callbackapp.ai">
+    <img src="https://img.shields.io/badge/Facebook-Share-1877F2?style=for-the-badge&logo=facebook&logoColor=white" alt="Share on Facebook">
+  </a>
+</p>
+
+<p align="center">
+  <img src="public/og-image.png" alt="CallbackApp AI - Your AI companion, just a phone call away" width="600" style="border-radius: 12px;">
 </p>

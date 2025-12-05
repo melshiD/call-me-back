@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Image Redactor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .controls {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background: #16213e;
+      padding: 16px;
+      border-radius: 8px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 200px;
+    }
+
+    .controls h3 {
+      margin-bottom: 4px;
+      color: #4cc9f0;
+    }
+
+    .controls label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .controls input[type="range"] {
+      flex: 1;
+    }
+
+    .controls button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #4cc9f0;
+      color: #1a1a2e;
+    }
+
+    .btn-danger {
+      background: #f72585;
+      color: white;
+    }
+
+    .btn-secondary {
+      background: #3a3a5c;
+      color: #eee;
+    }
+
+    .controls button:hover {
+      transform: scale(1.02);
+      filter: brightness(1.1);
+    }
+
+    #canvas-container {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 20px;
+      padding-left: 240px;
+    }
+
+    #image-wrapper {
+      position: relative;
+      display: inline-block;
+      cursor: crosshair;
+    }
+
+    #source-image {
+      display: block;
+      max-width: none;
+    }
+
+    .redaction-box {
+      position: absolute;
+      backdrop-filter: blur(var(--blur-amount, 12px));
+      background: rgba(0, 0, 0, 0.3);
+      border: 2px dashed rgba(255, 255, 255, 0.3);
+      cursor: move;
+      min-width: 20px;
+      min-height: 20px;
+    }
+
+    .redaction-box:hover {
+      border-color: #f72585;
+    }
+
+    .redaction-box .delete-btn {
+      position: absolute;
+      top: -10px;
+      right: -10px;
+      width: 20px;
+      height: 20px;
+      background: #f72585;
+      border: none;
+      border-radius: 50%;
+      color: white;
+      font-size: 12px;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .redaction-box:hover .delete-btn {
+      display: flex;
+    }
+
+    .drawing {
+      border: 2px solid #4cc9f0 !important;
+      pointer-events: none;
+    }
+
+    #drop-zone {
+      border: 3px dashed #4cc9f0;
+      border-radius: 12px;
+      padding: 60px;
+      text-align: center;
+      margin-left: 240px;
+      margin-top: 100px;
+    }
+
+    #drop-zone.drag-over {
+      background: rgba(76, 201, 240, 0.1);
+    }
+
+    .info {
+      font-size: 12px;
+      color: #888;
+      margin-top: 8px;
+    }
+
+    #dimensions {
+      font-size: 12px;
+      color: #4cc9f0;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <h3>Image Redactor</h3>
+
+    <input type="file" id="file-input" accept="image/*">
+
+    <div id="dimensions"></div>
+
+    <label>
+      Blur: <span id="blur-value">12</span>px
+      <input type="range" id="blur-slider" min="4" max="30" value="12">
+    </label>
+
+    <button class="btn-danger" id="clear-all">Clear All Boxes</button>
+    <button class="btn-primary" id="export-btn">Export Image</button>
+
+    <div class="info">
+      Click & drag to draw blur boxes.<br>
+      Drag boxes to reposition.<br>
+      Hover + X to delete a box.<br>
+      Export keeps original dimensions.
+    </div>
+  </div>
+
+  <div id="drop-zone">
+    <p>Drop an image here or use the file picker above</p>
+  </div>
+
+  <div id="canvas-container" style="display: none;">
+    <div id="image-wrapper">
+      <img id="source-image">
+    </div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('file-input');
+    const dropZone = document.getElementById('drop-zone');
+    const canvasContainer = document.getElementById('canvas-container');
+    const imageWrapper = document.getElementById('image-wrapper');
+    const sourceImage = document.getElementById('source-image');
+    const blurSlider = document.getElementById('blur-slider');
+    const blurValue = document.getElementById('blur-value');
+    const clearAllBtn = document.getElementById('clear-all');
+    const exportBtn = document.getElementById('export-btn');
+    const dimensionsEl = document.getElementById('dimensions');
+
+    let isDrawing = false;
+    let startX, startY;
+    let currentBox = null;
+    let originalWidth, originalHeight;
+
+    // File handling
+    fileInput.addEventListener('change', (e) => loadImage(e.target.files[0]));
+
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('drag-over');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('drag-over');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files[0]) {
+        loadImage(e.dataTransfer.files[0]);
+      }
+    });
+
+    function loadImage(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        sourceImage.onload = () => {
+          originalWidth = sourceImage.naturalWidth;
+          originalHeight = sourceImage.naturalHeight;
+          dimensionsEl.textContent = `${originalWidth} × ${originalHeight}px`;
+          dropZone.style.display = 'none';
+          canvasContainer.style.display = 'flex';
+          clearAllBoxes();
+        };
+        sourceImage.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Blur slider
+    blurSlider.addEventListener('input', (e) => {
+      const val = e.target.value;
+      blurValue.textContent = val;
+      document.querySelectorAll('.redaction-box').forEach(box => {
+        box.style.setProperty('--blur-amount', val + 'px');
+      });
+    });
+
+    // Drawing boxes
+    imageWrapper.addEventListener('mousedown', (e) => {
+      if (e.target.classList.contains('redaction-box') || e.target.classList.contains('delete-btn')) return;
+
+      isDrawing = true;
+      const rect = imageWrapper.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+
+      currentBox = document.createElement('div');
+      currentBox.className = 'redaction-box drawing';
+      currentBox.style.left = startX + 'px';
+      currentBox.style.top = startY + 'px';
+      currentBox.style.setProperty('--blur-amount', blurSlider.value + 'px');
+      imageWrapper.appendChild(currentBox);
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDrawing || !currentBox) return;
+
+      const rect = imageWrapper.getBoundingClientRect();
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+
+      const width = currentX - startX;
+      const height = currentY - startY;
+
+      currentBox.style.width = Math.abs(width) + 'px';
+      currentBox.style.height = Math.abs(height) + 'px';
+      currentBox.style.left = (width < 0 ? currentX : startX) + 'px';
+      currentBox.style.top = (height < 0 ? currentY : startY) + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (currentBox) {
+        currentBox.classList.remove('drawing');
+        addDeleteButton(currentBox);
+        makeDraggable(currentBox);
+      }
+      isDrawing = false;
+      currentBox = null;
+    });
+
+    function addDeleteButton(box) {
+      const btn = document.createElement('button');
+      btn.className = 'delete-btn';
+      btn.textContent = '×';
+      btn.onclick = () => box.remove();
+      box.appendChild(btn);
+    }
+
+    function makeDraggable(box) {
+      let isDragging = false;
+      let offsetX, offsetY;
+
+      box.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('delete-btn')) return;
+        isDragging = true;
+        offsetX = e.offsetX;
+        offsetY = e.offsetY;
+        e.stopPropagation();
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const rect = imageWrapper.getBoundingClientRect();
+        box.style.left = (e.clientX - rect.left - offsetX) + 'px';
+        box.style.top = (e.clientY - rect.top - offsetY) + 'px';
+      });
+
+      document.addEventListener('mouseup', () => {
+        isDragging = false;
+      });
+    }
+
+    // Clear all
+    clearAllBtn.addEventListener('click', clearAllBoxes);
+
+    function clearAllBoxes() {
+      document.querySelectorAll('.redaction-box').forEach(box => box.remove());
+    }
+
+    // Export
+    exportBtn.addEventListener('click', async () => {
+      const boxes = document.querySelectorAll('.redaction-box');
+
+      // Hide delete buttons for export
+      boxes.forEach(box => {
+        box.style.borderColor = 'transparent';
+        const btn = box.querySelector('.delete-btn');
+        if (btn) btn.style.display = 'none';
+      });
+
+      // Use html2canvas approach with canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = originalWidth;
+      canvas.height = originalHeight;
+      const ctx = canvas.getContext('2d');
+
+      // Draw original image
+      ctx.drawImage(sourceImage, 0, 0, originalWidth, originalHeight);
+
+      // Calculate scale factor
+      const scaleX = originalWidth / sourceImage.offsetWidth;
+      const scaleY = originalHeight / sourceImage.offsetHeight;
+
+      // Apply blur to each box region
+      boxes.forEach(box => {
+        const x = parseInt(box.style.left) * scaleX;
+        const y = parseInt(box.style.top) * scaleY;
+        const w = box.offsetWidth * scaleX;
+        const h = box.offsetHeight * scaleY;
+        const blur = parseInt(box.style.getPropertyValue('--blur-amount')) || 12;
+
+        // Get image data for region
+        const imageData = ctx.getImageData(x, y, w, h);
+        const blurred = boxBlur(imageData, Math.ceil(blur * scaleX));
+        ctx.putImageData(blurred, x, y);
+      });
+
+      // Download
+      const link = document.createElement('a');
+      link.download = 'redacted-image.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+
+      // Restore UI
+      boxes.forEach(box => {
+        box.style.borderColor = '';
+        const btn = box.querySelector('.delete-btn');
+        if (btn) btn.style.display = '';
+      });
+    });
+
+    // Simple box blur implementation
+    function boxBlur(imageData, radius) {
+      const pixels = imageData.data;
+      const width = imageData.width;
+      const height = imageData.height;
+      const output = new Uint8ClampedArray(pixels);
+
+      for (let pass = 0; pass < 3; pass++) {
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            let r = 0, g = 0, b = 0, a = 0, count = 0;
+
+            for (let dy = -radius; dy <= radius; dy++) {
+              for (let dx = -radius; dx <= radius; dx++) {
+                const nx = Math.min(width - 1, Math.max(0, x + dx));
+                const ny = Math.min(height - 1, Math.max(0, y + dy));
+                const i = (ny * width + nx) * 4;
+                r += pixels[i];
+                g += pixels[i + 1];
+                b += pixels[i + 2];
+                a += pixels[i + 3];
+                count++;
+              }
+            }
+
+            const i = (y * width + x) * 4;
+            output[i] = r / count;
+            output[i + 1] = g / count;
+            output[i + 2] = b / count;
+            output[i + 3] = a / count;
+          }
+        }
+        pixels.set(output);
+      }
+
+      return new ImageData(output, width, height);
+    }
+  </script>
+</body>
+</html>

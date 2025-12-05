@@ -650,6 +650,38 @@ if (GOODBYE_PATTERNS.test(lastUserMessage) && GOODBYE_PATTERNS.test(lastAIRespon
 
 ---
 
+### 23. Inject Timed Warning Speech into Persona Context
+**Added:** 2025-12-04 18:45 EST
+**Status:** Open
+**Description:** When the voice pipeline speaks timed warnings (e.g., "You have 2 minutes remaining"), this speech is NOT added to the conversation history. The persona has no idea it just said those words.
+
+**Current Behavior:**
+- Timed warnings are injected directly into the TTS stream
+- Persona continues conversation unaware it just interrupted itself
+- Can lead to jarring context: AI says "You have 1 minute left" then continues mid-thought
+
+**Desired Behavior:**
+- After speaking a timed warning, inject it into the conversation history as an assistant message
+- Persona then has context: "I just told them about the time limit"
+- Can respond naturally: "Anyway, as I was saying..." or "So let's wrap up..."
+
+**Implementation:**
+1. In `VoicePipeline` and `BrowserVoicePipeline`, after speaking a warning:
+   ```javascript
+   this.conversationHistory.push({
+     role: 'assistant',
+     content: `[System notification spoken aloud: "${warningText}"]`
+   });
+   ```
+2. Consider also adding to system prompt: "You may occasionally deliver time warnings - acknowledge them naturally and help wrap up the conversation."
+
+**Files to Modify:**
+- `voice-pipeline-nodejs/index.js` - Both pipeline classes, wherever timed warnings are triggered
+
+**Priority:** Medium - Improves conversational coherence.
+
+---
+
 ## Completed Items
 _(Move items here when done)_
 
