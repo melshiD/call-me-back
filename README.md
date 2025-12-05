@@ -232,7 +232,7 @@ Early versions had awful timing—AI would talk over users or wait too long. Dee
 | Layer | Technology | Purpose |
 |-------|------------|---------|
 | **Frontend** | Vue 3, Pinia, Tailwind CSS | SPA on Vercel |
-| **API** | Cloudflare Raindrop (Hono) | 12 edge microservices |
+| **API** | Cloudflare Raindrop (Hono) | 12 edge microservices/Smart Memory |
 | **Database** | PostgreSQL 14 on Vultr | Persistent storage |
 | **Cache** | Raindrop KV | Hot data, rate limiting |
 | **Voice** | Vultr VPS (Node.js) | WebSocket streaming |
