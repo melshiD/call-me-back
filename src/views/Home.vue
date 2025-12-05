@@ -796,8 +796,7 @@
             <div class="flex items-baseline justify-center gap-2 mb-2">
               <span class="text-5xl font-black bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">$14.99</span>
             </div>
-            <p class="text-lg text-cream/80 font-semibold mb-1">25 minutes</p>
-            <p class="text-xs text-cream/50 mb-4">$0.60 per minute</p>
+            <p class="text-lg text-cream/80 font-semibold mb-4">25 minutes</p>
             <ul class="text-sm text-cream/70 space-y-2 text-left">
               <li class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -820,17 +819,14 @@
             </ul>
           </div>
 
-          <!-- Basic - 50 Minutes (Best Value) -->
+          <!-- Basic - 50 Minutes -->
           <div class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border-2 border-glow/50 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/70 hover:shadow-[0_32px_100px_rgba(251,191,36,0.3)] holographic">
-            <div class="absolute -top-4 left-1/2 -translate-x-1/2 px-6 py-2 bg-gradient-to-r from-glow via-ember to-solar rounded-full text-deep text-xs font-black uppercase tracking-wider shadow-[0_8px_32px_rgba(251,191,36,0.4)]">
-              Best Value
-            </div>
-            <h3 class="text-2xl font-[--font-display] font-bold mb-2 mt-4">Basic</h3>
+            <h3 class="text-2xl font-[--font-display] font-bold mb-2">Basic</h3>
             <div class="flex items-baseline justify-center gap-2 mb-2">
               <span class="text-5xl font-black bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">$24.99</span>
             </div>
             <p class="text-lg text-cream/80 font-semibold mb-1">50 minutes</p>
-            <p class="text-xs text-cream/50 mb-4">$0.50/min <span class="text-glow">• Save 17%</span></p>
+            <p class="text-xs text-cream/50 mb-4"><span class="text-glow">Save 17%</span></p>
             <ul class="text-sm text-cream/70 space-y-2 text-left">
               <li class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-glow flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -860,7 +856,7 @@
               <span class="text-5xl font-black bg-gradient-to-r from-solar to-ember bg-clip-text text-transparent">$44.99</span>
             </div>
             <p class="text-lg text-cream/80 font-semibold mb-1">100 minutes</p>
-            <p class="text-xs text-cream/50 mb-4">$0.45/min <span class="text-solar">• Save 25%</span></p>
+            <p class="text-xs text-cream/50 mb-4"><span class="text-solar">Save 25%</span></p>
             <ul class="text-sm text-cream/70 space-y-2 text-left">
               <li class="flex items-center gap-2">
                 <svg class="w-4 h-4 text-solar flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">

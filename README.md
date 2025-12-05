@@ -358,7 +358,7 @@ This is a **vibe-coding hackathon submission**—built with AI assistance from s
 
 The backend was scaffolded using the **Raindrop MCP workflow**, which provided a solid foundation for the API gateway, smart component bindings, and database proxy patterns. From there, [Claude Code](https://claude.ai/code) served as my engineering partner throughout development.  Claude aided in research, planning, designing architecture, debugging real-time WebSocket issues, and iterating on the voice pipeline.
 
-Over 100 session logs helped me document and structure my time during the AI-assisted development process.
+Over 100 session logs helped me document and structure my time and expertly inform Claude's context during the AI-assisted development process.
 
 ---
 
