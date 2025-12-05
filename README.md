@@ -4,8 +4,6 @@
 ╠══════════════════════════════════════════════════════════════════════════════╣
 ║  [ ] Demo video URL - replace <!-- VIDEO_URL -->                             ║
 ║  [ ] Video thumbnail - replace <!-- VIDEO_THUMBNAIL --> (or use hero image)  ║
-║  [ ] GitHub username - replace <!-- GITHUB_USERNAME --> (3 places)           ║
-║  [ ] LinkedIn URL - replace <!-- LINKEDIN_URL --> (2 places)                 ║
 ║  [ ] Email address - replace <!-- EMAIL --> in Judges Letter                 ║
 ║  [ ] Verify coupon code DEVPOSTJUDGE2025 works and has 50 min credit         ║
 ║  [ ] Review closing thoughts - personalize if desired                        ║
@@ -265,7 +263,7 @@ Early versions had awful timing—AI would talk over users or wait too long. Dee
 
 Building CallbackApp AI has been a six-week journey that made me a better engineer.
 
-When I discovered that Cloudflare Workers can't make outbound WebSocket connections, I had a choice: give up on real-time voice or pivot. The pivot led me to **Vultr**—a hackathon partner I might have overlooked otherwise. That frustrating limitation became an opportunity to explore the full landscape of tools available.
+Every design decision I made was informed and thought out, and the result of intensive research in many cases.  Getting familiar with all of the partenered tech was exciting, and that barley scratches the surface of what's been required to bring an app like this into the light.  What I'm REALLY looking forward to is dialing in the personas with the prompt scaffoling I've built, and do so with the limited context window of the Llama 8b model (before I start experimenting with larger models and context windows)
 
 Having to move one service off Raindrop got me thinking like an engineer about *every* resource in this hackathon. Vultr isn't just hosting my voice pipeline and PostgreSQL database—it's now where I build and deploy Raindrop services (after 5 weeks of the `raindrop build` command trying to burn down my laptop). The VPS has become my development workhorse.
 
@@ -273,22 +271,25 @@ This experience opened my eyes to future possibilities. I'm planning to use Cere
 
 No certificate course on cloud engineering or AI could have offered the lab-time I've enjoyed experimenting with these services. The documentation methodology I developed to wrangle the vast research and documentation we (Claude and I) produced into an activly-updated set of useful technical documents and references is its own innovation story that I'm hoping to refine upon independently at a later time.
 
-We're all pretty much cyborgs now. This hackathon proved it.
+As far as the app exists current... we're in "hands-off" mode, the included PUNCHLIST doesn't even scratch the surface of what I'd like to do with this app, and the running list of features and possible use-cases keeps getting longer.
+
+Thanks for taking the time to consider and review my app for the 2025 AI Champion Ship Hackathon!  I'm looking forward to seeing everyone else's submission and to getting back to CallbackApp.AI once we've all had a good rest.
 
 ### For Demo Access
 
 | Resource | Link |
 |----------|------|
-| **Live App** | [callbackapp.ai](https://callbackapp.ai) |
+| **Live App** | [callbackapp.ai](https://callbackapp.ai) (5 free minutes) |
 | **Judge Coupon** | `DEVPOSTJUDGE2025` (50 free minutes) |
-
-The documentation represents 6 weeks of engineering work across 60+ logged sessions. I treated this like a production product, not a prototype.
+Please only use the judge coupon if you are actually a Devpost judge for this hackathon.  Thank you.
 
 ---
 
 ## Documentation
 
 This project includes 160+ documentation files developed during the hackathon. Selected technical documentation is available in the [submission_docs/](submission_docs/CATALOG.md) folder:
+
+The documentation represents 6 weeks of engineering work across 100+ logged sessions.
 
 | Topic | Document |
 |-------|----------|
@@ -300,38 +301,6 @@ This project includes 160+ documentation files developed during the hackathon. S
 | **Session Log: Cost Tracking** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-20_COST_TRACKING_IMPLEMENTATION.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-20_COST_TRACKING_IMPLEMENTATION.md) |
 | **Session Log: Layer 4 & Turn-Taking** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_LAYER4_AND_TURN_TAKING.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_LAYER4_AND_TURN_TAKING.md) |
 | **Session Log: KV Migration & Strategy** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_KV_MIGRATION_COMPLETE_AND_HACKATHON_STRATEGY.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_KV_MIGRATION_COMPLETE_AND_HACKATHON_STRATEGY.md) |
-
----
-
-## Quick Start (Local Development)
-
-```bash
-# Clone
-git clone https://github.com/<!-- GITHUB_USERNAME -->/call-me-back.git
-cd call-me-back
-
-# Install
-npm install
-
-# Run frontend
-npm run dev
-
-# Open http://localhost:3000
-```
-
-[Full documentation →](submission_docs/CATALOG.md)
-
----
-
-## Closing Thoughts
-
-This started as a hackathon project and became something I genuinely want to exist in the world.
-
-Loneliness is real, and voice creates connection in a way text can't. The engineering challenge was significant—multi-cloud architecture, sub-second latency, persistent memory—but the goal was simple: **make it feel like calling a friend.**
-
-Whether this wins or not, I'm going to keep building it.
-
-— David
 
 ---
 
@@ -358,6 +327,26 @@ This is a **vibe-coding hackathon submission**—built with AI assistance from s
 The backend was scaffolded using the **Raindrop MCP workflow**, which provided a solid foundation for the API gateway, smart component bindings, and database proxy patterns. From there, [Claude Code](https://claude.ai/code) served as my engineering partner throughout development.  Claude aided in research, planning, designing architecture, debugging real-time WebSocket issues, and iterating on the voice pipeline.
 
 Over 100 session logs helped me document and structure my time and expertly inform Claude's context during the AI-assisted development process.
+
+---
+## Closing Thoughts
+
+This started as a hackathon project to experience what I could do with access to the partnered tech, and the project quickly became something I genuinely want to exist in the world.
+
+Loneliness is real, people need access to cognizant interlocutors, and voice creates connection in a way text can't. The engineering challenges were significant; multi-cloud architecture, sub-second latency, designing and compiling persona memory; but the goal was simple: **make it feel talking with someon who listens, can take direction and can hold a conversation.**
+
+As we lay this app down for a small respite during the hands-off period, I'm excited to know I'm a much more relevant engineer than when I arrived to the project (I was relatively new to claude code).
+
+### A note on speed ###
+I've never built or engineered anything before with such a continued increase in velocity; What I experienced collaborating with Claude during this hackathon is profound.
+
+For most of my life I had held the since that technology passed from one generation to the next as a sort of baton.  During many turnovers, the baton shines far brighter than when it was last turned over; more brilliant and luminsecent, and providing an ever greater means for clarity and knowledge in the future; but always a baton.
+
+Now, as I find the baton coming nearly in-hand, I see clearly that it's no longer a baton giving light, but a rocket; a brilliant, incendary rocket.  Decide where to point it and find a way to hold on tight.  You'll end up somewhere incredible, and hopefully agreeable and a benefit to all.  
+
+Keep buildilng.  Stay creative and positive.  Thanks for checking out my app.
+
+— David
 
 ---
 
