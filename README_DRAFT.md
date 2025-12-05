@@ -32,7 +32,7 @@
 
 ---
 
-![CallbackApp AI Homepage](submission_docs/images/hero_section.png)
+![CallbackApp AI Homepage](eval_images/hero_section.png)
 *AI companions you can actually call—and who remember you.*
 
 ---
@@ -72,7 +72,7 @@
 
 ## The User Experience
 
-![User Flow - From contacts to call to transcript](submission_docs/images/user_flow.png)
+![User Flow - From contacts to call to transcript](eval_images/user_flow.png)
 *The complete user journey: Configure your relationship → Schedule a call → Receive the call → Review transcripts*
 
 ---
@@ -109,7 +109,7 @@
 
 **Why multi-cloud?** Cloudflare Workers can't make outbound WebSocket connections—required for real-time voice streaming. We run the voice pipeline on Vultr VPS while keeping the API layer on Raindrop for edge performance.
 
-[View full documentation catalog →](submission_docs/CATALOG.md)
+[View full architecture diagram →](documentation/diagrams/architecture-diagram.mmd)
 
 ---
 
@@ -117,7 +117,7 @@
 
 This core innovation brings us **sub-1000ms voice-to-voice latency** through streaming everything.
 
-![Voice Call Flow](submission_docs/images/voice_call_flow_complete.png)
+![Voice Call Flow](documentation/diagrams/voice_call_flow_complete.png)
 *Complete call flow: From button click through Twilio, Voice Pipeline, Deepgram STT, Cerebras inference, ElevenLabs TTS, and back to the user's phone*
 
 The sequence diagram above shows the full journey of a call:
@@ -128,13 +128,13 @@ The sequence diagram above shows the full journey of a call:
 
 **Key insight:** We use Deepgram Flux for its native turn-taking *events* (`EagerEndOfTurn`, `EndOfTurn`), not just transcription. This enables **speculative response generation**—the AI starts thinking before you finish speaking.
 
-[Deep dive: Voice Pipeline →](submission_docs/voice-pipeline.md)
+[Deep dive: Voice Pipeline →](documentation/domain/voice-pipeline.md)
 
 #### Prompt Assembly (5-Layer Context Injection)
 
 Before each AI response, we assemble a rich system prompt from multiple data sources. This isn't a static prompt—it's dynamically built for each call based on who's calling, why they're calling, and everything the AI knows about them.
 
-<img src="submission_docs/images/prompt_injection.svg" alt="Prompt Injection Architecture" width="600">
+<img src="documentation/diagrams/prompt_injection.svg" alt="Prompt Injection Architecture" width="600">
 
 The 5 layers combine to create contextual, personalized responses:
 - **Layer 1 (Core Identity):** The persona's personality, speaking style, and behavioral guidelines
@@ -149,7 +149,7 @@ The 5 layers combine to create contextual, personalized responses:
 
 Beyond the user-facing app, we built a comprehensive admin tool for designing and debugging personas. This is where the prompt engineering happens.
 
-![Persona Designer Dashboard](submission_docs/images/persona_designer.png)
+![Persona Designer Dashboard](eval_images/persona_designer.png)
 *The Persona Designer showing Alex's configuration: core prompt editor, live "Compiled Final Prompt" preview, and 43 extracted user facts*
 
 **What makes this powerful:**
@@ -178,9 +178,9 @@ All running on Cloudflare Raindrop:
 | `log-ingest` | Call logs and analytics |
 | `cost-analytics` | Usage dashboards |
 | `scheduled-call-executor` | Cron-triggered callbacks |
-| `mcp-query-service` | AI-assisted log analysis (Currently unutilized)|
+| `mcp-query-service` | AI-assisted log analysis |
 
-[Full documentation →](submission_docs/CATALOG.md)
+[Full service documentation →](documentation/domain/raindrop.md)
 
 ---
 
@@ -197,13 +197,13 @@ All running on Cloudflare Raindrop:
 - `token-blacklist` — JWT revocation
 - `call-state` — In-progress call tracking
 
-[Full documentation →](submission_docs/CATALOG.md)
+[Database architecture →](documentation/domain/database.md)
 
 ---
 
 ## Cost Economics
 
-We optimized for **real business viability**.
+We optimized for **real business viability**, not just a demo.
 
 | Component | Cost per Minute | % of Total |
 |-----------|-----------------|------------|
@@ -217,7 +217,7 @@ We optimized for **real business viability**.
 
 Cerebras is the hero here—sub-second inference at $0.10/1M tokens makes the entire architecture viable.
 
-[Full cost analysis →](submission_docs/cost-tracking.md)
+[Full cost analysis →](documentation/domain/cost-tracking.md)
 
 ---
 
@@ -226,17 +226,17 @@ Cerebras is the hero here—sub-second inference at $0.10/1M tokens makes the en
 Building this wasn't smooth. Here's the real story:
 
 ### The WebSocket Audio Nightmare
-**12 hours** debugging μ-law audio encoding between Twilio and our pipeline was a slog. Turned out to be a sample rate mismatch that produced nothing but static. Breakthrough: raw PCM inspection with `ffprobe`.
+**12 hours** debugging μ-law audio encoding between Twilio and our pipeline. Turned out to be a sample rate mismatch that produced nothing but static. Breakthrough: raw PCM inspection with `ffprobe`.
 
 ### The Raindrop ↔ PostgreSQL Bridge
-Workers can't connect to external databases directly. We built a `database-proxy` service on Vultr that accepts HTTP requests and translates them to SQL. It currently handles 100% of our DB traffic.
+Workers can't connect to external databases directly. We built a `database-proxy` service on Vultr that accepts HTTP requests and translates them to SQL. Now it handles 100% of our DB traffic.
 
-[See full documentation →](submission_docs/CATALOG.md)
+[The full debugging story →](documentation/raindrop/RAINDROP_DEPLOYMENT_BREAKTHROUGH.md)
 
 ### The Turn-Taking Puzzle
 Early versions had awful timing—AI would talk over users or wait too long. Deepgram Flux's turn-taking events solved this. We now start generating responses at `EagerEndOfTurn` and abort if the user keeps talking.
 
-[See voice pipeline documentation →](submission_docs/voice-pipeline.md)
+[Interruption fix documentation →](documentation/features/INTERRUPTION_FIX_2025-11-22.md)
 
 ---
 
@@ -258,45 +258,43 @@ Early versions had awful timing—AI would talk over users or wait too long. Dee
 
 ---
 
-## Letter to the Judges
+## For Hackathon Judges
 
-Building CallbackApp AI has been a six-week journey that made me a better engineer.
+Thank you for reviewing this submission.
 
-When I discovered that Cloudflare Workers can't make outbound WebSocket connections, I had a choice: give up on real-time voice or pivot. The pivot led me to **Vultr**—a hackathon partner I might have overlooked otherwise. That frustrating limitation became an opportunity to explore the full landscape of tools available.
+I've prepared a **[Letter to the Judges](documentation/submission/JUDGES_LETTER.md)** with:
+- A demo coupon code for **50 free minutes**
+- Links to all technical documentation
+- The honest roadmap of what's next
+- A request for feedback (win or lose)
 
-Having to move one service off Raindrop got me thinking like an engineer about *every* resource in this hackathon. Vultr isn't just hosting my voice pipeline and PostgreSQL database—it's now where I build and deploy Raindrop services (after 5 weeks of the `raindrop build` command trying to burn down my laptop). The VPS has become my development workhorse.
+The documentation represents 6 weeks of engineering work across 100+ logged sessions. I have pushed this app to as close production ready as I could before the hands-off for submission.
 
-This experience opened my eyes to future possibilities. I'm planning to use Cerebras and Vultr together to generate synthetic training data for LoRA fine-tuning of the 8B models my personas use. Cerebras inference is so fast it's worth keeping in the stack for data generation, while Vultr can handle the actual training workloads.
+---
 
-No certificate course on cloud engineering or AI could have offered the lab-time I've enjoyed experimenting with these services. The documentation methodology I developed to wrangle the vast research and documentation we (Claude and I) produced into an activly-updated set of useful technical documents and references is its own innovation story that I'm hoping to refine upon independently at a later time.
-
-We're all pretty much cyborgs now. This hackathon proved it.
-
-### For Demo Access
+## Try It Live
 
 | Resource | Link |
 |----------|------|
 | **Live App** | [callbackapp.ai](https://callbackapp.ai) |
-| **Judge Coupon** | `DEVPOSTJUDGE2025` (50 free minutes) |
-
-The documentation represents 6 weeks of engineering work across 60+ logged sessions. I treated this like a production product, not a prototype.
+| **Demo Video** | [Watch Demo](<!-- VIDEO_URL -->) |
+| **Judge Coupon** | See [Letter to Judges](documentation/submission/JUDGES_LETTER.md) |
 
 ---
 
-## Documentation
-
-This project includes 160+ documentation files developed during the hackathon. Selected technical documentation is available in the [submission_docs/](submission_docs/CATALOG.md) folder:
+## Documentation Index
 
 | Topic | Document |
 |-------|----------|
-| **Full Documentation Catalog** | [submission_docs/CATALOG.md](submission_docs/CATALOG.md) |
-| **Voice Pipeline** | [submission_docs/voice-pipeline.md](submission_docs/voice-pipeline.md) |
-| **Cost Tracking** | [submission_docs/cost-tracking.md](submission_docs/cost-tracking.md) |
-| **Punchlist (Roadmap)** | [submission_docs/PUNCHLIST.md](submission_docs/PUNCHLIST.md) |
-| **Session Log: WebSocket Fixed** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-22_01-55_WEBSOCKET_FIXED.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-22_01-55_WEBSOCKET_FIXED.md) |
-| **Session Log: Cost Tracking** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-20_11-48-03_COST_TRACKING_IMPLEMENTATION.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-20_11-48-03_COST_TRACKING_IMPLEMENTATION.md) |
-| **Session Log: Layer 4 & Turn-Taking** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_16-18_LAYER4_AND_TURN_TAKING.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_16-18_LAYER4_AND_TURN_TAKING.md) |
-| **Session Log: KV Migration & Strategy** | [submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_18-15_KV_MIGRATION_COMPLETE_AND_HACKATHON_STRATEGY.md](submission_docs/session_logs/NEXT_SESSION_LOG_2025-11-26_18-15_KV_MIGRATION_COMPLETE_AND_HACKATHON_STRATEGY.md) |
+| **Voice Pipeline** | [documentation/domain/voice-pipeline.md](documentation/domain/voice-pipeline.md) |
+| **Database Schema** | [documentation/domain/database.md](documentation/domain/database.md) |
+| **API Reference** | [documentation/domain/api.md](documentation/domain/api.md) |
+| **Raindrop Services** | [documentation/domain/raindrop.md](documentation/domain/raindrop.md) |
+| **Cost Tracking** | [documentation/domain/cost-tracking.md](documentation/domain/cost-tracking.md) |
+| **Deployment** | [documentation/domain/deployment.md](documentation/domain/deployment.md) |
+| **Auth System** | [documentation/domain/auth.md](documentation/domain/auth.md) |
+| **Debugging Guide** | [documentation/domain/debugging.md](documentation/domain/debugging.md) |
+| **Tech Manual Index** | [documentation/tech_manual/DOC_INDEX.md](documentation/tech_manual/DOC_INDEX.md) |
 
 ---
 
@@ -316,7 +314,7 @@ npm run dev
 # Open http://localhost:3000
 ```
 
-[Full documentation →](submission_docs/CATALOG.md)
+[Full deployment guide →](documentation/domain/deployment.md)
 
 ---
 
@@ -351,8 +349,8 @@ Built with support from the AI Championship partners:
 
 **David Melsheimer**
 
-- GitHub: [melshiD](https://github.com/melshiD)
-- LinkedIn: [David Melsheimer](https://www.linkedin.com/in/david-melsheimer-72a0a4137)
+- GitHub: [<!-- GITHUB_USERNAME -->](https://github.com/<!-- GITHUB_USERNAME -->)
+- LinkedIn: [<!-- LINKEDIN_URL -->](<!-- LINKEDIN_URL -->)
 
 ---
 
@@ -365,5 +363,5 @@ MIT License — See [LICENSE](LICENSE) for details.
 <p align="center">
   <b>CallbackApp AI</b> — Because sometimes you just need someone to talk to.
   <br><br>
-  <a href="https://callbackapp.ai">Try the Live App →</a>
+  <a href="https://callbackapp.ai">Try the Live Demo →</a>
 </p>
