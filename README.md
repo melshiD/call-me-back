@@ -19,7 +19,7 @@
 
 ---
 
-[![Built for AI Championship](https://img.shields.io/badge/Hackathon-AI_Championship_2025-gold?style=for-the-badge)](https://liquidmetal.devpost.com/)
+[![Built for AI Champion Ship](https://img.shields.io/badge/Hackathon-AI_Championship_2025-gold?style=for-the-badge)](https://liquidmetal.devpost.com/)
 
 [![Cloudflare Raindrop](https://img.shields.io/badge/Built_with-Raindrop-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](https://raindrop.run)
 [![Vultr](https://img.shields.io/badge/Powered_by-Vultr-007BFC?style=for-the-badge&logo=vultr&logoColor=white)](https://www.vultr.com/)
@@ -28,7 +28,7 @@
 [![ElevenLabs](https://img.shields.io/badge/TTS-ElevenLabs-000000?style=for-the-badge)](https://elevenlabs.io/)
 [![Twilio](https://img.shields.io/badge/Voice-Twilio-F22F46?style=for-the-badge&logo=twilio&logoColor=white)](https://www.twilio.com/)
 
-**Built for and submitted to the [AI Championship Hackathon](https://liquidmetal.devpost.com/) by LiquidMetal.AI + Vultr**
+**Built for and submitted to the [AI Champion Ship Hackathon](https://liquidmetal.devpost.com/) by LiquidMetal.AI + Vultr**
 
 ---
 
@@ -334,7 +334,7 @@ Whether this wins or not, I'm going to keep building it.
 
 ## Acknowledgments
 
-Built with support from the AI Championship partners:
+Built with support from the AI Champion Ship partners:
 
 | Partner | Contribution |
 |---------|--------------|
