@@ -81,8 +81,7 @@
 
 ## See It In Action
 
-<!-- VIDEO: Replace with your demo video thumbnail when ready -->
-[![Watch the Demo Video](<!-- VIDEO_THUMBNAIL -->)](<!-- VIDEO_URL -->)
+[![Watch the Demo Video](https://img.youtube.com/vi/75hwdzzf3V4/maxresdefault.jpg)](https://youtu.be/75hwdzzf3V4)
 
 *3-minute walkthrough of the complete experience*
 
