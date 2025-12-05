@@ -1,16 +1,3 @@
-<!--
-╔══════════════════════════════════════════════════════════════════════════════╗
-║  📋 DAVID'S TODO - DELETE THIS SECTION BEFORE SUBMISSION                      ║
-╠══════════════════════════════════════════════════════════════════════════════╣
-║  [ ] Demo video URL - replace <!-- VIDEO_URL -->                             ║
-║  [ ] Video thumbnail - replace <!-- VIDEO_THUMBNAIL --> (or use hero image)  ║
-║  [ ] Email address - replace <!-- EMAIL --> in Judges Letter                 ║
-║  [ ] Verify coupon code DEVPOSTJUDGE2025 works and has 50 min credit         ║
-║  [ ] Review closing thoughts - personalize if desired                        ║
-║  [ ] Delete this TODO block                                                  ║
-╚══════════════════════════════════════════════════════════════════════════════╝
--->
-
 # CallbackApp AI
 
 **Your AI companion, just a phone call away.**
