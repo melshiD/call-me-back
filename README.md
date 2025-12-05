@@ -68,7 +68,7 @@
 
 ## See It In Action
 
-[![Watch the Demo Video](https://img.youtube.com/vi/75hwdzzf3V4/maxresdefault.jpg)](https://youtu.be/75hwdzzf3V4)
+[![Watch the Demo Video](https://img.youtube.com/vi/75hwdzzf3V4/hqdefault.jpg)](https://youtu.be/75hwdzzf3V4)
 
 *3-minute walkthrough of the complete experience*
 
