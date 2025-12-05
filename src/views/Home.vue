@@ -791,7 +791,7 @@
 
         <div class="grid md:grid-cols-3 gap-8 mb-16">
           <!-- Starter - 25 Minutes -->
-          <div class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/50 hover:shadow-[0_24px_80px_rgba(251,191,36,0.2)] holographic">
+          <router-link to="/pricing" class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/50 hover:shadow-[0_24px_80px_rgba(251,191,36,0.2)] holographic cursor-pointer block">
             <h3 class="text-2xl font-[--font-display] font-bold mb-2">Starter</h3>
             <div class="flex items-baseline justify-center gap-2 mb-2">
               <span class="text-5xl font-black bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">$14.99</span>
@@ -817,10 +817,10 @@
                 Minutes never expire
               </li>
             </ul>
-          </div>
+          </router-link>
 
           <!-- Basic - 50 Minutes -->
-          <div class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border-2 border-glow/50 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/70 hover:shadow-[0_32px_100px_rgba(251,191,36,0.3)] holographic">
+          <router-link to="/pricing" class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border-2 border-glow/50 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-glow/70 hover:shadow-[0_32px_100px_rgba(251,191,36,0.3)] holographic cursor-pointer block">
             <h3 class="text-2xl font-[--font-display] font-bold mb-2">Basic</h3>
             <div class="flex items-baseline justify-center gap-2 mb-2">
               <span class="text-5xl font-black bg-gradient-to-r from-glow to-ember bg-clip-text text-transparent">$24.99</span>
@@ -847,10 +847,10 @@
                 Priority support
               </li>
             </ul>
-          </div>
+          </router-link>
 
           <!-- Plus - 100 Minutes -->
-          <div class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-solar/50 hover:shadow-[0_24px_80px_rgba(255,107,53,0.2)] holographic">
+          <router-link to="/pricing" class="relative group bg-gradient-to-br from-white/[0.08] to-white/[0.02] backdrop-blur-xl border border-white/15 rounded-[32px] p-10 transition-all duration-500 hover:bg-white/[0.12] hover:border-solar/50 hover:shadow-[0_24px_80px_rgba(255,107,53,0.2)] holographic cursor-pointer block">
             <h3 class="text-2xl font-[--font-display] font-bold mb-2">Plus</h3>
             <div class="flex items-baseline justify-center gap-2 mb-2">
               <span class="text-5xl font-black bg-gradient-to-r from-solar to-ember bg-clip-text text-transparent">$44.99</span>
@@ -877,7 +877,7 @@
                 Priority support
               </li>
             </ul>
-          </div>
+          </router-link>
         </div>
 
         <div class="flex flex-col sm:flex-row items-center justify-center gap-6">

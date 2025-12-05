@@ -108,6 +108,7 @@ New users sign up through a production-ready WorkOS authentication flow (email/p
 | **Frontend** | Vercel + Vue 3 | SPA with real-time call UI |
 | **Backend** | Raindrop (Cloudflare Workers) | API Gateway, KV Cache for user context, SmartMemory for config |
 | **Voice Pipeline** | Vultr VPS | Real-time WebSocket orchestration (Twilio ↔ Deepgram ↔ Cerebras ↔ ElevenLabs) |
+| **Scheduler** | Vultr Cron Service | Triggers scheduled calls (daily check-ins, reminders, wake-up calls) |
 | **Database** | Vultr PostgreSQL | Personas, users, call history, cost tracking |
 
 **Why multi-cloud?** Cloudflare Workers can't make outbound WebSocket connections—required for real-time voice streaming. The voice pipeline runs on Vultr while Raindrop handles the API layer at the edge.
@@ -220,8 +221,6 @@ We optimized for **real business viability**.
 **At $0.15/min retail pricing = 54% gross margin**
 
 Cerebras is the hero here—sub-second inference at $0.10/1M tokens makes the entire architecture viable.
-
-[Full cost analysis →](submission_docs/cost-tracking.md)
 
 ---
 
