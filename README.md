@@ -68,7 +68,9 @@
 
 ## See It In Action
 
-[![Watch the Demo Video](https://img.youtube.com/vi/75hwdzzf3V4/hqdefault.jpg)](https://youtu.be/75hwdzzf3V4)
+<a href="https://youtu.be/75hwdzzf3V4" target="_blank">
+  <img src="https://img.youtube.com/vi/75hwdzzf3V4/hqdefault.jpg" alt="Watch the Demo Video">
+</a>
 
 *3-minute walkthrough of the complete experience*
 
