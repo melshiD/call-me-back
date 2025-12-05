@@ -335,7 +335,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                   </svg>
                 </p>
-                <p class="text-[10px] text-[#666]">To: {{ call.phone_number }}</p>
+                <p class="text-[10px] text-[#666]">To: {{ getPhoneDisplayName(call.phone_number) }}</p>
               </div>
               <div class="flex items-center gap-2">
                 <!-- Expand/Collapse Button -->
@@ -683,6 +683,15 @@ const executeDeletePrefab = () => {
   }
   toast.success('Quick context deleted')
   deletingPrefabId.value = null
+}
+
+// Get display name for phone number (nickname if available, otherwise formatted number)
+const getPhoneDisplayName = (phoneNumber) => {
+  const phone = phonesStore.verifiedPhones.find(p => p.phone === phoneNumber)
+  if (phone?.nickname) {
+    return phone.nickname
+  }
+  return phonesStore.formatPhoneForDisplay(phoneNumber)
 }
 
 // Form validation
