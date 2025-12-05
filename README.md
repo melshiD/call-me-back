@@ -114,7 +114,7 @@ The sequence diagram above shows the full journey of a call:
 1. **Call Initiation** — User clicks "Call Now", API Gateway routes to Call Orchestrator, credits checked, Twilio initiates outbound call
 2. **WebSocket Establishment** — Phone answers, Twilio connects media stream to Voice Pipeline on Vultr
 3. **Real-Time Voice Loop** — Audio streams to Deepgram for transcription, Cerebras generates response in <1 second, ElevenLabs streams audio back
-4. **Call Termination** — Hang up triggers cleanup, credits deducted, call logged to PostgreSQL
+4. **Call Termination** — Hang up triggers cleanup, credits deducted, call logged to PostgreSQL, SmartMemory extraction initiates
 
 **Key insight:** We use Deepgram Flux for its native turn-taking *events* (`EagerEndOfTurn`, `EndOfTurn`), not just transcription. This enables **speculative response generation**—the AI starts thinking before you finish speaking.
 
