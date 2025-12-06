@@ -203,13 +203,13 @@ We optimized for **real business viability**. The architecture delivers sub-seco
 
 ## Hardships & Breakthroughs
 
-Building this wasn't smooth. Here's the real story:
+Building this wasn't an entirely smooth process. Here's some of the real story:
 
 ### The WebSocket Audio Nightmare
-**12 hours** debugging μ-law audio encoding between Twilio and our pipeline was a slog. Turned out to be a sample rate mismatch that produced nothing but static. Breakthrough: raw PCM inspection with `ffprobe`.
+**12 hours** debugging μ-law audio encoding between Twilio and our pipeline was a slog. Turned out to be a sample rate mismatch. Breakthrough: raw PCM inspection with `ffprobe`.
 
 ### Interrupting the Persona
-We spent many, many sessions across the entire **Duration of the hackathon** trying to figure out a good way to let the user interrupt the persona.  The complex tech stack that brings us sub-second audio also makes interruptions an engineering challenge; one that we've finally partially solved.  We have some really exciting engineering solutions to test for further improvement, which we will explore after the project resumes.
+We spent many, many sessions across the entire **Duration of the hackathon** trying to figure out a good way to let the user interrupt the persona.  The complex tech stack that brings us sub-second audio also makes interruptions an engineering challenge; one that we've finally solved\*.  We have some really exciting engineering solutions to test for further improvement, which we will explore after the project resumes.
 
 ### The Raindrop ↔ PostgreSQL Bridge
 Workers can't connect to external databases directly (I have since realized that maybe a product called Hyperdrive could have solved my issues; knowledge for next time). We built a `database-proxy` service on Vultr that accepts HTTP requests and translates them to SQL. It currently handles 100% of our DB traffic.
