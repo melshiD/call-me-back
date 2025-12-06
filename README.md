@@ -60,9 +60,9 @@
 |---------|-------------|
 | **Real phone calls** | Your phone rings. You answer. You talk. |
 | **Persistent memory** | The AI remembers your life—your job, your family, your ongoing situations |
-| **Scheduled callbacks** | Daily check-ins, wake-up calls, accountability reminders |
+| **Scheduled callbacks** | Daily check-ins, wake-up calls, accountability reminders, gratitude reminders |
 | **Custom personas** | Create AI friends with the personality you want |
-| **Sub-second responses** | Natural conversation flow powered by Cerebras |
+| **Sub-second responses** | Natural conversation flow powered by advanced tech |
 
 ---
 
@@ -105,7 +105,7 @@ New users sign up through a production-ready WorkOS authentication flow (email/p
 
 ### The Voice Pipeline
 
-This core innovation brings us **sub-1000ms voice-to-voice latency** through streaming everything.  Liquidmetal's Raindrop at the edge with Cerebras inference is FAST!  Add in the turn-taking capability of Deepgram's new Flux model (originally we used Nova + in-house turn-taking built on top of Silero-VAD.  It was servicable, but not very good), and you have some serously production-ready voice bots.
+This core innovation brings us **sub-1000ms voice-to-voice latency** through streaming everything.  Liquidmetal's Raindrop at the edge with Cerebras inference is FAST!  Add in the turn-taking capability of Deepgram's new Flux model (originally we used Nova + in-house turn-taking built on top of Silero-VAD.  It was servicable, but not very good), and you have some serously production-ready voice bots.  We plan to explore more APIs and models from ElevenLabs as well, especially for party-line meeting-room scenarios that require diarization (for when you invite your AI companion to talk with one of your friends on the line with you).
 
 ![Voice Call Flow](submission_docs/images/voice_call_flow_complete.png)
 *Complete call flow: From button click through Twilio, Voice Pipeline, Deepgram STT, Cerebras inference, ElevenLabs TTS, and back to the user's phone.*
@@ -117,7 +117,7 @@ The sequence diagram above shows the full journey of a call:
 3. **Real-Time Voice Loop** — Audio streams to Deepgram for transcription, Cerebras generates response, ElevenLabs streams audio back
 4. **Call Termination** — Hang up triggers cleanup, credits deducted, call logged to PostgreSQL, SmartMemory extraction completes, and the AI personas retrain memories from your conversations together.
 
-**Key insight:** We use Deepgram Flux for its native turn-taking *events* (`EagerEndOfTurn`, `EndOfTurn`), not just transcription. This enables **speculative response generation**—the AI starts thinking before you finish speaking.
+**Key insight:** We use Deepgram Flux for its native turn-taking *events* (`EagerEndOfTurn`, `EndOfTurn`), not just transcription. This enables **speculative response generation**—the AI starts thinking before you finish speaking.  (A version of this concept was built in-house, and Flux is about 10x better)
 
 [Deep dive: Voice Pipeline →](submission_docs/voice-pipeline.md)
 
@@ -181,10 +181,9 @@ All running on Cloudflare Raindrop:
 **PostgreSQL on Vultr** — 12 tables including:
 - `users`, `personas`, `calls`, `credits`
 - `user_persona_context` — Per-relationship memory
-- `persona_facts` — Extracted knowledge about users
 
 **Raindrop KV Cache** — 4 namespaces:
-- `user_context:{userId}:{personaId}` — Extracted user facts from post-call analysis
+- `user_context:{userId}:{personaId}` — Extracted user facts from post-call analysis (Extracted via SmartMemory)
 - `rate-limit-cache` — API protection
 - `token-blacklist` — JWT revocation
 - `call-state` — In-progress call tracking
@@ -198,19 +197,7 @@ All running on Cloudflare Raindrop:
 
 ## Cost Economics
 
-We optimized for **real business viability**.
-
-| Component | Cost per Minute | % of Total |
-|-----------|-----------------|------------|
-| ElevenLabs (TTS) | $0.059 | 70% |
-| Deepgram (STT) | $0.015 | 18% |
-| Cerebras (LLM) | $0.002 | 2% |
-| Twilio (Voice) | $0.009 | 10% |
-| **Total** | **$0.085/min** | 100% |
-
-**At $0.15/min retail pricing = 54% gross margin**
-
-Cerebras is the hero here—sub-second inference at $0.10/1M tokens makes the entire architecture viable.
+We optimized for **real business viability**. The architecture delivers sub-second latency while maintaining healthy margins—Cerebras is the hero here, keeping inference costs low enough that we have room to invest in richer, more sophisticated persona prompts and increased user value as we continue development.
 
 ---
 
