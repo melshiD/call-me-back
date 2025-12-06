@@ -92,12 +92,12 @@ New users sign up through a production-ready WorkOS authentication flow (email/p
 | Layer | Technology | Purpose |
 |-------|------------|---------|
 | **Frontend** | Vercel + Vue 3 | SPA with real-time call UI |
-| **Backend** | Raindrop (Cloudflare Workers) | API Gateway, KV Cache for user context, SmartMemory for config |
+| **Backend** | Raindrop (Cloudflare Workers) | API Gateway, KV Cache for user context, SmartMemory |
 | **Voice Pipeline** | Vultr VPS | Real-time WebSocket orchestration (Twilio ↔ Deepgram ↔ Cerebras ↔ ElevenLabs) |
-| **Scheduler** | Vultr Cron Service | Triggers scheduled calls (daily check-ins, reminders, wake-up calls) |
+| **Scheduler** | Cron Service (Raindrop) | Triggers scheduled calls (daily check-ins, reminders, wake-up calls) |
 | **Database** | Vultr PostgreSQL | Personas, users, call history, cost tracking |
 
-**Why multi-cloud?** Cloudflare Workers can't make outbound WebSocket connections—required for real-time voice streaming. The voice pipeline runs on Vultr while Raindrop handles the API layer at the edge.
+**Why multi-cloud?** Cloudflare Workers can't make outbound WebSocket connections—required for real-time voice streaming. A natural and very sound engineering choice is to move the voice pipeline to Vultr while Raindrop handles the API layer at the edge.
 
 [View full documentation catalog →](submission_docs/CATALOG.md)
 
@@ -105,16 +105,17 @@ New users sign up through a production-ready WorkOS authentication flow (email/p
 
 ### The Voice Pipeline
 
-This core innovation brings us **sub-1000ms voice-to-voice latency** through streaming everything.  Liquidmetal's Raindrop at the edge with Cerebras inference is FAST!
+This core innovation brings us **sub-1000ms voice-to-voice latency** through streaming everything.  Liquidmetal's Raindrop at the edge with Cerebras inference is FAST!  Add in the turn-taking capability of Deepgram's new Flux model (originally we used Nova + in-house turn-taking built on top of Silero-VAD.  It was servicable, but not very good), and you have some serously production-ready voice bots.
 
 ![Voice Call Flow](submission_docs/images/voice_call_flow_complete.png)
-*Complete call flow: From button click through Twilio, Voice Pipeline, Deepgram STT, Cerebras inference, ElevenLabs TTS, and back to the user's phone*
+*Complete call flow: From button click through Twilio, Voice Pipeline, Deepgram STT, Cerebras inference, ElevenLabs TTS, and back to the user's phone.*
+*\*This complete flow represents the phone-call based audio-pipeline.  This app also features a separete, parallel voice pipeline specifically for streaming audio from the browser so that admin's can call and debug personas directly from the Persona Designer without having to use a phone.*
 
 The sequence diagram above shows the full journey of a call:
 1. **Call Initiation** — User clicks "Call Now", API Gateway routes to Call Orchestrator, credits checked, Twilio initiates outbound call
 2. **WebSocket Establishment** — Phone answers, Twilio connects media stream to Voice Pipeline on Vultr
-3. **Real-Time Voice Loop** — Audio streams to Deepgram for transcription, Cerebras generates response in <1 second, ElevenLabs streams audio back
-4. **Call Termination** — Hang up triggers cleanup, credits deducted, call logged to PostgreSQL, SmartMemory extraction initiates
+3. **Real-Time Voice Loop** — Audio streams to Deepgram for transcription, Cerebras generates response, ElevenLabs streams audio back
+4. **Call Termination** — Hang up triggers cleanup, credits deducted, call logged to PostgreSQL, SmartMemory extraction completes, and the AI personas retrain memories from your conversations together.
 
 **Key insight:** We use Deepgram Flux for its native turn-taking *events* (`EagerEndOfTurn`, `EndOfTurn`), not just transcription. This enables **speculative response generation**—the AI starts thinking before you finish speaking.
 
@@ -122,13 +123,13 @@ The sequence diagram above shows the full journey of a call:
 
 #### Prompt Assembly (5-Layer Context Injection)
 
-Before each AI response, we assemble a rich system prompt from multiple data sources. This isn't a static prompt—it's dynamically built for each call based on who's calling, why they're calling, and everything the AI knows about them.  Some elements of the prompt are injected on a per-request basis, allowing the call context to develop purposefully during a single call.
+Before each AI response, we assemble a rich system prompt from multiple data sources. This isn't a static prompt—it's dynamically built for each call based on who's calling, why they're calling, and everything the AI knows about them.  Some elements of the prompt are injected on a per-request basis, allowing the call context to develop purposefully during a single call. (I think we can all agree there is no limit to the complexity that can be wrought when building prompt injection systems with tools like the SmartComponents Raindrop provides.  The prompt compilation and injection layer of the app will be the first feature reveiving post-hackathon attention.  Model selection, prompt structure and size, and improved temporal awareness will bring the personas even more fully to life.)
 
 <img src="submission_docs/images/prompt_compilation_and_injection.png" alt="Prompt Compilation and Injection Architecture">
 
 The 5 layers combine to create contextual, personalized responses:
 - **Layer 1 (Core Identity):** The persona's personality, speaking style, and behavioral guidelines
-- **Layer 2 (Call Context):** Why the user is calling right now ("I need help practicing for a job interview")
+- **Layer 2 (Call Context):** What is the purpose of the user's requsted call (or callback) ("I need help practicing for a job interview")
 - **Layer 3 (Relationship):** How long they've known each other, the nature of their relationship
 - **Layer 4 (User Knowledge):** Facts extracted from previous conversations (job, family, hobbies, ongoing situations)
 - **Layer 5 (Guidelines):** Phone-specific rules like brevity, natural speech patterns, handling interruptions
@@ -138,7 +139,7 @@ The 5 layers combine to create contextual, personalized responses:
 
 ### The Persona Designer (Admin Tool)
 
-Beyond the user-facing app, we built a comprehensive admin tool for designing and debugging personas. This is where the prompt engineering happens.
+Beyond the user-facing app, we built a comprehensive admin tool for designing and debugging personas. This is where most of the prompt engineering happens.
 
 ![Persona Designer Dashboard](submission_docs/images/persona_designer.png)
 *The Persona Designer showing Alex's configuration: core prompt editor, live "Compiled Final Prompt" preview, and 43 extracted user facts*
@@ -147,24 +148,24 @@ Beyond the user-facing app, we built a comprehensive admin tool for designing an
 - **Real-time preview:** See exactly what system prompt the AI receives, including all injected context
 - **Layer visibility:** Expand/collapse each layer to understand how context flows
 - **Fact inspection:** View all facts the AI has learned about a user across conversations
-- **Parameter tuning:** Adjust temperature and token limits per-persona for different conversation styles
-- **Multi-persona switching:** Quickly compare how different personas handle the same user context
+- **Parameter tuning - persona:** Adjust temperature and token limits per-persona for different conversation styles
+- **Parameter tuning - extraction:** Specify temperature, token limits and custom prompts for the end-of-conversation fact extraction phase
+- **Multi-persona switching:** Quickly compare how different personas handle similar user contexts
 
 ---
 
-### The 12 Microservices
+### The 11 Microservices
 
 All running on Cloudflare Raindrop:
 
 | Service | Purpose |
 |---------|---------|
-| `api-gateway` | Request routing, CORS, JWT validation |
+| `api-gateway` | Request routing, CORS, JWT validation, webhook handling |
 | `auth-manager` | User registration, WorkOS OAuth |
 | `persona-manager` | Persona CRUD, favorites |
 | `call-orchestrator` | Trigger calls, track status |
 | `userdata-manager` | KV-backed user preferences |
 | `payment-processor` | Stripe checkout sessions |
-| `webhook-handler` | Twilio + Stripe webhooks |
 | `database-proxy` | HTTP → PostgreSQL bridge |
 | `log-ingest` | Call logs and analytics |
 | `cost-analytics` | Usage dashboards |
@@ -183,10 +184,13 @@ All running on Cloudflare Raindrop:
 - `persona_facts` — Extracted knowledge about users
 
 **Raindrop KV Cache** — 4 namespaces:
-- `user_context:{userId}:{personaId}` — Hot memory for calls
+- `user_context:{userId}:{personaId}` — Extracted user facts from post-call analysis
 - `rate-limit-cache` — API protection
 - `token-blacklist` — JWT revocation
 - `call-state` — In-progress call tracking
+
+**Raindrop SmartMemory** — AI-native document storage:
+- `global:extraction_settings` — Configurable prompts and parameters for post-call fact extraction (set via Persona Designer)
 
 [Full documentation →](submission_docs/CATALOG.md)
 
@@ -234,7 +238,7 @@ Early versions had awful timing—AI would talk over users or wait too long. Dee
 | Layer | Technology | Purpose |
 |-------|------------|---------|
 | **Frontend** | Vue 3, Pinia, Tailwind CSS | SPA on Vercel |
-| **API** | Cloudflare Raindrop (Hono) | 12 edge microservices/Smart Memory |
+| **API** | Cloudflare Raindrop (Hono) | 11 edge microservices/Smart Memory |
 | **Database** | PostgreSQL 14 on Vultr | Persistent storage |
 | **Cache** | Raindrop KV | Hot data, rate limiting |
 | **Voice** | Vultr VPS (Node.js) | WebSocket streaming |
@@ -251,15 +255,15 @@ Early versions had awful timing—AI would talk over users or wait too long. Dee
 
 Building CallbackApp AI has been a six-week journey that made me a better engineer.
 
-Every design decision I made was informed and thought out, and the result of intensive research in many cases.  Getting familiar with all of the partenered tech was exciting, and that barley scratches the surface of what's been required to bring an app like this into the light.  What I'm REALLY looking forward to is dialing in the personas with the prompt scaffoling I've built, and do so with the limited context window of the Llama 8b model (before I start experimenting with larger models and context windows)
+Every design decision I made was informed and thought out, and the result of intensive research in many cases.  Getting familiar with all of the partenered tech was exciting, and that barley scratches the surface of what's been required to bring an app like this into the light.  What I'm REALLY looking forward to is dialing in the personas with the prompt scaffoling I've built, and do so with the limited context window of the Llama 8b model (before I start experimenting with larger models and context windows).  I would like to implement more of the SmartComponents and SmartMemory features into my prompt compliation and injection system after the hands-off period concludes.
 
 Having to move one service off Raindrop got me thinking like an engineer about *every* resource in this hackathon. Vultr isn't just hosting my voice pipeline and PostgreSQL database—it's now where I build and deploy Raindrop services (after 5 weeks of the `raindrop build` command trying to burn down my laptop). The VPS has become my development workhorse.
 
 This experience opened my eyes to future possibilities. I'm planning to use Cerebras and Vultr together to generate synthetic training data for LoRA fine-tuning of the 8B models my personas use. Cerebras inference is so fast it's worth keeping in the stack for data generation, while Vultr can handle the actual training workloads.
 
-No certificate course on cloud engineering or AI could have offered the lab-time I've enjoyed experimenting with these services. The documentation methodology I developed to wrangle the vast research and documentation we (Claude and I) produced into an activly-updated set of useful technical documents and references is its own innovation story that I'm hoping to refine upon independently at a later time.
+No certificate course on cloud engineering or AI could have offered the lab-time I've enjoyed experimenting with these services. The documentation methodology I developed to wrangle the vast research and documentation we (Claude and I) produced into an activly-updated set of useful technical documents and references is its own innovation story that I'm hoping to refine upon independently at a later time. (About 2 weeks into the build, Claude really started producing diminishing returns on my time.  After I ran my first documentation audit and had constructed a Navy-inspired tech manual process, I was back to lightning-fast building)
 
-As far as the app exists current... we're in "hands-off" mode, the included PUNCHLIST doesn't even scratch the surface of what I'd like to do with this app, and the running list of features and possible use-cases keeps getting longer.
+As far as the app exists current... we're in "hands-off" mode, the included PUNCHLIST doesn't even scratch the surface of what I'd like to do with this app, and the running list of features and possible use-cases keeps getting longer.  I don't want to say "giddy" to describe how I feel about getting back to work on this app, but it's something close to giddy.
 
 Thanks for taking the time to consider and review my app for the 2025 AI Champion Ship Hackathon!  I'm looking forward to seeing everyone else's submission and to getting back to CallbackApp.AI once we've all had a good rest.
 
@@ -303,7 +307,7 @@ Built with support from the AI Champion Ship partners:
 | [**Cerebras**](https://cerebras.ai/) | Lightning-fast LLM inference |
 | [**Deepgram**](https://deepgram.com/) | Real-time STT with turn-taking |
 | [**ElevenLabs**](https://elevenlabs.io/) | Natural voice synthesis |
-| [**Twilio**](https://www.twilio.com/) | Programmable voice infrastructure |
+| [**Twilio**](https://www.twilio.com/) | Programmable voice infrastructure, telephony |
 | [**Stripe**](https://stripe.com/) | Payment processing |
 | [**WorkOS**](https://workos.com/) | Authentication |
 | [**Cloudflare**](https://cloudflare.com/) | DNS, domains, edge network |
@@ -319,11 +323,11 @@ Over 100 session logs helped me document and structure my time and expertly info
 ---
 ## Closing Thoughts
 
-This started as a hackathon project to experience what I could do with access to the partnered tech, and the project quickly became something I genuinely want to exist in the world.
+I entered this hackathon primairly to survey the partnered technology and find which ones are worth being excited about.  I started with one project (desgined to connect retirees with things to do and people to hang out with), and a few days later pivoted to CallMeBack (no good URL with that in the name existed, and I rather like callbackapp.ai).  As I started to dig in and experience what I could do with access to the partnered tech, this project quickly became something I genuinely wanted to exist in the world.
 
-Loneliness is real, people need access to cognizant interlocutors, and voice creates connection in a way text can't. The engineering challenges were significant; multi-cloud architecture, sub-second latency, designing and compiling persona memory; but the goal was simple: **make it feel talking with someon who listens, can take direction and can hold a conversation.**
+Loneliness is real, people need access to cognizant interlocutors, and voice creates connection in a way text can't. The engineering challenges were significant; multi-cloud architecture, sub-second latency, designing and compiling persona memory; but the goal was simple: **make it feel talking with someon who listens, can take direction and can hold a conversation.** (I also think the pure intrigue of knowing that the person on the other end of that ringing phone isn't a person, but an AI that you summoned to call you, is enough to keep many customer groups engaged.  This app will definitely be used for pure entertainment by some users.)
 
-As we lay this app down for a small respite during the hands-off period, I'm excited to know I'm a much more relevant engineer than when I arrived to the project (I was relatively new to claude code).
+As we lay this app down for a small respite during the hands-off period, I'm excited to know I'm a more relevant engineer than when I arrived to the project (I was relatively new to claude code) and that I've done well to refresh my skill and knowledge in this ever-widening, vast domain of web development.
 
 ### A note on speed ###
 I've never built or engineered anything before with such a continued increase in velocity; What I experienced collaborating with Claude during this hackathon is profound.
@@ -333,6 +337,8 @@ For most of my life I had held the since that technology passed from one generat
 Now, as I find the baton coming nearly in-hand, I see clearly that it's no longer a baton giving light, but a rocket; a brilliant, incendary rocket.  Decide where to point it and find a way to hold on tight.  You'll end up somewhere incredible, and hopefully agreeable and a benefit to all.  
 
 Keep buildilng.  Stay creative and positive.  Thanks for checking out my app.
+
+Oh, and to anyone else that submitted a working demo to this hackathon: Congratulations!  We're pretty much cyborgs now.
 
 — David
 
