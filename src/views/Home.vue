@@ -64,8 +64,8 @@
             </h1>
 
             <p class="text-xl lg:text-2xl text-cream/80 leading-relaxed mb-12 max-w-2xl">
-              Real phone calls from AI companions who <span class="text-glow font-semibold">remember you</span>. Emergency escapes,
-              daily motivation, and practice for life's biggest moments.
+              Real phone calls from AI companions who <span class="text-glow font-semibold">remember you</span>. Daily motivation,
+              excape calls, and practice for life's biggest moments.
             </p>
 
             <div class="flex flex-col sm:flex-row gap-5 mb-10">
@@ -553,7 +553,7 @@
           <h2 class="text-6xl lg:text-7xl font-[--font-display] font-extrabold mb-6 tracking-tight">
             How It <span class="italic font-[--font-accent] bg-gradient-to-r from-glow via-ember to-solar bg-clip-text text-transparent">Works</span>
           </h2>
-          <p class="text-xl text-cream/60 max-w-2xl mx-auto">Three simple steps to your perfect escape or daily motivation</p>
+          <p class="text-xl text-cream/60 max-w-2xl mx-auto">Three simple steps to to </p>
         </div>
 
         <div class="grid md:grid-cols-3 gap-6 lg:gap-8">
@@ -566,7 +566,7 @@
             </div>
             <h3 class="text-3xl lg:text-4xl font-[--font-display] font-extrabold mb-5 mt-8 group-hover:text-glow transition-colors duration-300">Schedule or Trigger</h3>
             <p class="text-cream/75 text-lg leading-relaxed">
-              Set a call before your date, or tap for an instant rescue. <span class="text-cream font-semibold">You're always in control.</span>
+              Set a call to be made sometime in the future, or have your persona call now. <span class="text-cream font-semibold">You're always in control.</span>
             </p>
           </div>
 
@@ -579,7 +579,7 @@
             </div>
             <h3 class="text-3xl lg:text-4xl font-[--font-display] font-extrabold mb-5 mt-8 group-hover:text-ember transition-colors duration-300">Get the Call</h3>
             <p class="text-cream/75 text-lg leading-relaxed">
-              Your AI persona calls with a believable scenario. <span class="text-cream font-semibold">Sounds real, feels natural.</span>
+              Your AI persona calls ready and in character for the call. <span class="text-cream font-semibold">Sounds real, feels natural.</span>
             </p>
           </div>
 
@@ -590,9 +590,9 @@
             <div class="absolute -top-5 -left-5 w-[70px] h-[70px] bg-gradient-to-br from-solar to-plasma text-deep rounded-[18px] flex items-center justify-center text-[2rem] font-black font-[--font-display] shadow-[0_12px_40px_rgba(255,107,53,0.5)] group-hover:scale-110 transition-transform duration-300">
               3
             </div>
-            <h3 class="text-3xl lg:text-4xl font-[--font-display] font-extrabold mb-5 mt-8 group-hover:text-solar transition-colors duration-300">Exit Gracefully</h3>
+            <h3 class="text-3xl lg:text-4xl font-[--font-display] font-extrabold mb-5 mt-8 group-hover:text-solar transition-colors duration-300">Leave Satisfied</h3>
             <p class="text-cream/75 text-lg leading-relaxed">
-              Leave politely with a socially acceptable excuse. <span class="text-cream font-semibold">No guilt, no drama.</span>
+              When the call is done, your personas don't forget you or the relationship they have with you.  Call them back from you phone or schedule another call later. <span class="text-cream font-semibold">No guilt, no drama.</span>
             </p>
           </div>
         </div>
@@ -677,7 +677,7 @@
           </p>
           <p class="text-xl text-cream/70 leading-relaxed max-w-3xl mx-auto">
             Brad remembers this is your third PM interview this month and how the last one went.
-            Sarah knows your daughter's name and that school meeting from last week. Alex tracks
+            Sarah knows your dog's name and how great your week was. Alex tracks
             your adventure streak and celebrates when you push past your comfort zone.
           </p>
         </div>
@@ -689,7 +689,7 @@
       <div class="max-w-7xl mx-auto px-6 lg:px-12">
         <div class="text-center mb-24 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards]">
           <h2 class="text-6xl lg:text-7xl font-[--font-display] font-bold mb-6">
-            More Than Emergency Calls
+            Calls for Every Situation
           </h2>
           <p class="text-2xl text-cream/70 max-w-3xl mx-auto">
             Your AI companion for life's biggest moments and everyday challenges

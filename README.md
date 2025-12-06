@@ -29,7 +29,7 @@
 [![Stripe](https://img.shields.io/badge/Payments-Stripe-635BFF?style=for-the-badge&logo=stripe&logoColor=white)](https://stripe.com/)
 [![WorkOS](https://img.shields.io/badge/Auth-WorkOS-6363F1?style=for-the-badge)](https://workos.com/)
 
-*Engineered with [Claude Code](https://claude.ai/code)*
+* Engineered with assistance from [Claude Code](https://claude.ai/code)*
 
 ---
 
