@@ -221,7 +221,10 @@ Early versions had awful timing—AI would talk over users or wait too long. Dee
 Cloudflare Workers can't make outbound WebSocket connections—a hard platform limitation we discovered mid-build. The entire voice pipeline had to be extracted and redeployed to a Vultr VPS. What started as a setback became an advantage: Vultr now handles both the voice pipeline and serves as the build server for Raindrop deployments.
 
 ### The WSL Near-Death Experience
-**8 hours** across two separate WSL crashes that corrupted the development environment. Each time, I thought my entire project might suffer a terrible fate.  The key is to NOT PANIC and commit/push often... very often.
+**8 hours** across two separate WSL crashes that corrupted the development environment. Each time, we thought (and especially me, the human engineer writing this readme file; who was without Claude during times of WSL crashes) the entire project might suffer a terrible fate.  The key is to NOT PANIC and commit/push often... very often.
+
+### Getting Claude to adhere to safe patterns
+**We have still not** figured out how to ensure that Claude maintains adherence to safe, script-based patterns when performing operations that require reading, writing or transferring environment veriables and other sensitive secrets.  We have designed a number of patterns that do, when followed, prevent environment variables from being exposed to the Claude logs and unsecure means of transfer.  However, getting Claude to keep up with always using the patterns has proved a challenge.
 
 ---
 
