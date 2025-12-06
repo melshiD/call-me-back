@@ -259,7 +259,7 @@ As far as the current state of the app... we're in "hands-off" mode, the include
 
 Thanks for taking the time to consider and review my app for the 2025 AI Champion Ship Hackathon!  And another thanks for providing the means and the motivation for such a broad, fun and commercially viable build.  I'm looking forward to seeing everyone else's submission and to getting back to CallbackApp.AI once we've all had a good rest.
 
-### For Demo Access
+### Access and Judge Coupon
 
 | Resource | Link |
 |----------|------|
