@@ -1,6 +1,6 @@
 # CallbackApp AI
 
-**Your AI companion, just a phone call away.**
+**Your AI companions are just a phone call away.**
 
 ---
 
