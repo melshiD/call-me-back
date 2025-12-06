@@ -68,8 +68,8 @@
 
 ## See It In Action
 
-<a href="https://youtu.be/75hwdzzf3V4" target="_blank">
-  <img src="https://img.youtube.com/vi/75hwdzzf3V4/hqdefault.jpg" alt="Watch the Demo Video">
+<a href="https://youtu.be/Yli46cSjd3E" target="_blank">
+  <img src="https://img.youtube.com/vi/Yli46cSjd3E/hqdefault.jpg" alt="Watch the Demo Video">
 </a>
 
 *3-minute walkthrough of the complete experience*
