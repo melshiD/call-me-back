@@ -65,7 +65,7 @@
 
             <p class="text-xl lg:text-2xl text-cream/80 leading-relaxed mb-12 max-w-2xl">
               Real phone calls from AI companions who <span class="text-glow font-semibold">remember you</span>. Daily motivation,
-              excape calls, and practice for life's biggest moments.
+              escape calls, and practice for life's biggest moments.
             </p>
 
             <div class="flex flex-col sm:flex-row gap-5 mb-10">
