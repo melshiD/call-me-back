@@ -3,6 +3,7 @@
 # Punchlist
 **Created:** 2025-11-26 01:34 EST
 **Purpose:** Running list of items to fix/implement later - not blocking, but should be addressed
+**NOTE:** Many features have been implemented since last PUNCHLIST audit.
 
 ---
 
