@@ -209,14 +209,16 @@ Building this wasn't smooth. Here's the real story:
 **12 hours** debugging μ-law audio encoding between Twilio and our pipeline was a slog. Turned out to be a sample rate mismatch that produced nothing but static. Breakthrough: raw PCM inspection with `ffprobe`.
 
 ### The Raindrop ↔ PostgreSQL Bridge
-Workers can't connect to external databases directly. We built a `database-proxy` service on Vultr that accepts HTTP requests and translates them to SQL. It currently handles 100% of our DB traffic.
-
-[See full documentation →](submission_docs/CATALOG.md)
+Workers can't connect to external databases directly (I have since realized that maybe a product called Hyperdrive could have solved my issues; knowledge for next time). We built a `database-proxy` service on Vultr that accepts HTTP requests and translates them to SQL. It currently handles 100% of our DB traffic.
 
 ### The Turn-Taking Puzzle
 Early versions had awful timing—AI would talk over users or wait too long. Deepgram Flux's turn-taking events solved this. We now start generating responses at `EagerEndOfTurn` and abort if the user keeps talking.
 
-[See voice pipeline documentation →](submission_docs/voice-pipeline.md)
+### The Voice Pipeline Migration
+Cloudflare Workers can't make outbound WebSocket connections—a hard platform limitation we discovered mid-build. The entire voice pipeline had to be extracted and redeployed to a Vultr VPS. What started as a setback became an advantage: Vultr now handles both the voice pipeline and serves as the build server for Raindrop deployments.
+
+### The WSL Near-Death Experience
+**8 hours** across two separate WSL crashes that corrupted the development environment. Each time, I thought my entire project might suffer a terrible fate.  The key is to NOT PANIC and commit/push often... very often.
 
 ---
 
@@ -240,19 +242,19 @@ Early versions had awful timing—AI would talk over users or wait too long. Dee
 
 ## Letter to the Judges
 
-Building CallbackApp AI has been a six-week journey that made me a better engineer.
+Building CallbackApp AI has been a six-week journey that made me a better, more relevant engineer.
 
-Every design decision I made was informed and thought out, and the result of intensive research in many cases.  Getting familiar with all of the partenered tech was exciting, and that barley scratches the surface of what's been required to bring an app like this into the light.  What I'm REALLY looking forward to is dialing in the personas with the prompt scaffoling I've built, and do so with the limited context window of the Llama 8b model (before I start experimenting with larger models and context windows).  I would like to implement more of the SmartComponents and SmartMemory features into my prompt compliation and injection system after the hands-off period concludes.
+Every design decision I made was informed and thought out, and the result of intensive research in many cases.  Getting familiar with all of the partenered tech was exciting, and that was just scratching the surface of what's been required to bring an app like this into the light.  What I'm REALLY looking forward to is dialing in the personas with the prompt scaffoling I've built, and to do so with the limited context window of the Llama 8b model (before I start experimenting with larger models and context windows).  I would like to implement more of the SmartComponents and SmartMemory features into my prompt compliation and injection system after the hands-off period concludes.
 
-Having to move one service off Raindrop got me thinking like an engineer about *every* resource in this hackathon. Vultr isn't just hosting my voice pipeline and PostgreSQL database—it's now where I build and deploy Raindrop services (after 5 weeks of the `raindrop build` command trying to burn down my laptop). The VPS has become my development workhorse.
+Having to move one service off Raindrop got me back into thinking like an engineer about *every* resource in this hackathon. Vultr isn't just hosting my voice pipeline and PostgreSQL database—it's now where I build and deploy Raindrop services (after 5 weeks of the `raindrop build` command trying to burn down my laptop). The VPS has become my development workhorse.
 
 This experience opened my eyes to future possibilities. I'm planning to use Cerebras and Vultr together to generate synthetic training data for LoRA fine-tuning of the 8B models my personas use. Cerebras inference is so fast it's worth keeping in the stack for data generation, while Vultr can handle the actual training workloads.
 
-No certificate course on cloud engineering or AI could have offered the lab-time I've enjoyed experimenting with these services. The documentation methodology I developed to wrangle the vast research and documentation we (Claude and I) produced into an activly-updated set of useful technical documents and references is its own innovation story that I'm hoping to refine upon independently at a later time. (About 2 weeks into the build, Claude really started producing diminishing returns on my time.  After I ran my first documentation audit and had constructed a Navy-inspired tech manual process, I was back to lightning-fast building)
+No certificate course on cloud engineering or AI could have offered the lab-time I've enjoyed experimenting with these services. The documentation methodology I developed to wrangle the vast research and documentation we (Claude and I) produced into an activly-updated set of useful technical documents and references is its own innovation story that I'm hoping to refine upon independently at a later time. (About 2 weeks into the build, Claude really started producing diminishing returns on my time.  After I designed and ran my first documentation audit and had constructed a Navy-inspired tech manual process, I was back to lightning-fast building)
 
-As far as the app exists current... we're in "hands-off" mode, the included PUNCHLIST doesn't even scratch the surface of what I'd like to do with this app, and the running list of features and possible use-cases keeps getting longer.  I don't want to say "giddy" to describe how I feel about getting back to work on this app, but it's something close to giddy.
+As far as the app exists currenty... we're in "hands-off" mode, the included PUNCHLIST doesn't even scratch the surface of what I'd like to do with this app, and the running list of features and possible use-cases keeps getting longer.  I don't want to say "giddy" to describe how I feel about getting back to work on this app, but it's something close to giddy.
 
-Thanks for taking the time to consider and review my app for the 2025 AI Champion Ship Hackathon!  I'm looking forward to seeing everyone else's submission and to getting back to CallbackApp.AI once we've all had a good rest.
+Thanks for taking the time to consider and review my app for the 2025 AI Champion Ship Hackathon!  And another thanks for providing the means and the motivation for such a broad, fun and commercially viable build.  I'm looking forward to seeing everyone else's submission and to getting back to CallbackApp.AI once we've all had a good rest.
 
 ### For Demo Access
 
@@ -310,9 +312,9 @@ Over 100 session logs helped me document and structure my time and expertly info
 ---
 ## Closing Thoughts
 
-I entered this hackathon primairly to survey the partnered technology and find which ones are worth being excited about.  I started with one project (desgined to connect retirees with things to do and people to hang out with), and a few days later pivoted to CallMeBack (no good URL with that in the name existed, and I rather like callbackapp.ai).  As I started to dig in and experience what I could do with access to the partnered tech, this project quickly became something I genuinely wanted to exist in the world.
+I entered this hackathon primairly to survey the partnered technology and find which ones were worth being excited about.  I started with one project (desgined to connect retirees with things to do and people to hang out with), and a few days later pivoted to CallMeBack (no good URL with that in the name existed, and I rather like callbackapp.ai, so here we are: "CallbackApp AI").  As I started to dig in and experience what I could do with access to the partnered tech, this project quickly became something I genuinely wanted to exist in the world.
 
-Loneliness is real, people need access to cognizant interlocutors, and voice creates connection in a way text can't. The engineering challenges were significant; multi-cloud architecture, sub-second latency, designing and compiling persona memory; but the goal was simple: **make it feel talking with someon who listens, can take direction and can hold a conversation.** (I also think the pure intrigue of knowing that the person on the other end of that ringing phone isn't a person, but an AI that you summoned to call you, is enough to keep many customer groups engaged.  This app will definitely be used for pure entertainment by some users.)
+Loneliness is real, people need access to cognizant interlocutors, and voice creates connection in a way text can't. The engineering challenges were significant; multi-cloud architecture, sub-second latency, designing and compiling personas and their memory; but the goal was simple: **make it feel talking with someon who listens, can take direction and can hold a conversation.** (I also think the pure intrigue of knowing that the person on the other end of that ringing phone isn't a person, but an AI that you summoned to call you, is enough to keep many customer groups engaged.  This app will definitely be used for pure entertainment by some users.)
 
 As we lay this app down for a small respite during the hands-off period, I'm excited to know I'm a more relevant engineer than when I arrived to the project (I was relatively new to claude code) and that I've done well to refresh my skill and knowledge in this ever-widening, vast domain of web development.
 
@@ -321,7 +323,7 @@ I've never built or engineered anything before with such a continued increase in
 
 For most of my life I had held the since that technology passed from one generation to the next as a sort of baton.  During many turnovers, the baton shines far brighter than when it was last turned over; more brilliant and luminsecent, and providing an ever greater means for clarity and knowledge in the future; but always a baton.
 
-Now, as I find the baton coming nearly in-hand, I see clearly that it's no longer a baton giving light, but a rocket; a brilliant, incendary rocket.  Decide where to point it and find a way to hold on tight.  You'll end up somewhere incredible, and hopefully agreeable and a benefit to all.  
+Now, as I find the baton coming in-hand, I see clearly that it's no longer a baton giving light, but a rocket; a brilliant, incendary rocket.  Decide where to point it and find a way to hold on tight.  You'll end up somewhere incredible, and hopefully agreeable and a benefit to all.  
 
 Keep buildilng.  Stay creative and positive.  Thanks for checking out my app.
 
