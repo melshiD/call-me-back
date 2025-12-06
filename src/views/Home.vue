@@ -744,7 +744,7 @@
     <section class="py-32 relative">
       <div class="max-w-4xl mx-auto px-6 lg:px-12">
         <h2 class="text-5xl lg:text-6xl font-[--font-display] font-bold text-center mb-20 opacity-0 translate-y-8 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards]">
-          Real Scenarios, Real Results
+          Scenarios and Results
         </h2>
 
         <div class="space-y-6">
