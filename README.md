@@ -268,8 +268,7 @@ Thanks for taking the time to consider and review my app for the 2025 AI Champio
 | Resource | Link |
 |----------|------|
 | **Live App** | [callbackapp.ai](https://callbackapp.ai) (5 free minutes) |
-| **Judge Coupon** | `DEVPOSTJUDGE2025` (50 free minutes) |
-Please only use the judge coupon if you are actually a Devpost judge for this hackathon.  Thank you.
+| **Judge Coupon** | `See submission materials in Devpost` (50 free minutes) |
 
 ---
 
