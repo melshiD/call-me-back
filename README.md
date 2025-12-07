@@ -99,7 +99,6 @@ New users sign up through a production-ready WorkOS authentication flow (email/p
 
 **Why multi-cloud?** Cloudflare Workers can't make outbound WebSocket connections—required for real-time voice streaming. A natural and very sound engineering choice is to move the voice pipeline to Vultr while Raindrop handles the API layer at the edge.
 
-[View full documentation catalog →](submission_docs/CATALOG.md)
 
 ---
 
@@ -172,7 +171,6 @@ All running on Cloudflare Raindrop:
 | `scheduled-call-executor` | Cron-triggered callbacks |
 | `mcp-query-service` | AI-assisted log analysis (Currently unutilized)|
 
-[Full documentation →](submission_docs/CATALOG.md)
 
 ---
 
@@ -191,7 +189,10 @@ All running on Cloudflare Raindrop:
 **Raindrop SmartMemory** — AI-native document storage:
 - `global:extraction_settings` — Configurable prompts and parameters for post-call fact extraction (set via Persona Designer)
 
-[Full documentation →](submission_docs/CATALOG.md)
+#### Post-Call Fact Extraction Flow
+
+![SmartMemory to KV Flow](submission_docs/images/smart_memory_placement.png)
+
 
 ---
 
@@ -260,7 +261,7 @@ No certificate course on cloud engineering or AI could have offered the lab time
 
 As far as the current state of the app... we're in "hands-off" mode, the included PUNCHLIST doesn't even scratch the surface of what can and should be done with this app, and the running list of features and possible use-cases keeps getting longer.  I don't want to say "giddy" to describe how I feel about getting back to work on this app, but it's something close to giddy.
 
-Thanks for taking the time to consider and review my app for the 2025 AI Champion Ship Hackathon!  And another thanks for providing the means and the motivation for such a broad, fun and commercially viable build.  I'm looking forward to seeing everyone else's submission and to getting back to CallbackApp.AI once we've all had a good rest.
+Thanks for taking the time to consider and review my app for the 2025 AI Champion Ship Hackathon!  And another thanks for providing the means and the motivation for such a broad, fun and commercially viable build.  I'm looking forward to seeing everyone's submissions and to getting back to CallbackApp.AI once we've all had a good rest.
 
 ### Access and Judge Coupon
 
@@ -307,7 +308,15 @@ Built with support from the AI Champion Ship partners:
 | [**WorkOS**](https://workos.com/) | Authentication |
 | [**Cloudflare**](https://cloudflare.com/) | DNS, domains, edge network |
 
+Also featuring these non-partners, but derserve mention.
+
+|   Tech  | Contribution |
+|---------|--------------|
+| [**Deepgram**](https://deepgram.com/) | Real-time STT with turn-taking |
+| [**Twilio**](https://www.twilio.com/) | Programmable voice infrastructure, telephony |
+
 ### Development Approach
+
 
 This is a **vibe-coding hackathon submission**—built with AI assistance from start to finish.
 
