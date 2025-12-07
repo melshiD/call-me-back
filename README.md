@@ -301,9 +301,7 @@ Built with support from the AI Champion Ship partners:
 | [**LiquidMetal.AI**](https://liquidmetal.ai) | Raindrop platform, hackathon sponsorship |
 | [**Vultr**](https://www.vultr.com/) | Cloud compute, PostgreSQL hosting |
 | [**Cerebras**](https://cerebras.ai/) | Lightning-fast LLM inference |
-| [**Deepgram**](https://deepgram.com/) | Real-time STT with turn-taking |
 | [**ElevenLabs**](https://elevenlabs.io/) | Natural voice synthesis |
-| [**Twilio**](https://www.twilio.com/) | Programmable voice infrastructure, telephony |
 | [**Stripe**](https://stripe.com/) | Payment processing |
 | [**WorkOS**](https://workos.com/) | Authentication |
 | [**Cloudflare**](https://cloudflare.com/) | DNS, domains, edge network |
@@ -314,6 +312,10 @@ Also featuring these non-partners, but derserve mention.
 |---------|--------------|
 | [**Deepgram**](https://deepgram.com/) | Real-time STT with turn-taking |
 | [**Twilio**](https://www.twilio.com/) | Programmable voice infrastructure, telephony |
+| [**Vercel**](https://vercel.com/) | Hosted Vue3 frontend
+
+**And a special shoutout** to the the Frontend Design Skill, which came in clutch a number of times; and which will also necessitate some heavy refactoring.
+
 
 ### Development Approach
 
