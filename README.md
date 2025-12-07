@@ -329,20 +329,20 @@ Over 100 session logs helped me document and structure my time and expertly info
 ---
 ## Closing Thoughts
 
-I entered this hackathon primairly to survey the partnered technology and find which ones were worth being excited about.  I started with one project (desgined to connect retirees with things to do and people to hang out with), and a few days later pivoted to CallMeBack (no good URL with that in the name existed, and I rather like callbackapp.ai, so here we are: "CallbackApp AI").  As I started to dig in and experience what I could do with access to the partnered tech, this project quickly became something I genuinely wanted to exist in the world.
+I entered this hackathon primarily to survey the partnered technology and find which ones were worth being excited about.  I started with one project (designed to connect retirees with things to do and people to hang out with), and a few days later pivoted to CallMeBack (no good URL with that in the name existed, and I rather like callbackapp.ai, so here we are: "CallbackApp AI").  As I started to dig in and experience what I could do with access to the partnered tech, this project quickly became something I genuinely wanted to exist in the world.
 
-Loneliness is real, people need access to cognizant interlocutors, and voice creates connection in a way text can't. The engineering challenges were significant; multi-cloud architecture, sub-second latency, designing and compiling personas and their memory; but the goal was simple: **make it feel talking with someon who listens, can take direction and can hold a conversation.** (I also think the pure intrigue of knowing that the person on the other end of that ringing phone isn't a person, but an AI that you summoned to call you, is enough to keep many customer groups engaged.  This app will definitely be used for pure entertainment by some users.)
+Loneliness is real, people need access to cognizant interlocutors, and voice creates connection in a way text can't. The engineering challenges were significant; multi-cloud architecture, sub-second latency, designing and compiling personas and their memory; but the goal was simple: **make it feel like talking with someone who listens, can take direction and can hold a conversation.** (I also think the pure intrigue of knowing that the person on the other end of that ringing phone isn't a person, but an AI that you summoned to call you, is enough to keep many customer groups engaged.  This app will definitely be used for pure entertainment by some users.)
 
 As we lay this app down for a small respite during the hands-off period, I'm excited to know I'm a more relevant engineer than when I arrived to the project (I was relatively new to claude code) and that I've done well to refresh my skill and knowledge in this ever-widening, vast domain of web development.
 
 ### A note on speed ###
 I've never built or engineered anything before with such a continued increase in velocity; What I experienced collaborating with Claude during this hackathon is profound.
 
-For most of my life I had held the since that technology passed from one generation to the next as a sort of baton.  During many turnovers, the baton shines far brighter than when it was last turned over; more brilliant and luminsecent, and providing an ever greater means for clarity and knowledge in the future; but always a baton.
+For most of my life I had held the sense that technology passed from one generation to the next as a sort of baton.  During many turnovers, the baton shines far brighter than when it was last turned over; more brilliant and luminescent, and providing an ever greater means for clarity and knowledge in the future; but always a baton.
 
-Now, as I find the baton coming in-hand, I see clearly that it's no longer a baton giving light, but a rocket; a brilliant, incendary rocket.  Decide where to point it and find a way to hold on tight.  You'll end up somewhere incredible, and hopefully agreeable and a benefit to all.  
+Now, as I find the baton coming in-hand, I see clearly that it's no longer a baton giving light, but a rocket; a brilliant, incendiary rocket.  Decide where to point it and find a way to hold on tight.  You'll end up somewhere incredible, and hopefully agreeable and a benefit to all.  
 
-Keep buildilng.  Stay creative and positive.  Thanks for checking out my app.
+Keep building.  Stay creative and positive.  Thanks for checking out my app.
 
 Oh, and to anyone else that submitted a working demo to this hackathon: **Congratulations!  We're pretty much cyborgs now.**
 
