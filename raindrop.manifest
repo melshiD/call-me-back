@@ -51,7 +51,7 @@ application "call-me-back" {
   env "WORKOS_USER_REDIRECT_URI" {
     # Redirect URI for user OAuth - must match WorkOS dashboard configuration
     # This points to the API gateway callback endpoint, NOT the frontend
-    default = "https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run/api/auth/callback"
+    default = "https://gateway.callbackapp.ai/api/auth/callback"
   }
 
   env "FRONTEND_URL" {

@@ -1774,6 +1774,7 @@ export default class extends Service<Env> {
 
       // Allowed origins for admin routes (production + local dev)
       const allowedOrigins = [
+        'https://callbackapp.ai',
         'https://call-me-back.vercel.app',
         'http://localhost:5173',
         'http://localhost:3000'
@@ -1963,6 +1964,158 @@ export default class extends Service<Env> {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': allowOrigin,
             'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Vary': 'Origin'
+          }
+        });
+      }
+
+      // GET /api/admin/debug/prompt - Debug endpoint to see assembled prompt layers
+      if (request.method === 'GET' && path === '/api/admin/debug/prompt') {
+        const personaId = url.searchParams.get('personaId');
+        const targetUserId = url.searchParams.get('userId') || userId; // Allow impersonation
+
+        if (!personaId) {
+          return new Response(JSON.stringify({ error: 'personaId is required' }), {
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': allowOrigin,
+              'Vary': 'Origin'
+            }
+          });
+        }
+
+        console.log('[API-GATEWAY] Debug prompt request', { personaId, targetUserId });
+
+        // 1. Load persona from database
+        const personaResult = await this.env.DATABASE_PROXY.executeQuery(
+          `SELECT id, name, core_system_prompt, default_voice_id, temperature, max_tokens, llm_model, max_call_duration
+           FROM personas WHERE id = $1`,
+          [personaId]
+        );
+
+        if (!personaResult.rows || personaResult.rows.length === 0) {
+          return new Response(JSON.stringify({ error: 'Persona not found' }), {
+            status: 404,
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': allowOrigin,
+              'Vary': 'Origin'
+            }
+          });
+        }
+
+        const persona = personaResult.rows[0];
+
+        // 2. Load user context from KV storage (unified key pattern)
+        const userContextKey = `user_context:${targetUserId}:${personaId}`;
+        let userContext: any = null;
+        try {
+          userContext = await this.env.USER_DATA.get(userContextKey, 'json');
+        } catch (e) {
+          console.log('[API-GATEWAY] No user context found for key:', userContextKey);
+        }
+
+        // 3. Load extraction settings from SmartMemory
+        let extractionSettings: any = null;
+        try {
+          extractionSettings = await this.env.CONVERSATION_MEMORY.getSemanticMemory('global:extraction_settings');
+        } catch (e) {
+          console.log('[API-GATEWAY] No extraction settings found');
+        }
+
+        // 4. Assemble the 5 layers for display
+        const layers = {
+          layer1_coreIdentity: {
+            name: 'Core Identity',
+            description: 'Base persona prompt from database (shared across all users)',
+            content: persona.core_system_prompt || '(No core prompt defined)',
+            source: `personas.core_system_prompt (persona: ${persona.name})`
+          },
+          layer2_callContext: {
+            name: 'Call Context',
+            description: 'Per-call pretext and scenario (Layer 2)',
+            content: userContext?.callPretext || userContext?.customInstructions
+              ? `Call Pretext: ${userContext?.callPretext || '(none)'}\nCustom Instructions: ${userContext?.customInstructions || '(none)'}\nScenario: ${userContext?.selectedScenarioId || '(none)'}`
+              : '(No call context set)',
+            source: `KV: ${userContextKey}`
+          },
+          layer3_relationship: {
+            name: 'Relationship Context',
+            description: 'How the persona relates to this user (Layer 3)',
+            content: userContext?.relationshipPrompt
+              ? `Type: ${userContext?.relationshipTypeId || 'custom'}\nDuration: ${userContext?.relationshipDuration || 'unspecified'} months\nPrompt: ${userContext?.relationshipPrompt}`
+              : '(No relationship context set)',
+            source: `KV: ${userContextKey}`
+          },
+          layer4_userKnowledge: {
+            name: 'User Knowledge',
+            description: 'Facts known about this user (Layer 4)',
+            content: userContext?.facts && userContext.facts.length > 0
+              ? userContext.facts.map((f: any) => `[${f.category}] ${f.content}${f.source === 'auto' ? ' (auto-extracted)' : ''}`).join('\n')
+              : '(No user facts stored)',
+            source: `KV: ${userContextKey}`,
+            factCount: userContext?.facts?.length || 0
+          },
+          layer5_behavioral: {
+            name: 'Behavioral Patterns',
+            description: 'Persona-wide conversation style (procedural memory)',
+            content: '(Loaded dynamically from SmartMemory procedural layer during calls)',
+            source: 'SmartMemory procedural: {personaId}_greeting, {personaId}_farewell, etc.'
+          }
+        };
+
+        // 5. Build the full assembled prompt (as it would be sent to Cerebras)
+        let assembledPrompt = '=== CORE IDENTITY ===\n';
+        assembledPrompt += (persona.core_system_prompt || '') + '\n\n';
+
+        if (userContext?.callPretext || userContext?.customInstructions) {
+          assembledPrompt += '=== CALL CONTEXT ===\n';
+          if (userContext.callPretext) assembledPrompt += `Pretext: ${userContext.callPretext}\n`;
+          if (userContext.customInstructions) assembledPrompt += `Instructions: ${userContext.customInstructions}\n`;
+          assembledPrompt += '\n';
+        }
+
+        if (userContext?.relationshipPrompt) {
+          assembledPrompt += '=== YOUR RELATIONSHIP WITH THIS USER ===\n';
+          assembledPrompt += userContext.relationshipPrompt + '\n\n';
+        }
+
+        if (userContext?.facts && userContext.facts.length > 0) {
+          assembledPrompt += '=== WHAT YOU KNOW ABOUT THIS USER ===\n';
+          userContext.facts.forEach((f: any) => {
+            assembledPrompt += `- [${f.category}] ${f.content}\n`;
+          });
+          assembledPrompt += '\n';
+        }
+
+        assembledPrompt += '=== YOUR TASK ===\n';
+        assembledPrompt += 'The user is calling you right now. Be authentic, remember what you know, and respond naturally.\n';
+
+        // Estimate token count (rough: ~4 chars per token for English)
+        const estimatedTokens = Math.ceil(assembledPrompt.length / 4);
+
+        return new Response(JSON.stringify({
+          success: true,
+          persona: {
+            id: persona.id,
+            name: persona.name,
+            temperature: persona.temperature,
+            maxTokens: persona.max_tokens,
+            llmModel: persona.llm_model,
+            maxCallDuration: persona.max_call_duration
+          },
+          targetUserId,
+          layers,
+          assembledPrompt,
+          estimatedTokens,
+          extractionSettings: extractionSettings?.document || null
+        }), {
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': allowOrigin,
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization',
             'Vary': 'Origin'
           }
@@ -3191,6 +3344,7 @@ export default class extends Service<Env> {
     try {
       // CORS headers for admin dashboard
       const allowedOrigins = [
+        'https://callbackapp.ai',
         'https://call-me-back.vercel.app',
         'http://localhost:5173',
         'http://localhost:3000'

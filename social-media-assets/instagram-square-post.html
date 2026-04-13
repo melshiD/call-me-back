@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CallbackApp.AI - Instagram Square Post</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --gold: #F5A623;
+      --gold-bright: #FFB940;
+      --gold-dark: #D4920A;
+      --teal: #00D4AA;
+      --dark: #0A0A0A;
+    }
+
+    body {
+      background: #1a1a1a;
+      padding: 40px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 40px;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    h2 {
+      width: 100%;
+      color: white;
+      font-size: 24px;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #333;
+    }
+
+    .label {
+      color: #888;
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    /* Instagram Square: 1080x1080 - shown at 50% */
+    .post {
+      width: 540px;
+      height: 540px;
+      position: relative;
+      overflow: hidden;
+      border-radius: 8px;
+    }
+
+    /* ====== POST 1: Bold Statement ====== */
+    .post-1 {
+      background: var(--dark);
+    }
+
+    .post-1 .bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 100% 80% at 50% 120%, rgba(245, 166, 35, 0.5) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(0, 212, 170, 0.25) 0%, transparent 50%),
+        var(--dark);
+    }
+
+    .post-1 .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 50px;
+    }
+
+    .post-1 .tagline {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--teal);
+      margin-bottom: 24px;
+    }
+
+    .post-1 h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 56px;
+      font-weight: 900;
+      color: white;
+      line-height: 1.1;
+      margin-bottom: 30px;
+    }
+
+    .post-1 h1 span {
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .post-1 .subtitle {
+      font-size: 20px;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.5;
+      max-width: 380px;
+    }
+
+    .post-1 .vote-badge {
+      position: absolute;
+      bottom: 50px;
+      left: 50px;
+      right: 50px;
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.2) 0%, rgba(245, 166, 35, 0.05) 100%);
+      border: 2px solid var(--gold);
+      border-radius: 16px;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .post-1 .vote-badge .left {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .post-1 .vote-badge .icon {
+      font-size: 28px;
+    }
+
+    .post-1 .vote-badge .text {
+      font-size: 16px;
+      font-weight: 600;
+      color: white;
+    }
+
+    .post-1 .vote-badge .link {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--gold-bright);
+    }
+
+    /* ====== POST 2: Incoming Call Visual ====== */
+    .post-2 {
+      background: linear-gradient(180deg, #0f1419 0%, var(--dark) 100%);
+    }
+
+    .post-2 .content {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 50px;
+      text-align: center;
+    }
+
+    .post-2 .phone-frame {
+      width: 260px;
+      height: 320px;
+      background: linear-gradient(145deg, #2A2A2A 0%, #1A1A1A 100%);
+      border-radius: 40px;
+      padding: 12px;
+      box-shadow:
+        0 40px 80px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+      margin-bottom: 30px;
+    }
+
+    .post-2 .phone-screen {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
+      border-radius: 30px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 25px 20px;
+    }
+
+    .post-2 .incoming {
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+    }
+
+    .post-2 .avatar {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--teal) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Playfair Display', serif;
+      font-size: 36px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 14px;
+      box-shadow: 0 10px 40px rgba(245, 166, 35, 0.4);
+      animation: avatarGlow 2s ease-in-out infinite;
+    }
+
+    @keyframes avatarGlow {
+      0%, 100% { box-shadow: 0 10px 40px rgba(245, 166, 35, 0.4); }
+      50% { box-shadow: 0 10px 60px rgba(245, 166, 35, 0.6); }
+    }
+
+    .post-2 .caller-name {
+      font-size: 24px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 4px;
+    }
+
+    .post-2 .caller-type {
+      font-size: 13px;
+      color: var(--teal);
+      margin-bottom: 25px;
+    }
+
+    .post-2 .call-btns {
+      display: flex;
+      gap: 35px;
+      margin-top: auto;
+    }
+
+    .post-2 .call-btn {
+      width: 55px;
+      height: 55px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    .post-2 .decline {
+      background: #FF3B30;
+      box-shadow: 0 8px 20px rgba(255, 59, 48, 0.4);
+    }
+
+    .post-2 .accept {
+      background: #34C759;
+      box-shadow: 0 8px 20px rgba(52, 199, 89, 0.4);
+      animation: ring 1.5s ease-in-out infinite;
+    }
+
+    @keyframes ring {
+      0%, 100% { transform: scale(1); }
+      10%, 30% { transform: scale(1.08) rotate(-3deg); }
+      20%, 40% { transform: scale(1.08) rotate(3deg); }
+      50% { transform: scale(1); }
+    }
+
+    .post-2 h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 8px;
+      border: none;
+      padding: 0;
+    }
+
+    .post-2 .sub {
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .post-2 .sub span {
+      color: var(--gold);
+      font-weight: 600;
+    }
+
+    /* ====== POST 3: Vote CTA Pure ====== */
+    .post-3 {
+      background: var(--dark);
+    }
+
+    .post-3 .bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(245, 166, 35, 0.3) 0%, transparent 50%),
+        var(--dark);
+    }
+
+    .post-3 .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 50px;
+    }
+
+    .post-3 .big-icon {
+      width: 120px;
+      height: 120px;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+      border-radius: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 60px;
+      margin-bottom: 30px;
+      box-shadow: 0 25px 60px rgba(245, 166, 35, 0.4);
+    }
+
+    .post-3 h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 48px;
+      font-weight: 900;
+      color: white;
+      line-height: 1.15;
+      margin-bottom: 16px;
+    }
+
+    .post-3 h1 span {
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .post-3 .subtitle {
+      font-size: 20px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 40px;
+    }
+
+    .post-3 .link-box {
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid var(--gold);
+      border-radius: 20px;
+      padding: 24px 50px;
+      margin-bottom: 20px;
+    }
+
+    .post-3 .link-box .url {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--gold-bright);
+    }
+
+    .post-3 .footer {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .post-3 .logo {
+      position: absolute;
+      bottom: 40px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .post-3 .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .post-3 .logo-text {
+      font-size: 16px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.7);
+    }
+  </style>
+</head>
+<body>
+  <h2>Instagram Square Posts - 1080x1080 (shown at 50%)</h2>
+
+  <div>
+    <div class="label">Option 1: Bold Statement</div>
+    <div class="post post-1">
+      <div class="bg"></div>
+      <div class="content">
+        <div class="tagline">AI Champion Ship 2025</div>
+        <h1>
+          I Built An AI<br>
+          That <span>Calls<br>You Back</span>
+        </h1>
+        <p class="subtitle">Real phone calls from AI companions who remember your life.</p>
+        <div class="vote-badge">
+          <div class="left">
+            <span class="icon">🗳️</span>
+            <span class="text">Vote on Devpost</span>
+          </div>
+          <span class="link">Link in bio →</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="label">Option 2: Incoming Call Visual</div>
+    <div class="post post-2">
+      <div class="content">
+        <div class="phone-frame">
+          <div class="phone-screen">
+            <div class="incoming">Incoming Call</div>
+            <div class="avatar">A</div>
+            <div class="caller-name">Alex</div>
+            <div class="caller-type">Your AI Coach</div>
+            <div class="call-btns">
+              <div class="call-btn decline">✕</div>
+              <div class="call-btn accept">📞</div>
+            </div>
+          </div>
+        </div>
+        <h2>Your AI is calling</h2>
+        <p class="sub">Vote for <span>CallbackApp.AI</span> on Devpost</p>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="label">Option 3: Pure Vote CTA</div>
+    <div class="post post-3">
+      <div class="bg"></div>
+      <div class="content">
+        <div class="big-icon">🗳️</div>
+        <h1>Help Me <span>Keep Building</span></h1>
+        <p class="subtitle">6 weeks. 100+ sessions. One vote.</p>
+        <div class="link-box">
+          <div class="url">liquidmetal.devpost.com</div>
+        </div>
+        <p class="footer">Find CallbackApp.AI → Hit "Like"</p>
+        <div class="logo">
+          <div class="logo-icon">📞</div>
+          <div class="logo-text">CallbackApp.AI</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,2513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CallbackApp.AI - Social Media Asset Generator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --gold: #F5A623;
+      --gold-bright: #FFB940;
+      --gold-dark: #D4920A;
+      --teal: #00D4AA;
+      --teal-dark: #00B894;
+      --dark: #0A0A0A;
+      --dark-card: #161616;
+      --ui-bg: #111;
+      --ui-card: #1a1a1a;
+      --ui-border: #333;
+    }
+
+    body {
+      background: var(--ui-bg);
+      color: white;
+      font-family: 'DM Sans', -apple-system, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ===== UI SHELL ===== */
+    .app-header {
+      background: var(--ui-card);
+      border-bottom: 1px solid var(--ui-border);
+      padding: 20px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .app-logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .app-logo-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--gold);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .app-logo-text {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .app-logo-text span {
+      color: var(--gold);
+    }
+
+    .app-title {
+      font-size: 14px;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+    }
+
+    .download-all-btn {
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .download-all-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(245, 166, 35, 0.3);
+    }
+
+    /* Tab Navigation */
+    .tab-nav {
+      display: flex;
+      gap: 4px;
+      padding: 20px 40px;
+      background: var(--ui-card);
+      border-bottom: 1px solid var(--ui-border);
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.5);
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      background: rgba(255,255,255,0.05);
+      color: white;
+    }
+
+    .tab-btn.active {
+      background: var(--gold);
+      color: white;
+    }
+
+    /* Main Content */
+    .main-content {
+      padding: 40px;
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .section-header {
+      margin-bottom: 30px;
+    }
+
+    .section-title {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .section-desc {
+      color: rgba(255,255,255,0.6);
+      font-size: 16px;
+    }
+
+    .section-size {
+      display: inline-block;
+      background: rgba(0, 212, 170, 0.15);
+      color: var(--teal);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-left: 12px;
+    }
+
+    /* Asset Cards */
+    .asset-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 30px;
+    }
+
+    .asset-card {
+      background: var(--ui-card);
+      border: 1px solid var(--ui-border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .asset-preview {
+      position: relative;
+      background: #0d0d0d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      min-height: 300px;
+    }
+
+    .asset-preview-inner {
+      transform-origin: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .asset-actions {
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--ui-border);
+    }
+
+    .asset-info h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .asset-info p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+    }
+
+    .download-btn {
+      background: var(--gold);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .download-btn:hover {
+      background: var(--gold-bright);
+      transform: translateY(-1px);
+    }
+
+    .download-btn:disabled {
+      background: #444;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .download-btn .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Story/Carousel specific grid */
+    .story-grid {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      padding-bottom: 20px;
+    }
+
+    .story-card {
+      flex-shrink: 0;
+      width: 280px;
+    }
+
+    .story-card .asset-preview {
+      min-height: 400px;
+    }
+
+    /* Carousel slides */
+    .carousel-grid {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      padding-bottom: 20px;
+    }
+
+    .carousel-card {
+      flex-shrink: 0;
+      width: 320px;
+    }
+
+    /* Progress indicator */
+    .progress-toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--ui-card);
+      border: 1px solid var(--ui-border);
+      padding: 16px 24px;
+      border-radius: 12px;
+      display: none;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      z-index: 1000;
+    }
+
+    .progress-toast.show {
+      display: flex;
+    }
+
+    .progress-toast .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: var(--gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    /* ============================================
+       ASSET TEMPLATES (Hidden, rendered off-screen)
+       ============================================ */
+    .render-container {
+      position: absolute;
+      left: -9999px;
+      top: 0;
+    }
+
+    /* Twitter Card - 1200x675 */
+    .twitter-asset {
+      width: 1200px;
+      height: 675px;
+      background: var(--dark);
+      position: relative;
+      overflow: hidden;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    .twitter-asset .bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 80%, rgba(245, 166, 35, 0.3) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 50% at 80% 20%, rgba(0, 212, 170, 0.25) 0%, transparent 50%),
+        var(--dark);
+    }
+
+    .twitter-asset .diagonal {
+      position: absolute;
+      width: 200%;
+      height: 3px;
+      background: linear-gradient(90deg, transparent 0%, var(--gold) 30%, var(--teal) 70%, transparent 100%);
+      transform: rotate(-8deg);
+      top: 180px;
+      left: -50%;
+      opacity: 0.6;
+    }
+
+    .twitter-asset .logo {
+      position: absolute;
+      top: 50px;
+      left: 60px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 20;
+    }
+
+    .twitter-asset .logo-icon {
+      width: 44px;
+      height: 44px;
+      background: var(--gold);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+
+    .twitter-asset .logo-text {
+      font-size: 20px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .twitter-asset .logo-text span {
+      color: var(--gold);
+    }
+
+    .twitter-asset .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      padding: 50px 60px;
+      gap: 40px;
+    }
+
+    .twitter-asset .left {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding-top: 40px;
+    }
+
+    .twitter-asset .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(245, 166, 35, 0.15);
+      border: 1px solid rgba(245, 166, 35, 0.4);
+      padding: 10px 20px;
+      border-radius: 50px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--gold-bright);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      width: fit-content;
+      margin-bottom: 30px;
+    }
+
+    .twitter-asset .badge::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      background: var(--gold);
+      border-radius: 50%;
+    }
+
+    .twitter-asset .headline {
+      font-family: 'Playfair Display', serif;
+      font-size: 72px;
+      font-weight: 900;
+      line-height: 1.05;
+      color: white;
+      margin-bottom: 24px;
+    }
+
+    .twitter-asset .headline .highlight {
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .twitter-asset .subheadline {
+      font-size: 22px;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.5;
+      max-width: 420px;
+    }
+
+    .twitter-asset .subheadline strong {
+      color: var(--teal);
+      font-weight: 600;
+    }
+
+    .twitter-asset .right {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .twitter-asset .phone {
+      width: 280px;
+      height: 380px;
+      background: linear-gradient(145deg, #2A2A2A 0%, #1A1A1A 100%);
+      border-radius: 40px;
+      padding: 12px;
+      box-shadow: 0 50px 100px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      position: relative;
+      transform: rotate(5deg);
+    }
+
+    .twitter-asset .phone-screen {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
+      border-radius: 30px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 20px;
+    }
+
+    .twitter-asset .incoming-label {
+      font-size: 13px;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+    }
+
+    .twitter-asset .avatar {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--teal) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Playfair Display', serif;
+      font-size: 42px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 16px;
+      box-shadow: 0 10px 40px rgba(245, 166, 35, 0.3);
+    }
+
+    .twitter-asset .caller-name {
+      font-size: 26px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 6px;
+    }
+
+    .twitter-asset .caller-type {
+      font-size: 14px;
+      color: var(--teal);
+      margin-bottom: 30px;
+    }
+
+    .twitter-asset .call-btns {
+      display: flex;
+      gap: 40px;
+      margin-top: auto;
+    }
+
+    .twitter-asset .call-btn {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .twitter-asset .decline { background: #FF3B30; box-shadow: 0 8px 25px rgba(255, 59, 48, 0.4); }
+    .twitter-asset .accept { background: #34C759; box-shadow: 0 8px 25px rgba(52, 199, 89, 0.4); }
+
+    .twitter-asset .float {
+      position: absolute;
+      background: var(--dark-card);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: white;
+      white-space: nowrap;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .twitter-asset .float-1 { top: 60px; right: 40px; transform: rotate(-3deg); }
+    .twitter-asset .float-2 {
+      bottom: 100px;
+      right: 20px;
+      transform: rotate(2deg);
+      background: rgba(0, 212, 170, 0.15);
+      border-color: rgba(0, 212, 170, 0.3);
+    }
+
+    .twitter-asset .vote-cta {
+      position: absolute;
+      bottom: 50px;
+      left: 60px;
+      right: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.2) 0%, rgba(0, 212, 170, 0.1) 100%);
+      border: 2px solid var(--gold);
+      border-radius: 20px;
+      padding: 20px 30px;
+      z-index: 20;
+    }
+
+    .twitter-asset .vote-text {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .twitter-asset .vote-icon {
+      width: 50px;
+      height: 50px;
+      background: var(--gold);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .twitter-asset .vote-label {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 4px;
+    }
+
+    .twitter-asset .vote-action {
+      font-size: 22px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .twitter-asset .devpost-link {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--gold-bright);
+    }
+
+    /* ===== INSTAGRAM SQUARE - 1080x1080 ===== */
+    .ig-square {
+      width: 1080px;
+      height: 1080px;
+      position: relative;
+      overflow: hidden;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    /* Square Option 1: Bold Statement */
+    .ig-square-1 {
+      background: var(--dark);
+    }
+
+    .ig-square-1 .bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 100% 80% at 50% 120%, rgba(245, 166, 35, 0.5) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 10%, rgba(0, 212, 170, 0.25) 0%, transparent 50%),
+        var(--dark);
+    }
+
+    .ig-square-1 .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 80px;
+    }
+
+    .ig-square-1 .tagline {
+      font-size: 24px;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      color: var(--teal);
+      margin-bottom: 40px;
+    }
+
+    .ig-square-1 h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 96px;
+      font-weight: 900;
+      color: white;
+      line-height: 1.1;
+      margin-bottom: 50px;
+    }
+
+    .ig-square-1 h1 span {
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .ig-square-1 .subtitle {
+      font-size: 32px;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.5;
+      max-width: 700px;
+    }
+
+    .ig-square-1 .vote-badge {
+      position: absolute;
+      bottom: 80px;
+      left: 80px;
+      right: 80px;
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.2) 0%, rgba(245, 166, 35, 0.05) 100%);
+      border: 3px solid var(--gold);
+      border-radius: 24px;
+      padding: 30px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .ig-square-1 .vote-badge .left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .ig-square-1 .vote-badge .icon {
+      font-size: 48px;
+    }
+
+    .ig-square-1 .vote-badge .text {
+      font-size: 28px;
+      font-weight: 600;
+      color: white;
+    }
+
+    .ig-square-1 .vote-badge .link {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--gold-bright);
+    }
+
+    /* Square Option 2: Phone Visual */
+    .ig-square-2 {
+      background: linear-gradient(180deg, #0f1419 0%, var(--dark) 100%);
+    }
+
+    .ig-square-2 .content {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px;
+      text-align: center;
+    }
+
+    .ig-square-2 .phone {
+      width: 400px;
+      height: 520px;
+      background: linear-gradient(145deg, #2A2A2A 0%, #1A1A1A 100%);
+      border-radius: 50px;
+      padding: 16px;
+      box-shadow: 0 50px 100px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+      margin-bottom: 50px;
+    }
+
+    .ig-square-2 .phone-screen {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
+      border-radius: 38px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 30px;
+    }
+
+    .ig-square-2 .incoming {
+      font-size: 18px;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 30px;
+    }
+
+    .ig-square-2 .avatar {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--teal) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Playfair Display', serif;
+      font-size: 56px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 20px;
+      box-shadow: 0 15px 50px rgba(245, 166, 35, 0.4);
+    }
+
+    .ig-square-2 .caller-name {
+      font-size: 36px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 8px;
+    }
+
+    .ig-square-2 .caller-type {
+      font-size: 20px;
+      color: var(--teal);
+      margin-bottom: 40px;
+    }
+
+    .ig-square-2 .call-btns {
+      display: flex;
+      gap: 50px;
+      margin-top: auto;
+    }
+
+    .ig-square-2 .call-btn {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+    }
+
+    .ig-square-2 .decline { background: #FF3B30; box-shadow: 0 10px 30px rgba(255, 59, 48, 0.4); }
+    .ig-square-2 .accept { background: #34C759; box-shadow: 0 10px 30px rgba(52, 199, 89, 0.4); }
+
+    .ig-square-2 h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 52px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 16px;
+    }
+
+    .ig-square-2 .sub {
+      font-size: 28px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .ig-square-2 .sub span {
+      color: var(--gold);
+      font-weight: 600;
+    }
+
+    /* Square Option 3: Pure Vote CTA */
+    .ig-square-3 {
+      background: var(--dark);
+    }
+
+    .ig-square-3 .bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 50%, rgba(245, 166, 35, 0.3) 0%, transparent 50%), var(--dark);
+    }
+
+    .ig-square-3 .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 80px;
+    }
+
+    .ig-square-3 .big-icon {
+      width: 180px;
+      height: 180px;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+      border-radius: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 90px;
+      margin-bottom: 50px;
+      box-shadow: 0 30px 80px rgba(245, 166, 35, 0.4);
+    }
+
+    .ig-square-3 h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 80px;
+      font-weight: 900;
+      color: white;
+      line-height: 1.15;
+      margin-bottom: 24px;
+    }
+
+    .ig-square-3 h1 span {
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .ig-square-3 .subtitle {
+      font-size: 32px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-bottom: 60px;
+    }
+
+    .ig-square-3 .link-box {
+      background: rgba(255, 255, 255, 0.05);
+      border: 3px solid var(--gold);
+      border-radius: 28px;
+      padding: 36px 70px;
+      margin-bottom: 30px;
+    }
+
+    .ig-square-3 .link-box .url {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--gold-bright);
+    }
+
+    .ig-square-3 .footer {
+      font-size: 24px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .ig-square-3 .logo {
+      position: absolute;
+      bottom: 60px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .ig-square-3 .logo-icon {
+      width: 50px;
+      height: 50px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+    }
+
+    .ig-square-3 .logo-text {
+      font-size: 24px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.7);
+    }
+
+    /* ===== INSTAGRAM STORY - 1080x1920 ===== */
+    .ig-story {
+      width: 1080px;
+      height: 1920px;
+      position: relative;
+      overflow: hidden;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    /* Story 1: Urgency Hook */
+    .ig-story-1 {
+      background: var(--dark);
+    }
+
+    .ig-story-1 .bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 120% 60% at 50% 100%, rgba(245, 166, 35, 0.6) 0%, transparent 60%),
+        radial-gradient(ellipse 80% 40% at 50% 0%, rgba(0, 212, 170, 0.3) 0%, transparent 50%),
+        var(--dark);
+    }
+
+    .ig-story-1 .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 80px 60px;
+    }
+
+    .ig-story-1 .timer-badge {
+      background: rgba(255, 59, 48, 0.2);
+      border: 3px solid #FF3B30;
+      color: #FF6B6B;
+      padding: 20px 40px;
+      border-radius: 60px;
+      font-size: 24px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      margin-bottom: 80px;
+    }
+
+    .ig-story-1 h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 88px;
+      font-weight: 900;
+      color: white;
+      line-height: 1.15;
+      margin-bottom: 50px;
+    }
+
+    .ig-story-1 h1 span {
+      display: block;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .ig-story-1 p {
+      font-size: 32px;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.5;
+      margin-bottom: 80px;
+    }
+
+    .ig-story-1 .cta-btn {
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+      color: white;
+      font-size: 32px;
+      font-weight: 700;
+      padding: 36px 80px;
+      border-radius: 60px;
+      box-shadow: 0 20px 60px rgba(245, 166, 35, 0.4);
+    }
+
+    .ig-story-1 .logo {
+      position: absolute;
+      bottom: 100px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .ig-story-1 .logo-icon {
+      width: 60px;
+      height: 60px;
+      background: var(--gold);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+    }
+
+    .ig-story-1 .logo-text {
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+    }
+
+    /* Story 2: Demo */
+    .ig-story-2 {
+      background: linear-gradient(180deg, #0f1419 0%, var(--dark) 100%);
+    }
+
+    .ig-story-2 .content {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: 100px 60px;
+    }
+
+    .ig-story-2 .badge {
+      background: rgba(0, 212, 170, 0.15);
+      border: 2px solid var(--teal);
+      color: var(--teal);
+      padding: 16px 32px;
+      border-radius: 60px;
+      font-size: 20px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      width: fit-content;
+      margin-bottom: 50px;
+    }
+
+    .ig-story-2 h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 64px;
+      font-weight: 900;
+      color: white;
+      line-height: 1.2;
+      margin-bottom: 60px;
+    }
+
+    .ig-story-2 h1 span {
+      color: var(--teal);
+    }
+
+    .ig-story-2 .phone-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ig-story-2 .phone {
+      width: 380px;
+      height: 660px;
+      background: linear-gradient(145deg, #2A2A2A 0%, #1A1A1A 100%);
+      border-radius: 55px;
+      padding: 16px;
+      box-shadow: 0 50px 100px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    }
+
+    .ig-story-2 .phone-screen {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
+      border-radius: 42px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 50px 30px;
+    }
+
+    .ig-story-2 .call-label {
+      font-size: 18px;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 40px;
+    }
+
+    .ig-story-2 .avatar {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--teal) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Playfair Display', serif;
+      font-size: 56px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 24px;
+      box-shadow: 0 15px 50px rgba(245, 166, 35, 0.3);
+    }
+
+    .ig-story-2 .caller-name {
+      font-size: 38px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 8px;
+    }
+
+    .ig-story-2 .caller-role {
+      font-size: 20px;
+      color: var(--teal);
+      margin-bottom: 40px;
+    }
+
+    .ig-story-2 .waveform {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: auto;
+    }
+
+    .ig-story-2 .wave-bar {
+      width: 8px;
+      background: var(--gold);
+      border-radius: 4px;
+    }
+
+    .ig-story-2 .wave-bar:nth-child(1) { height: 30px; }
+    .ig-story-2 .wave-bar:nth-child(2) { height: 50px; }
+    .ig-story-2 .wave-bar:nth-child(3) { height: 35px; }
+    .ig-story-2 .wave-bar:nth-child(4) { height: 60px; }
+    .ig-story-2 .wave-bar:nth-child(5) { height: 45px; }
+    .ig-story-2 .wave-bar:nth-child(6) { height: 30px; }
+
+    .ig-story-2 .call-duration {
+      font-size: 24px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-top: auto;
+    }
+
+    .ig-story-2 .swipe-up {
+      text-align: center;
+      margin-top: 60px;
+    }
+
+    .ig-story-2 .swipe-up span {
+      font-size: 24px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .ig-story-2 .swipe-up .arrow {
+      display: block;
+      font-size: 40px;
+      color: var(--gold);
+      margin-bottom: 10px;
+    }
+
+    /* Story 3: Vote CTA */
+    .ig-story-3 {
+      background: var(--dark);
+    }
+
+    .ig-story-3 .bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 30%, rgba(245, 166, 35, 0.4) 0%, transparent 50%), var(--dark);
+    }
+
+    .ig-story-3 .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 100px 60px;
+    }
+
+    .ig-story-3 .trophy {
+      font-size: 140px;
+      margin-bottom: 50px;
+    }
+
+    .ig-story-3 h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 72px;
+      font-weight: 900;
+      color: white;
+      line-height: 1.2;
+      margin-bottom: 30px;
+    }
+
+    .ig-story-3 h1 span {
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .ig-story-3 p {
+      font-size: 30px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 60px;
+      line-height: 1.5;
+    }
+
+    .ig-story-3 .link-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 3px solid var(--gold);
+      border-radius: 28px;
+      padding: 40px 60px;
+      margin-bottom: 50px;
+    }
+
+    .ig-story-3 .link-label {
+      font-size: 18px;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 12px;
+    }
+
+    .ig-story-3 .link-url {
+      font-size: 34px;
+      font-weight: 700;
+      color: var(--gold-bright);
+    }
+
+    .ig-story-3 .steps {
+      text-align: left;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 24px;
+      padding: 36px 44px;
+    }
+
+    .ig-story-3 .step {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 26px;
+      padding: 14px 0;
+    }
+
+    .ig-story-3 .step-num {
+      width: 44px;
+      height: 44px;
+      background: var(--gold);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .ig-story-3 .logo {
+      position: absolute;
+      bottom: 100px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .ig-story-3 .logo-icon {
+      width: 56px;
+      height: 56px;
+      background: var(--gold);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+
+    .ig-story-3 .logo-text {
+      font-size: 26px;
+      font-weight: 700;
+      color: white;
+    }
+
+    /* ===== CAROUSEL SLIDES - 1080x1080 ===== */
+    .carousel-slide {
+      width: 1080px;
+      height: 1080px;
+      position: relative;
+      overflow: hidden;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    /* Slide 1: Hook */
+    .carousel-1 {
+      background: var(--dark);
+    }
+
+    .carousel-1 .bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 30% 70%, rgba(245, 166, 35, 0.4) 0%, transparent 50%),
+        radial-gradient(circle at 70% 30%, rgba(0, 212, 170, 0.3) 0%, transparent 50%),
+        var(--dark);
+    }
+
+    .carousel-1 .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 80px;
+    }
+
+    .carousel-1 .small-text {
+      font-size: 24px;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      color: var(--teal);
+      margin-bottom: 50px;
+    }
+
+    .carousel-1 h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 88px;
+      font-weight: 900;
+      color: white;
+      line-height: 1.15;
+      margin-bottom: 50px;
+    }
+
+    .carousel-1 h1 span {
+      display: block;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .carousel-1 .swipe {
+      font-size: 28px;
+      color: rgba(255, 255, 255, 0.5);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: auto;
+      padding-bottom: 40px;
+    }
+
+    .carousel-1 .swipe::after {
+      content: '→';
+      font-size: 36px;
+    }
+
+    .carousel-1 .dots {
+      position: absolute;
+      bottom: 60px;
+      display: flex;
+      gap: 12px;
+    }
+
+    .carousel-1 .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .carousel-1 .dot.active {
+      background: var(--gold);
+      width: 36px;
+      border-radius: 6px;
+    }
+
+    /* Slide 2: Problem */
+    .carousel-2 {
+      background: linear-gradient(145deg, #1a1a2e 0%, var(--dark) 100%);
+    }
+
+    .carousel-2 .content {
+      height: 100%;
+      padding: 80px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .carousel-2 .label {
+      font-size: 20px;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--gold);
+      margin-bottom: 50px;
+    }
+
+    .carousel-2 h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 60px;
+      font-weight: 700;
+      color: white;
+      line-height: 1.3;
+      margin-bottom: 70px;
+    }
+
+    .carousel-2 .stats {
+      display: flex;
+      flex-direction: column;
+      gap: 40px;
+      margin-top: auto;
+    }
+
+    .carousel-2 .stat {
+      display: flex;
+      align-items: center;
+      gap: 36px;
+    }
+
+    .carousel-2 .stat-num {
+      font-size: 80px;
+      font-weight: 700;
+      color: var(--gold);
+      min-width: 240px;
+    }
+
+    .carousel-2 .stat-text {
+      font-size: 28px;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.4;
+    }
+
+    .carousel-2 .dots {
+      position: absolute;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+    }
+
+    .carousel-2 .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .carousel-2 .dot.active {
+      background: var(--gold);
+      width: 36px;
+      border-radius: 6px;
+    }
+
+    /* Slide 3: Solution */
+    .carousel-3 {
+      background: var(--dark);
+    }
+
+    .carousel-3 .bg {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(0, 212, 170, 0.15) 0%, transparent 50%);
+    }
+
+    .carousel-3 .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      padding: 80px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .carousel-3 .label {
+      font-size: 20px;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--teal);
+      margin-bottom: 36px;
+    }
+
+    .carousel-3 h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 68px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 60px;
+    }
+
+    .carousel-3 h2 span {
+      color: var(--teal);
+    }
+
+    .carousel-3 .features {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    .carousel-3 .feature {
+      display: flex;
+      align-items: flex-start;
+      gap: 28px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      padding: 32px;
+    }
+
+    .carousel-3 .feature-icon {
+      width: 72px;
+      height: 72px;
+      background: linear-gradient(135deg, var(--teal) 0%, var(--teal-dark) 100%);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      flex-shrink: 0;
+    }
+
+    .carousel-3 .feature-text h4 {
+      font-size: 30px;
+      font-weight: 600;
+      color: white;
+      margin-bottom: 8px;
+    }
+
+    .carousel-3 .feature-text p {
+      font-size: 24px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .carousel-3 .dots {
+      position: absolute;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+    }
+
+    .carousel-3 .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .carousel-3 .dot.active {
+      background: var(--gold);
+      width: 36px;
+      border-radius: 6px;
+    }
+
+    /* Slide 4: Tech */
+    .carousel-4 {
+      background: linear-gradient(180deg, #0f1419 0%, var(--dark) 100%);
+    }
+
+    .carousel-4 .content {
+      height: 100%;
+      padding: 80px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .carousel-4 .label {
+      font-size: 20px;
+      text-transform: uppercase;
+      letter-spacing: 3px;
+      color: var(--gold);
+      margin-bottom: 36px;
+    }
+
+    .carousel-4 h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 60px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 50px;
+    }
+
+    .carousel-4 .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+      margin-bottom: 50px;
+    }
+
+    .carousel-4 .tech-item {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 20px;
+      padding: 28px;
+      text-align: center;
+    }
+
+    .carousel-4 .tech-item .emoji {
+      font-size: 48px;
+      margin-bottom: 14px;
+    }
+
+    .carousel-4 .tech-item .name {
+      font-size: 22px;
+      font-weight: 600;
+      color: white;
+      margin-bottom: 4px;
+    }
+
+    .carousel-4 .tech-item .role {
+      font-size: 18px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .carousel-4 .latency {
+      background: linear-gradient(135deg, rgba(245, 166, 35, 0.2) 0%, rgba(0, 212, 170, 0.1) 100%);
+      border: 2px solid var(--gold);
+      border-radius: 24px;
+      padding: 40px;
+      text-align: center;
+      margin-top: auto;
+    }
+
+    .carousel-4 .latency-num {
+      font-size: 96px;
+      font-weight: 700;
+      color: var(--gold);
+    }
+
+    .carousel-4 .latency-text {
+      font-size: 28px;
+      color: white;
+    }
+
+    .carousel-4 .dots {
+      position: absolute;
+      bottom: 60px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 12px;
+    }
+
+    .carousel-4 .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .carousel-4 .dot.active {
+      background: var(--gold);
+      width: 36px;
+      border-radius: 6px;
+    }
+
+    /* Slide 5: Vote CTA */
+    .carousel-5 {
+      background: var(--dark);
+    }
+
+    .carousel-5 .bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 60% at 50% 100%, rgba(245, 166, 35, 0.5) 0%, transparent 60%), var(--dark);
+    }
+
+    .carousel-5 .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 80px;
+    }
+
+    .carousel-5 .vote-icon {
+      width: 160px;
+      height: 160px;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+      border-radius: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 80px;
+      margin-bottom: 50px;
+      box-shadow: 0 30px 80px rgba(245, 166, 35, 0.4);
+    }
+
+    .carousel-5 h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 72px;
+      font-weight: 900;
+      color: white;
+      margin-bottom: 24px;
+    }
+
+    .carousel-5 .subtitle {
+      font-size: 34px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 60px;
+    }
+
+    .carousel-5 .link-box {
+      background: rgba(255, 255, 255, 0.1);
+      border: 3px solid var(--gold);
+      border-radius: 24px;
+      padding: 32px 60px;
+      margin-bottom: 36px;
+    }
+
+    .carousel-5 .link-box span {
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--gold-bright);
+    }
+
+    .carousel-5 .instructions {
+      font-size: 24px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .carousel-5 .logo {
+      position: absolute;
+      bottom: 100px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .carousel-5 .logo-icon {
+      width: 56px;
+      height: 56px;
+      background: var(--gold);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+
+    .carousel-5 .logo-text {
+      font-size: 26px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .carousel-5 .dots {
+      position: absolute;
+      bottom: 60px;
+      display: flex;
+      gap: 12px;
+    }
+
+    .carousel-5 .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .carousel-5 .dot.active {
+      background: var(--gold);
+      width: 36px;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <!-- ===== APP HEADER ===== -->
+  <header class="app-header">
+    <div class="app-logo">
+      <div class="app-logo-icon">📞</div>
+      <div class="app-logo-text">Callback<span>App</span>.AI</div>
+    </div>
+    <div class="app-title">Social Media Asset Generator</div>
+    <button class="download-all-btn" onclick="downloadAll()">
+      <span>⬇</span> Download All Assets
+    </button>
+  </header>
+
+  <!-- ===== TAB NAVIGATION ===== -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('twitter')">Twitter/X</button>
+    <button class="tab-btn" onclick="switchTab('ig-square')">Instagram Posts</button>
+    <button class="tab-btn" onclick="switchTab('ig-story')">Instagram Stories</button>
+    <button class="tab-btn" onclick="switchTab('carousel')">Instagram Carousel</button>
+  </nav>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="main-content">
+    <!-- Twitter Tab -->
+    <div id="tab-twitter" class="tab-panel active">
+      <div class="section-header">
+        <h1 class="section-title">Twitter/X Post <span class="section-size">1200 × 675</span></h1>
+        <p class="section-desc">Optimized 16:9 ratio for Twitter feed display</p>
+      </div>
+      <div class="asset-grid">
+        <div class="asset-card">
+          <div class="asset-preview">
+            <div class="asset-preview-inner" style="transform: scale(0.35);">
+              <div class="twitter-asset" id="twitter-1">
+                <div class="bg"></div>
+                <div class="diagonal"></div>
+                <div class="logo">
+                  <div class="logo-icon">📞</div>
+                  <div class="logo-text">Callback<span>App</span>.AI</div>
+                </div>
+                <div class="content">
+                  <div class="left">
+                    <div class="badge">AI Champion Ship 2025</div>
+                    <h1 class="headline">AI Friends<br>Who <span class="highlight">Actually</span><br>Call You</h1>
+                    <p class="subheadline">Real phone calls from AI companions who <strong>remember you</strong>. Built in 6 weeks. Ready for the world.</p>
+                  </div>
+                  <div class="right">
+                    <div class="phone">
+                      <div class="phone-screen">
+                        <div class="incoming-label">Incoming Call</div>
+                        <div class="avatar">A</div>
+                        <div class="caller-name">Alex</div>
+                        <div class="caller-type">Your AI Coach</div>
+                        <div class="call-btns">
+                          <div class="call-btn decline">✕</div>
+                          <div class="call-btn accept">📞</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="float float-1">🧠 Remembers your life</div>
+                    <div class="float float-2">⚡ Sub-second latency</div>
+                  </div>
+                </div>
+                <div class="vote-cta">
+                  <div class="vote-text">
+                    <div class="vote-icon">🗳️</div>
+                    <div>
+                      <div class="vote-label">Help this project continue</div>
+                      <div class="vote-action">Vote on Devpost</div>
+                    </div>
+                  </div>
+                  <div class="devpost-link">liquidmetal.devpost.com →</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="asset-actions">
+            <div class="asset-info">
+              <h3>Main Vote CTA</h3>
+              <p>twitter-vote-cta.png • 1200×675</p>
+            </div>
+            <button class="download-btn" onclick="downloadAsset('twitter-1', 'twitter-vote-cta', 1200, 675)">
+              <span>⬇</span> Download PNG
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Instagram Square Tab -->
+    <div id="tab-ig-square" class="tab-panel">
+      <div class="section-header">
+        <h1 class="section-title">Instagram Posts <span class="section-size">1080 × 1080</span></h1>
+        <p class="section-desc">Square format for Instagram feed. Three style options.</p>
+      </div>
+      <div class="asset-grid">
+        <!-- Option 1 -->
+        <div class="asset-card">
+          <div class="asset-preview">
+            <div class="asset-preview-inner" style="transform: scale(0.35);">
+              <div class="ig-square ig-square-1" id="ig-square-1">
+                <div class="bg"></div>
+                <div class="content">
+                  <div class="tagline">AI Champion Ship 2025</div>
+                  <h1>I Built An AI<br>That <span>Calls<br>You Back</span></h1>
+                  <p class="subtitle">Real phone calls from AI companions who remember your life.</p>
+                  <div class="vote-badge">
+                    <div class="left">
+                      <span class="icon">🗳️</span>
+                      <span class="text">Vote on Devpost</span>
+                    </div>
+                    <span class="link">Link in bio →</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="asset-actions">
+            <div class="asset-info">
+              <h3>Bold Statement</h3>
+              <p>ig-post-statement.png • 1080×1080</p>
+            </div>
+            <button class="download-btn" onclick="downloadAsset('ig-square-1', 'ig-post-statement', 1080, 1080)">
+              <span>⬇</span> Download PNG
+            </button>
+          </div>
+        </div>
+
+        <!-- Option 2 -->
+        <div class="asset-card">
+          <div class="asset-preview">
+            <div class="asset-preview-inner" style="transform: scale(0.35);">
+              <div class="ig-square ig-square-2" id="ig-square-2">
+                <div class="content">
+                  <div class="phone">
+                    <div class="phone-screen">
+                      <div class="incoming">Incoming Call</div>
+                      <div class="avatar">A</div>
+                      <div class="caller-name">Alex</div>
+                      <div class="caller-type">Your AI Coach</div>
+                      <div class="call-btns">
+                        <div class="call-btn decline">✕</div>
+                        <div class="call-btn accept">📞</div>
+                      </div>
+                    </div>
+                  </div>
+                  <h2>Your AI is calling</h2>
+                  <p class="sub">Vote for <span>CallbackApp.AI</span> on Devpost</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="asset-actions">
+            <div class="asset-info">
+              <h3>Phone Visual</h3>
+              <p>ig-post-phone.png • 1080×1080</p>
+            </div>
+            <button class="download-btn" onclick="downloadAsset('ig-square-2', 'ig-post-phone', 1080, 1080)">
+              <span>⬇</span> Download PNG
+            </button>
+          </div>
+        </div>
+
+        <!-- Option 3 -->
+        <div class="asset-card">
+          <div class="asset-preview">
+            <div class="asset-preview-inner" style="transform: scale(0.35);">
+              <div class="ig-square ig-square-3" id="ig-square-3">
+                <div class="bg"></div>
+                <div class="content">
+                  <div class="big-icon">🗳️</div>
+                  <h1>Help Me <span>Keep Building</span></h1>
+                  <p class="subtitle">6 weeks. 100+ sessions. One vote.</p>
+                  <div class="link-box">
+                    <div class="url">liquidmetal.devpost.com</div>
+                  </div>
+                  <p class="footer">Find CallbackApp.AI → Hit "Like"</p>
+                  <div class="logo">
+                    <div class="logo-icon">📞</div>
+                    <div class="logo-text">CallbackApp.AI</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="asset-actions">
+            <div class="asset-info">
+              <h3>Pure Vote CTA</h3>
+              <p>ig-post-vote.png • 1080×1080</p>
+            </div>
+            <button class="download-btn" onclick="downloadAsset('ig-square-3', 'ig-post-vote', 1080, 1080)">
+              <span>⬇</span> Download PNG
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Instagram Stories Tab -->
+    <div id="tab-ig-story" class="tab-panel">
+      <div class="section-header">
+        <h1 class="section-title">Instagram Stories <span class="section-size">1080 × 1920</span></h1>
+        <p class="section-desc">Vertical 9:16 format for Instagram Stories</p>
+      </div>
+      <div class="story-grid">
+        <!-- Story 1 -->
+        <div class="asset-card story-card">
+          <div class="asset-preview">
+            <div class="asset-preview-inner" style="transform: scale(0.2);">
+              <div class="ig-story ig-story-1" id="ig-story-1">
+                <div class="bg"></div>
+                <div class="content">
+                  <div class="timer-badge">Voting Ends Soon</div>
+                  <h1>I Built An AI<br><span>That Calls<br>You Back</span></h1>
+                  <p>Real phone calls. Real memory.<br>Real conversations at 3am.</p>
+                  <div class="cta-btn">Vote Now</div>
+                  <div class="logo">
+                    <div class="logo-icon">📞</div>
+                    <div class="logo-text">CallbackApp.AI</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="asset-actions">
+            <div class="asset-info">
+              <h3>Urgency Hook</h3>
+              <p>ig-story-urgency.png</p>
+            </div>
+            <button class="download-btn" onclick="downloadAsset('ig-story-1', 'ig-story-urgency', 1080, 1920)">
+              <span>⬇</span> Download
+            </button>
+          </div>
+        </div>
+
+        <!-- Story 2 -->
+        <div class="asset-card story-card">
+          <div class="asset-preview">
+            <div class="asset-preview-inner" style="transform: scale(0.2);">
+              <div class="ig-story ig-story-2" id="ig-story-2">
+                <div class="content">
+                  <div class="badge">Live Demo</div>
+                  <h1>Watch what happens when <span>the AI calls</span></h1>
+                  <div class="phone-container">
+                    <div class="phone">
+                      <div class="phone-screen">
+                        <div class="call-label">In Call</div>
+                        <div class="avatar">A</div>
+                        <div class="caller-name">Alex</div>
+                        <div class="caller-role">AI Coach</div>
+                        <div class="waveform">
+                          <div class="wave-bar"></div>
+                          <div class="wave-bar"></div>
+                          <div class="wave-bar"></div>
+                          <div class="wave-bar"></div>
+                          <div class="wave-bar"></div>
+                          <div class="wave-bar"></div>
+                        </div>
+                        <div class="call-duration">02:34</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="swipe-up">
+                    <span class="arrow">↑</span>
+                    <span>Swipe up to try it</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="asset-actions">
+            <div class="asset-info">
+              <h3>Demo Teaser</h3>
+              <p>ig-story-demo.png</p>
+            </div>
+            <button class="download-btn" onclick="downloadAsset('ig-story-2', 'ig-story-demo', 1080, 1920)">
+              <span>⬇</span> Download
+            </button>
+          </div>
+        </div>
+
+        <!-- Story 3 -->
+        <div class="asset-card story-card">
+          <div class="asset-preview">
+            <div class="asset-preview-inner" style="transform: scale(0.2);">
+              <div class="ig-story ig-story-3" id="ig-story-3">
+                <div class="bg"></div>
+                <div class="content">
+                  <div class="trophy">🏆</div>
+                  <h1>Help Me <span>Win</span> This Hackathon</h1>
+                  <p>6 weeks of building. 100+ sessions.<br>One vote makes the difference.</p>
+                  <div class="link-card">
+                    <div class="link-label">Vote Here</div>
+                    <div class="link-url">liquidmetal.devpost.com</div>
+                  </div>
+                  <div class="steps">
+                    <div class="step">
+                      <div class="step-num">1</div>
+                      <span>Click link in bio</span>
+                    </div>
+                    <div class="step">
+                      <div class="step-num">2</div>
+                      <span>Find CallbackApp.AI</span>
+                    </div>
+                    <div class="step">
+                      <div class="step-num">3</div>
+                      <span>Hit the "Like" button</span>
+                    </div>
+                  </div>
+                  <div class="logo">
+                    <div class="logo-icon">📞</div>
+                    <div class="logo-text">CallbackApp.AI</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="asset-actions">
+            <div class="asset-info">
+              <h3>Vote CTA</h3>
+              <p>ig-story-vote.png</p>
+            </div>
+            <button class="download-btn" onclick="downloadAsset('ig-story-3', 'ig-story-vote', 1080, 1920)">
+              <span>⬇</span> Download
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Carousel Tab -->
+    <div id="tab-carousel" class="tab-panel">
+      <div class="section-header">
+        <h1 class="section-title">Instagram Carousel <span class="section-size">1080 × 1080 × 5</span></h1>
+        <p class="section-desc">5-slide carousel: Hook → Problem → Solution → Tech → Vote</p>
+      </div>
+      <div class="carousel-grid">
+        <!-- Slide 1 -->
+        <div class="asset-card carousel-card">
+          <div class="asset-preview">
+            <div class="asset-preview-inner" style="transform: scale(0.28);">
+              <div class="carousel-slide carousel-1" id="carousel-1">
+                <div class="bg"></div>
+                <div class="content">
+                  <div class="small-text">What if...</div>
+                  <h1>Your AI Friend<br><span>Actually Called<br>You Back?</span></h1>
+                  <div class="swipe">Swipe to see what I built</div>
+                </div>
+                <div class="dots">
+                  <div class="dot active"></div>
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="asset-actions">
+            <div class="asset-info">
+              <h3>Slide 1: Hook</h3>
+              <p>carousel-01-hook.png</p>
+            </div>
+            <button class="download-btn" onclick="downloadAsset('carousel-1', 'carousel-01-hook', 1080, 1080)">
+              <span>⬇</span> Download
+            </button>
+          </div>
+        </div>
+
+        <!-- Slide 2 -->
+        <div class="asset-card carousel-card">
+          <div class="asset-preview">
+            <div class="asset-preview-inner" style="transform: scale(0.28);">
+              <div class="carousel-slide carousel-2" id="carousel-2">
+                <div class="content">
+                  <div class="label">The Problem</div>
+                  <h2>Sometimes you need to talk.<br>No one's there.</h2>
+                  <div class="stats">
+                    <div class="stat">
+                      <div class="stat-num">60%</div>
+                      <div class="stat-text">of adults report feeling lonely regularly</div>
+                    </div>
+                    <div class="stat">
+                      <div class="stat-num">3 AM</div>
+                      <div class="stat-text">Life's biggest moments don't wait for business hours</div>
+                    </div>
+                    <div class="stat">
+                      <div class="stat-num">Zero</div>
+                      <div class="stat-text">AI chatbots that remember who you are</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="dots">
+                  <div class="dot"></div>
+                  <div class="dot active"></div>
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="asset-actions">
+            <div class="asset-info">
+              <h3>Slide 2: Problem</h3>
+              <p>carousel-02-problem.png</p>
+            </div>
+            <button class="download-btn" onclick="downloadAsset('carousel-2', 'carousel-02-problem', 1080, 1080)">
+              <span>⬇</span> Download
+            </button>
+          </div>
+        </div>
+
+        <!-- Slide 3 -->
+        <div class="asset-card carousel-card">
+          <div class="asset-preview">
+            <div class="asset-preview-inner" style="transform: scale(0.28);">
+              <div class="carousel-slide carousel-3" id="carousel-3">
+                <div class="bg"></div>
+                <div class="content">
+                  <div class="label">The Solution</div>
+                  <h2>AI companions who <span>call you</span></h2>
+                  <div class="features">
+                    <div class="feature">
+                      <div class="feature-icon">📞</div>
+                      <div class="feature-text">
+                        <h4>Real Phone Calls</h4>
+                        <p>Your phone rings. You answer. You talk.</p>
+                      </div>
+                    </div>
+                    <div class="feature">
+                      <div class="feature-icon">🧠</div>
+                      <div class="feature-text">
+                        <h4>Persistent Memory</h4>
+                        <p>Remembers your job, family, goals, everything.</p>
+                      </div>
+                    </div>
+                    <div class="feature">
+                      <div class="feature-icon">⏰</div>
+                      <div class="feature-text">
+                        <h4>Scheduled Callbacks</h4>
+                        <p>Morning motivation. Evening check-ins.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="dots">
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                  <div class="dot active"></div>
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="asset-actions">
+            <div class="asset-info">
+              <h3>Slide 3: Solution</h3>
+              <p>carousel-03-solution.png</p>
+            </div>
+            <button class="download-btn" onclick="downloadAsset('carousel-3', 'carousel-03-solution', 1080, 1080)">
+              <span>⬇</span> Download
+            </button>
+          </div>
+        </div>
+
+        <!-- Slide 4 -->
+        <div class="asset-card carousel-card">
+          <div class="asset-preview">
+            <div class="asset-preview-inner" style="transform: scale(0.28);">
+              <div class="carousel-slide carousel-4" id="carousel-4">
+                <div class="content">
+                  <div class="label">Under the Hood</div>
+                  <h2>Built with cutting-edge tech</h2>
+                  <div class="tech-grid">
+                    <div class="tech-item">
+                      <div class="emoji">⚡</div>
+                      <div class="name">Cerebras</div>
+                      <div class="role">Inference</div>
+                    </div>
+                    <div class="tech-item">
+                      <div class="emoji">🎙️</div>
+                      <div class="name">Deepgram</div>
+                      <div class="role">Speech-to-Text</div>
+                    </div>
+                    <div class="tech-item">
+                      <div class="emoji">🗣️</div>
+                      <div class="name">ElevenLabs</div>
+                      <div class="role">Text-to-Speech</div>
+                    </div>
+                    <div class="tech-item">
+                      <div class="emoji">☁️</div>
+                      <div class="name">Raindrop</div>
+                      <div class="role">Edge API</div>
+                    </div>
+                    <div class="tech-item">
+                      <div class="emoji">🖥️</div>
+                      <div class="name">Vultr</div>
+                      <div class="role">Infrastructure</div>
+                    </div>
+                    <div class="tech-item">
+                      <div class="emoji">📱</div>
+                      <div class="name">Twilio</div>
+                      <div class="role">Telephony</div>
+                    </div>
+                  </div>
+                  <div class="latency">
+                    <div class="latency-num">&lt;1 sec</div>
+                    <div class="latency-text">Voice-to-voice latency</div>
+                  </div>
+                </div>
+                <div class="dots">
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                  <div class="dot active"></div>
+                  <div class="dot"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="asset-actions">
+            <div class="asset-info">
+              <h3>Slide 4: Tech Stack</h3>
+              <p>carousel-04-tech.png</p>
+            </div>
+            <button class="download-btn" onclick="downloadAsset('carousel-4', 'carousel-04-tech', 1080, 1080)">
+              <span>⬇</span> Download
+            </button>
+          </div>
+        </div>
+
+        <!-- Slide 5 -->
+        <div class="asset-card carousel-card">
+          <div class="asset-preview">
+            <div class="asset-preview-inner" style="transform: scale(0.28);">
+              <div class="carousel-slide carousel-5" id="carousel-5">
+                <div class="bg"></div>
+                <div class="content">
+                  <div class="vote-icon">🗳️</div>
+                  <h2>Help Me Keep Building</h2>
+                  <div class="subtitle">Vote for CallbackApp.AI on Devpost</div>
+                  <div class="link-box">
+                    <span>liquidmetal.devpost.com</span>
+                  </div>
+                  <div class="instructions">Click the link in bio → Find CallbackApp.AI → Hit "Like"</div>
+                  <div class="logo">
+                    <div class="logo-icon">📞</div>
+                    <div class="logo-text">CallbackApp.AI</div>
+                  </div>
+                </div>
+                <div class="dots">
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                  <div class="dot"></div>
+                  <div class="dot active"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="asset-actions">
+            <div class="asset-info">
+              <h3>Slide 5: Vote CTA</h3>
+              <p>carousel-05-vote.png</p>
+            </div>
+            <button class="download-btn" onclick="downloadAsset('carousel-5', 'carousel-05-vote', 1080, 1080)">
+              <span>⬇</span> Download
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Progress Toast -->
+  <div class="progress-toast" id="progress-toast">
+    <div class="spinner"></div>
+    <span id="progress-text">Generating assets...</span>
+  </div>
+
+  <script>
+    // Tab switching
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.remove('active'));
+
+      event.target.classList.add('active');
+      document.getElementById('tab-' + tabId).classList.add('active');
+    }
+
+    // Show progress toast
+    function showProgress(message) {
+      const toast = document.getElementById('progress-toast');
+      document.getElementById('progress-text').textContent = message;
+      toast.classList.add('show');
+    }
+
+    function hideProgress() {
+      document.getElementById('progress-toast').classList.remove('show');
+    }
+
+    // Download single asset
+    async function downloadAsset(elementId, filename, width, height) {
+      const btn = event.target.closest('.download-btn');
+      const originalContent = btn.innerHTML;
+      btn.innerHTML = '<div class="spinner"></div> Generating...';
+      btn.disabled = true;
+
+      try {
+        const element = document.getElementById(elementId);
+
+        // Create a clone and render at full size
+        const clone = element.cloneNode(true);
+        clone.style.transform = 'none';
+        clone.style.position = 'absolute';
+        clone.style.left = '-9999px';
+        clone.style.top = '0';
+        document.body.appendChild(clone);
+
+        const canvas = await html2canvas(clone, {
+          width: width,
+          height: height,
+          scale: 2, // 2x for retina
+          useCORS: true,
+          backgroundColor: null,
+          logging: false
+        });
+
+        document.body.removeChild(clone);
+
+        // Download
+        const link = document.createElement('a');
+        link.download = filename + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+
+      } catch (error) {
+        console.error('Error generating asset:', error);
+        alert('Error generating asset. Please try again.');
+      }
+
+      btn.innerHTML = originalContent;
+      btn.disabled = false;
+    }
+
+    // Download all assets
+    async function downloadAll() {
+      const assets = [
+        { id: 'twitter-1', name: 'twitter-vote-cta', width: 1200, height: 675 },
+        { id: 'ig-square-1', name: 'ig-post-statement', width: 1080, height: 1080 },
+        { id: 'ig-square-2', name: 'ig-post-phone', width: 1080, height: 1080 },
+        { id: 'ig-square-3', name: 'ig-post-vote', width: 1080, height: 1080 },
+        { id: 'ig-story-1', name: 'ig-story-urgency', width: 1080, height: 1920 },
+        { id: 'ig-story-2', name: 'ig-story-demo', width: 1080, height: 1920 },
+        { id: 'ig-story-3', name: 'ig-story-vote', width: 1080, height: 1920 },
+        { id: 'carousel-1', name: 'carousel-01-hook', width: 1080, height: 1080 },
+        { id: 'carousel-2', name: 'carousel-02-problem', width: 1080, height: 1080 },
+        { id: 'carousel-3', name: 'carousel-03-solution', width: 1080, height: 1080 },
+        { id: 'carousel-4', name: 'carousel-04-tech', width: 1080, height: 1080 },
+        { id: 'carousel-5', name: 'carousel-05-vote', width: 1080, height: 1080 },
+      ];
+
+      showProgress(`Generating 0/${assets.length} assets...`);
+
+      for (let i = 0; i < assets.length; i++) {
+        const asset = assets[i];
+        showProgress(`Generating ${i + 1}/${assets.length}: ${asset.name}...`);
+
+        try {
+          const element = document.getElementById(asset.id);
+          const clone = element.cloneNode(true);
+          clone.style.transform = 'none';
+          clone.style.position = 'absolute';
+          clone.style.left = '-9999px';
+          clone.style.top = '0';
+          document.body.appendChild(clone);
+
+          const canvas = await html2canvas(clone, {
+            width: asset.width,
+            height: asset.height,
+            scale: 2,
+            useCORS: true,
+            backgroundColor: null,
+            logging: false
+          });
+
+          document.body.removeChild(clone);
+
+          const link = document.createElement('a');
+          link.download = asset.name + '.png';
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+
+          // Small delay between downloads
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+        } catch (error) {
+          console.error(`Error generating ${asset.name}:`, error);
+        }
+      }
+
+      hideProgress();
+      alert('All assets downloaded! Check your downloads folder.');
+    }
+  </script>
+</body>
+</html>

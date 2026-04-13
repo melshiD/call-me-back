@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CallbackApp.AI - Instagram Stories</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --gold: #F5A623;
+      --gold-bright: #FFB940;
+      --gold-dark: #D4920A;
+      --teal: #00D4AA;
+      --teal-dark: #00B894;
+      --dark: #0A0A0A;
+      --dark-card: #161616;
+    }
+
+    body {
+      background: #1a1a1a;
+      padding: 40px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 30px;
+      font-family: 'DM Sans', sans-serif;
+    }
+
+    h2 {
+      width: 100%;
+      color: white;
+      font-size: 24px;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #333;
+    }
+
+    /* Instagram Story: 1080x1920 (9:16) - shown at 35% */
+    .story {
+      width: 378px;
+      height: 672px;
+      position: relative;
+      overflow: hidden;
+      border-radius: 16px;
+      flex-shrink: 0;
+    }
+
+    /* ====== STORY 1: Hook - Urgency ====== */
+    .story-1 {
+      background: var(--dark);
+    }
+
+    .story-1 .bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 120% 60% at 50% 100%, rgba(245, 166, 35, 0.6) 0%, transparent 60%),
+        radial-gradient(ellipse 80% 40% at 50% 0%, rgba(0, 212, 170, 0.3) 0%, transparent 50%),
+        var(--dark);
+    }
+
+    .story-1 .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 40px 30px;
+    }
+
+    .story-1 .timer-badge {
+      background: rgba(255, 59, 48, 0.2);
+      border: 2px solid #FF3B30;
+      color: #FF6B6B;
+      padding: 12px 24px;
+      border-radius: 50px;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 40px;
+      animation: urgentPulse 2s infinite;
+    }
+
+    @keyframes urgentPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.4); }
+      50% { box-shadow: 0 0 0 15px rgba(255, 59, 48, 0); }
+    }
+
+    .story-1 h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 48px;
+      font-weight: 900;
+      color: white;
+      line-height: 1.15;
+      margin-bottom: 30px;
+    }
+
+    .story-1 h1 span {
+      display: block;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .story-1 p {
+      font-size: 18px;
+      color: rgba(255, 255, 255, 0.7);
+      line-height: 1.5;
+      margin-bottom: 50px;
+    }
+
+    .story-1 .cta-btn {
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+      color: white;
+      font-size: 18px;
+      font-weight: 700;
+      padding: 20px 50px;
+      border-radius: 50px;
+      text-decoration: none;
+      box-shadow: 0 15px 40px rgba(245, 166, 35, 0.4);
+    }
+
+    .story-1 .logo {
+      position: absolute;
+      bottom: 50px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .story-1 .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--gold);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .story-1 .logo-text {
+      font-size: 18px;
+      font-weight: 700;
+      color: white;
+    }
+
+    /* ====== STORY 2: Demo Teaser ====== */
+    .story-2 {
+      background: linear-gradient(180deg, #0f1419 0%, var(--dark) 100%);
+    }
+
+    .story-2 .content {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      padding: 50px 30px;
+    }
+
+    .story-2 .badge {
+      background: rgba(0, 212, 170, 0.15);
+      border: 1px solid var(--teal);
+      color: var(--teal);
+      padding: 10px 20px;
+      border-radius: 50px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      width: fit-content;
+      margin-bottom: 30px;
+    }
+
+    .story-2 h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 38px;
+      font-weight: 900;
+      color: white;
+      line-height: 1.2;
+      margin-bottom: 20px;
+    }
+
+    .story-2 h1 span {
+      color: var(--teal);
+    }
+
+    .story-2 .phone-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .story-2 .phone {
+      width: 220px;
+      height: 380px;
+      background: linear-gradient(145deg, #2A2A2A 0%, #1A1A1A 100%);
+      border-radius: 35px;
+      padding: 10px;
+      box-shadow:
+        0 40px 80px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(255, 255, 255, 0.1);
+    }
+
+    .story-2 .phone-screen {
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
+      border-radius: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px 15px;
+    }
+
+    .story-2 .call-label {
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+    }
+
+    .story-2 .avatar {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--gold) 0%, var(--teal) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Playfair Display', serif;
+      font-size: 32px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 12px;
+      box-shadow: 0 10px 30px rgba(245, 166, 35, 0.3);
+    }
+
+    .story-2 .caller-name {
+      font-size: 22px;
+      font-weight: 700;
+      color: white;
+      margin-bottom: 4px;
+    }
+
+    .story-2 .caller-role {
+      font-size: 12px;
+      color: var(--teal);
+      margin-bottom: 20px;
+    }
+
+    .story-2 .waveform {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      margin-bottom: auto;
+    }
+
+    .story-2 .wave-bar {
+      width: 4px;
+      height: 20px;
+      background: var(--gold);
+      border-radius: 2px;
+      animation: wave 1s ease-in-out infinite;
+    }
+
+    .story-2 .wave-bar:nth-child(2) { animation-delay: 0.1s; height: 35px; }
+    .story-2 .wave-bar:nth-child(3) { animation-delay: 0.2s; height: 25px; }
+    .story-2 .wave-bar:nth-child(4) { animation-delay: 0.3s; height: 40px; }
+    .story-2 .wave-bar:nth-child(5) { animation-delay: 0.4s; height: 30px; }
+    .story-2 .wave-bar:nth-child(6) { animation-delay: 0.5s; height: 20px; }
+
+    @keyframes wave {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(0.5); }
+    }
+
+    .story-2 .call-duration {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.6);
+      margin-top: auto;
+    }
+
+    .story-2 .swipe-up {
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    .story-2 .swipe-up span {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .story-2 .swipe-up .arrow {
+      display: block;
+      font-size: 24px;
+      color: var(--gold);
+      animation: bounceUp 1.5s ease-in-out infinite;
+    }
+
+    @keyframes bounceUp {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    /* ====== STORY 3: Vote Countdown ====== */
+    .story-3 {
+      background: var(--dark);
+    }
+
+    .story-3 .bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 50% 30%, rgba(245, 166, 35, 0.4) 0%, transparent 50%),
+        var(--dark);
+    }
+
+    .story-3 .confetti {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .story-3 .confetti span {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      animation: confettiFall 4s linear infinite;
+    }
+
+    .story-3 .confetti span:nth-child(1) { left: 10%; background: var(--gold); animation-delay: 0s; }
+    .story-3 .confetti span:nth-child(2) { left: 25%; background: var(--teal); animation-delay: 0.5s; }
+    .story-3 .confetti span:nth-child(3) { left: 40%; background: #FF6B6B; animation-delay: 1s; }
+    .story-3 .confetti span:nth-child(4) { left: 55%; background: var(--gold-bright); animation-delay: 1.5s; }
+    .story-3 .confetti span:nth-child(5) { left: 70%; background: var(--teal); animation-delay: 2s; }
+    .story-3 .confetti span:nth-child(6) { left: 85%; background: var(--gold); animation-delay: 2.5s; }
+
+    @keyframes confettiFall {
+      0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(700px) rotate(720deg); opacity: 0; }
+    }
+
+    .story-3 .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 50px 30px;
+    }
+
+    .story-3 .trophy {
+      font-size: 80px;
+      margin-bottom: 30px;
+      animation: trophyBounce 2s ease-in-out infinite;
+    }
+
+    @keyframes trophyBounce {
+      0%, 100% { transform: scale(1) rotate(-5deg); }
+      50% { transform: scale(1.1) rotate(5deg); }
+    }
+
+    .story-3 h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 42px;
+      font-weight: 900;
+      color: white;
+      line-height: 1.2;
+      margin-bottom: 20px;
+    }
+
+    .story-3 h1 span {
+      background: linear-gradient(135deg, var(--gold) 0%, var(--gold-bright) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .story-3 p {
+      font-size: 18px;
+      color: rgba(255, 255, 255, 0.7);
+      margin-bottom: 40px;
+    }
+
+    .story-3 .link-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 2px solid var(--gold);
+      border-radius: 20px;
+      padding: 25px 40px;
+      margin-bottom: 30px;
+    }
+
+    .story-3 .link-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: rgba(255, 255, 255, 0.5);
+      margin-bottom: 8px;
+    }
+
+    .story-3 .link-url {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--gold-bright);
+    }
+
+    .story-3 .steps {
+      text-align: left;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 16px;
+      padding: 20px 25px;
+    }
+
+    .story-3 .step {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 15px;
+      padding: 8px 0;
+    }
+
+    .story-3 .step-num {
+      width: 28px;
+      height: 28px;
+      background: var(--gold);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .story-3 .logo {
+      position: absolute;
+      bottom: 50px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .story-3 .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--gold);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+    }
+
+    .story-3 .logo-text {
+      font-size: 16px;
+      font-weight: 700;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <h2>Instagram Stories - 1080x1920 (shown at 35%)</h2>
+
+  <!-- STORY 1: Urgency Hook -->
+  <div class="story story-1">
+    <div class="bg"></div>
+    <div class="content">
+      <div class="timer-badge">Voting Ends Soon</div>
+      <h1>
+        I Built An AI<br>
+        <span>That Calls<br>You Back</span>
+      </h1>
+      <p>Real phone calls. Real memory.<br>Real conversations at 3am.</p>
+      <a href="#" class="cta-btn">Vote Now</a>
+      <div class="logo">
+        <div class="logo-icon">📞</div>
+        <div class="logo-text">CallbackApp.AI</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STORY 2: Demo Teaser -->
+  <div class="story story-2">
+    <div class="content">
+      <div class="badge">Live Demo</div>
+      <h1>Watch what happens when <span>the AI calls</span></h1>
+      <div class="phone-container">
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="call-label">In Call</div>
+            <div class="avatar">A</div>
+            <div class="caller-name">Alex</div>
+            <div class="caller-role">AI Coach</div>
+            <div class="waveform">
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+              <div class="wave-bar"></div>
+            </div>
+            <div class="call-duration">02:34</div>
+          </div>
+        </div>
+      </div>
+      <div class="swipe-up">
+        <span class="arrow">↑</span>
+        <span>Swipe up to try it</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- STORY 3: Vote CTA -->
+  <div class="story story-3">
+    <div class="bg"></div>
+    <div class="confetti">
+      <span></span>
+      <span></span>
+      <span></span>
+      <span></span>
+      <span></span>
+      <span></span>
+    </div>
+    <div class="content">
+      <div class="trophy">🏆</div>
+      <h1>Help Me <span>Win</span> This Hackathon</h1>
+      <p>6 weeks of building. 100+ sessions.<br>One vote makes the difference.</p>
+      <div class="link-card">
+        <div class="link-label">Vote Here</div>
+        <div class="link-url">liquidmetal.devpost.com</div>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <span>Click link in bio</span>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <span>Find CallbackApp.AI</span>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <span>Hit the "Like" button</span>
+        </div>
+      </div>
+      <div class="logo">
+        <div class="logo-icon">📞</div>
+        <div class="logo-text">CallbackApp.AI</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

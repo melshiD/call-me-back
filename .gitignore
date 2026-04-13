@@ -43,3 +43,4 @@ after_midterm
 feature-to-add*
 .env.production
 .env.vercel.production
+docs/superpowers/specs/

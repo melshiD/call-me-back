@@ -161,6 +161,19 @@
               <span class="hidden sm:inline font-mono text-xs uppercase tracking-wider text-[#666] group-hover:text-amber-500">Settings</span>
             </button>
 
+            <!-- Debug Prompt -->
+            <button
+              @click="showDebugModal = true"
+              :disabled="!selectedPersona"
+              class="flex items-center gap-2 bg-[#1a1a1e] px-4 py-2 rounded-lg border border-[#2a2a2e] hover:border-cyan-500/50 hover:bg-cyan-500/5 transition-all duration-300 group disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Debug Prompt Layers"
+            >
+              <svg class="w-4 h-4 text-[#666] group-hover:text-cyan-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+              </svg>
+              <span class="hidden sm:inline font-mono text-xs uppercase tracking-wider text-[#666] group-hover:text-cyan-400">Debug</span>
+            </button>
+
             <!-- Logout -->
             <button
               @click="handleLogout"
@@ -1245,12 +1258,22 @@
         </div>
       </div>
     </div>
+
+    <!-- Prompt Debug Modal -->
+    <PromptDebugModal
+      :show="showDebugModal"
+      :personaId="selectedPersona?.id"
+      :userId="getEffectiveUserId()"
+      :apiUrl="API_GATEWAY_URL"
+      @close="showDebugModal = false"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
+import PromptDebugModal from '../components/PromptDebugModal.vue';
 
 const router = useRouter();
 
@@ -1301,6 +1324,7 @@ const initialContext = ref({
 });
 const connectionStatus = ref('idle');
 const showSettingsModal = ref(false);
+const showDebugModal = ref(false);
 
 // Global Extraction Settings (applies to all personas)
 const extractionSettings = ref({
