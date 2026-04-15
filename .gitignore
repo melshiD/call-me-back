@@ -42,6 +42,7 @@ after_midterm
 *.sh
 !server/deploy.sh
 !server/build-env.sh
+!server/set-secrets.sh
 feature-to-add*
 .env.production
 .env.vercel.production
