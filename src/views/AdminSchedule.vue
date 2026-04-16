@@ -578,7 +578,7 @@ import { useToast } from '../stores/toast'
 
 const router = useRouter()
 const toast = useToast()
-const API_BASE = import.meta.env.VITE_API_URL || 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run'
+const API_BASE = import.meta.env.VITE_API_URL
 
 // State
 const loading = ref(true)

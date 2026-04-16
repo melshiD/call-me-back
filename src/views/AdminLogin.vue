@@ -98,7 +98,7 @@ import { useRoute } from 'vue-router';
 const route = useRoute();
 const error = ref(false);
 
-const API_URL = import.meta.env.VITE_ADMIN_API_URL || 'https://logs.ai-tools-marketplace.io';
+const API_URL = import.meta.env.VITE_API_URL;
 const loginUrl = `${API_URL}/api/admin/auth/login`;
 
 const errorMessage = computed(() => {

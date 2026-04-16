@@ -628,7 +628,7 @@ async function fetchDashboardData() {
       return;
     }
 
-    const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://call-me-back.raindrop.run'}/api/admin/dashboard?period=${selectedPeriod.value}`, {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/dashboard?period=${selectedPeriod.value}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 

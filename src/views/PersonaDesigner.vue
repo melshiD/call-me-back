@@ -1278,9 +1278,9 @@ import PromptDebugModal from '../components/PromptDebugModal.vue';
 const router = useRouter();
 
 // API URLs
-const LOG_QUERY_URL = 'https://logs.ai-tools-marketplace.io';
-const VOICE_WS_URL = 'wss://voice.ai-tools-marketplace.io';
-const API_GATEWAY_URL = import.meta.env.VITE_API_URL || 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run';
+const LOG_QUERY_URL = import.meta.env.VITE_API_URL; // Log queries now served by main API
+const VOICE_WS_URL = import.meta.env.VITE_VOICE_WS_URL;
+const API_GATEWAY_URL = import.meta.env.VITE_API_URL;
 
 // State
 const personas = ref([]);
@@ -1453,7 +1453,7 @@ const setImpersonatedUser = (user) => {
   }
 };
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run';
+const API_BASE = import.meta.env.VITE_API_URL;
 
 // Fetch available Cerebras models (filtered to Llama and Qwen)
 const fetchCerebrasModels = async () => {

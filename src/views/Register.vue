@@ -58,50 +58,116 @@
               </div>
             </div>
 
-            <!-- Create Account Button - Redirects to AuthKit -->
-            <a
-              :href="agreedToTerms ? oauthLoginUrl : undefined"
-              @click="!agreedToTerms && $event.preventDefault()"
-              class="group relative w-full inline-flex items-center justify-center px-10 py-5 text-lg font-black rounded-xl overflow-hidden transition-all duration-500"
-              :class="agreedToTerms
-                ? 'text-deep bg-gradient-to-r from-ember via-solar to-ember bg-[length:200%_100%] hover:scale-[1.02] hover:bg-[position:100%_0] shadow-[0_0_0_1px_rgba(255,140,66,0.5),0_16px_50px_rgba(255,140,66,0.4)] hover:shadow-[0_0_0_1px_rgba(255,140,66,0.8),0_20px_60px_rgba(255,140,66,0.5)] cursor-pointer'
-                : 'text-cream/40 bg-cream/10 cursor-not-allowed'"
-            >
-              <span class="relative z-10 flex items-center gap-3 uppercase tracking-wider">
-                <span>Create Account</span>
-                <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              </span>
-              <div class="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl"></div>
-            </a>
+            <!-- Registration Form -->
+            <form @submit.prevent="handleRegister" class="space-y-5">
+              <!-- Name Field -->
+              <div>
+                <label for="name" class="block text-sm font-semibold text-cream/80 mb-2 uppercase tracking-wider">Name</label>
+                <input
+                  type="text"
+                  id="name"
+                  v-model="name"
+                  required
+                  placeholder="Your full name"
+                  class="w-full px-5 py-4 bg-white/[0.05] border-2 border-cream/20 rounded-xl text-cream placeholder:text-cream/30 focus:border-ember/50 focus:outline-none focus:ring-2 focus:ring-ember/20 transition-all duration-300"
+                />
+              </div>
 
-            <!-- Auth Options Info -->
-            <p class="text-center text-cream/50 text-sm">
-              Sign up with Google, GitHub, or email
-            </p>
+              <!-- Email Field -->
+              <div>
+                <label for="email" class="block text-sm font-semibold text-cream/80 mb-2 uppercase tracking-wider">Email</label>
+                <input
+                  type="email"
+                  id="email"
+                  v-model="email"
+                  required
+                  placeholder="you@example.com"
+                  class="w-full px-5 py-4 bg-white/[0.05] border-2 border-cream/20 rounded-xl text-cream placeholder:text-cream/30 focus:border-ember/50 focus:outline-none focus:ring-2 focus:ring-ember/20 transition-all duration-300"
+                />
+              </div>
 
-            <!-- Terms Agreement Checkbox -->
-            <div class="flex items-start gap-3 p-4 bg-white/[0.03] rounded-xl border border-cream/10">
-              <input
-                type="checkbox"
-                id="termsAgreement"
-                v-model="agreedToTerms"
-                class="mt-1 w-5 h-5 rounded border-cream/30 bg-deep text-ember focus:ring-ember/50 cursor-pointer flex-shrink-0"
-              />
-              <label for="termsAgreement" class="text-sm text-cream/70 leading-relaxed cursor-pointer select-none">
-                I understand that I am scheduling calls with <span class="text-cream font-medium">AI personas, not real humans</span>.
-                AI may provide inaccurate information. This service is for entertainment/companionship and is
-                <span class="text-solar font-semibold">NOT a substitute for professional medical, legal, or mental health advice</span>.
-                For emergencies, contact 911.
-                <span class="block mt-2 text-cream/50">
-                  I agree to the
-                  <router-link to="/terms" class="text-ember hover:text-solar transition-colors font-semibold">Terms of Service</router-link>
-                  and
-                  <router-link to="/privacy" class="text-ember hover:text-solar transition-colors font-semibold">Privacy Policy</router-link>.
+              <!-- Phone Field -->
+              <div>
+                <label for="phone" class="block text-sm font-semibold text-cream/80 mb-2 uppercase tracking-wider">Phone</label>
+                <input
+                  type="tel"
+                  id="phone"
+                  v-model="phone"
+                  required
+                  placeholder="+1234567890"
+                  class="w-full px-5 py-4 bg-white/[0.05] border-2 border-cream/20 rounded-xl text-cream placeholder:text-cream/30 focus:border-ember/50 focus:outline-none focus:ring-2 focus:ring-ember/20 transition-all duration-300"
+                />
+                <p class="text-xs text-cream/40 mt-1">E.164 format (e.g., +1234567890)</p>
+              </div>
+
+              <!-- Password Field -->
+              <div>
+                <label for="password" class="block text-sm font-semibold text-cream/80 mb-2 uppercase tracking-wider">Password</label>
+                <input
+                  type="password"
+                  id="password"
+                  v-model="password"
+                  required
+                  placeholder="Create a strong password"
+                  class="w-full px-5 py-4 bg-white/[0.05] border-2 border-cream/20 rounded-xl text-cream placeholder:text-cream/30 focus:border-ember/50 focus:outline-none focus:ring-2 focus:ring-ember/20 transition-all duration-300"
+                />
+                <p class="text-xs text-cream/40 mt-1">Min 8 characters with uppercase, lowercase, number, and special character</p>
+              </div>
+
+              <!-- Confirm Password Field -->
+              <div>
+                <label for="confirmPassword" class="block text-sm font-semibold text-cream/80 mb-2 uppercase tracking-wider">Confirm Password</label>
+                <input
+                  type="password"
+                  id="confirmPassword"
+                  v-model="confirmPassword"
+                  required
+                  placeholder="Confirm your password"
+                  class="w-full px-5 py-4 bg-white/[0.05] border-2 border-cream/20 rounded-xl text-cream placeholder:text-cream/30 focus:border-ember/50 focus:outline-none focus:ring-2 focus:ring-ember/20 transition-all duration-300"
+                />
+              </div>
+
+              <!-- Terms Agreement Checkbox -->
+              <div class="flex items-start gap-3 p-4 bg-white/[0.03] rounded-xl border border-cream/10">
+                <input
+                  type="checkbox"
+                  id="termsAgreement"
+                  v-model="agreedToTerms"
+                  required
+                  class="mt-1 w-5 h-5 rounded border-cream/30 bg-deep text-ember focus:ring-ember/50 cursor-pointer flex-shrink-0"
+                />
+                <label for="termsAgreement" class="text-sm text-cream/70 leading-relaxed cursor-pointer select-none">
+                  I understand that I am scheduling calls with <span class="text-cream font-medium">AI personas, not real humans</span>.
+                  AI may provide inaccurate information. This service is for entertainment/companionship and is
+                  <span class="text-solar font-semibold">NOT a substitute for professional medical, legal, or mental health advice</span>.
+                  For emergencies, contact 911.
+                  <span class="block mt-2 text-cream/50">
+                    I agree to the
+                    <router-link to="/terms" class="text-ember hover:text-solar transition-colors font-semibold">Terms of Service</router-link>
+                    and
+                    <router-link to="/privacy" class="text-ember hover:text-solar transition-colors font-semibold">Privacy Policy</router-link>.
+                  </span>
+                </label>
+              </div>
+
+              <!-- Create Account Button -->
+              <button
+                type="submit"
+                :disabled="loading || !agreedToTerms"
+                class="group relative w-full inline-flex items-center justify-center px-10 py-5 text-lg font-black rounded-xl overflow-hidden transition-all duration-500"
+                :class="!loading && agreedToTerms
+                  ? 'text-deep bg-gradient-to-r from-ember via-solar to-ember bg-[length:200%_100%] hover:scale-[1.02] hover:bg-[position:100%_0] shadow-[0_0_0_1px_rgba(255,140,66,0.5),0_16px_50px_rgba(255,140,66,0.4)] hover:shadow-[0_0_0_1px_rgba(255,140,66,0.8),0_20px_60px_rgba(255,140,66,0.5)] cursor-pointer'
+                  : 'text-cream/40 bg-cream/10 cursor-not-allowed'"
+              >
+                <span class="relative z-10 flex items-center gap-3 uppercase tracking-wider">
+                  <span>{{ loading ? 'Creating Account...' : 'Create Account' }}</span>
+                  <svg v-if="!loading" class="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
                 </span>
-              </label>
-            </div>
+                <div class="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl"></div>
+              </button>
+            </form>
           </div>
         </div>
 
@@ -140,17 +206,44 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
-const error = ref('')
-const agreedToTerms = ref(false)
+const router = useRouter()
+const authStore = useAuthStore()
 
-// OAuth login URL - redirects to API gateway which redirects to WorkOS AuthKit
-// AuthKit handles both login AND registration in one flow
-const API_URL = import.meta.env.VITE_API_URL || 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run'
-const oauthLoginUrl = computed(() => `${API_URL}/api/auth/login/oauth`)
+const name = ref('')
+const email = ref('')
+const phone = ref('')
+const password = ref('')
+const confirmPassword = ref('')
+const agreedToTerms = ref(false)
+const loading = ref(false)
+const error = ref('')
+
+// Handle form submission
+const handleRegister = async () => {
+  // Validate passwords match
+  if (password.value !== confirmPassword.value) {
+    error.value = 'Passwords do not match'
+    return
+  }
+
+  loading.value = true
+  error.value = ''
+
+  try {
+    await authStore.register(name.value, email.value, password.value, phone.value)
+    // Redirect to dashboard on success
+    router.push('/dashboard')
+  } catch (err) {
+    error.value = err.message || 'Registration failed. Please try again.'
+  } finally {
+    loading.value = false
+  }
+}
 
 // Check for error in query params (from failed OAuth)
 onMounted(() => {

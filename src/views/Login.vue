@@ -58,24 +58,49 @@
               </div>
             </div>
 
-            <!-- Sign In Button - Redirects to AuthKit -->
-            <a
-              :href="oauthLoginUrl"
-              class="group relative w-full inline-flex items-center justify-center px-10 py-5 text-lg font-black text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-xl overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:bg-[position:100%_0] shadow-[0_0_0_1px_rgba(251,191,36,0.5),0_16px_50px_rgba(251,191,36,0.4)] hover:shadow-[0_0_0_1px_rgba(251,191,36,0.8),0_20px_60px_rgba(251,191,36,0.5)]"
-            >
-              <span class="relative z-10 flex items-center gap-3 uppercase tracking-wider">
-                <span>Sign In or Register</span>
-                <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-              </span>
-              <div class="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl"></div>
-            </a>
+            <!-- Email/Password Form -->
+            <form @submit.prevent="handleLogin" class="space-y-5">
+              <!-- Email Field -->
+              <div>
+                <label for="email" class="block text-sm font-semibold text-cream/80 mb-2 uppercase tracking-wider">Email</label>
+                <input
+                  type="email"
+                  id="email"
+                  v-model="email"
+                  required
+                  placeholder="you@example.com"
+                  class="w-full px-5 py-4 bg-white/[0.05] border-2 border-cream/20 rounded-xl text-cream placeholder:text-cream/30 focus:border-glow/50 focus:outline-none focus:ring-2 focus:ring-glow/20 transition-all duration-300"
+                />
+              </div>
 
-            <!-- Auth Options Info -->
-            <p class="text-center text-cream/50 text-sm">
-              Continue with Google, GitHub, or email
-            </p>
+              <!-- Password Field -->
+              <div>
+                <label for="password" class="block text-sm font-semibold text-cream/80 mb-2 uppercase tracking-wider">Password</label>
+                <input
+                  type="password"
+                  id="password"
+                  v-model="password"
+                  required
+                  placeholder="Enter your password"
+                  class="w-full px-5 py-4 bg-white/[0.05] border-2 border-cream/20 rounded-xl text-cream placeholder:text-cream/30 focus:border-glow/50 focus:outline-none focus:ring-2 focus:ring-glow/20 transition-all duration-300"
+                />
+              </div>
+
+              <!-- Sign In Button -->
+              <button
+                type="submit"
+                :disabled="loading"
+                class="group relative w-full inline-flex items-center justify-center px-10 py-5 text-lg font-black text-deep bg-gradient-to-r from-glow via-ember to-glow bg-[length:200%_100%] rounded-xl overflow-hidden transition-all duration-500 hover:scale-[1.02] hover:bg-[position:100%_0] shadow-[0_0_0_1px_rgba(251,191,36,0.5),0_16px_50px_rgba(251,191,36,0.4)] hover:shadow-[0_0_0_1px_rgba(251,191,36,0.8),0_20px_60px_rgba(251,191,36,0.5)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              >
+                <span class="relative z-10 flex items-center gap-3 uppercase tracking-wider">
+                  <span>{{ loading ? 'Signing In...' : 'Sign In' }}</span>
+                  <svg v-if="!loading" class="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </span>
+                <div class="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl"></div>
+              </button>
+            </form>
 
             <!-- Terms Agreement -->
             <p class="text-center text-cream/40 text-xs mt-4">
@@ -90,7 +115,13 @@
         <!-- Sign Up Info -->
         <div class="mt-8 text-center opacity-0 translate-y-4 animate-[revealUp_0.8s_cubic-bezier(0.4,0,0.2,1)_forwards] [animation-delay:0.2s]">
           <p class="text-cream/60">
-            Don't have an account? You can register from the sign-in form after clicking the button above.
+            Don't have an account?
+            <router-link
+              to="/register"
+              class="font-bold text-glow hover:text-ember transition-colors duration-300 ml-1"
+            >
+              Create Account
+            </router-link>
           </p>
         </div>
 
@@ -116,15 +147,34 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
+const router = useRouter()
+const authStore = useAuthStore()
+
+const email = ref('')
+const password = ref('')
+const loading = ref(false)
 const error = ref('')
 
-// OAuth login URL - redirects to API gateway which redirects to WorkOS AuthKit
-const API_URL = import.meta.env.VITE_API_URL || 'https://svc-01ka41sfy58tbr0dxm8kwz8jyy.01k8eade5c6qxmxhttgr2hn2nz.lmapp.run'
-const oauthLoginUrl = computed(() => `${API_URL}/api/auth/login/oauth`)
+// Handle form submission
+const handleLogin = async () => {
+  loading.value = true
+  error.value = ''
+
+  try {
+    await authStore.login(email.value, password.value)
+    // Redirect to dashboard on success
+    router.push('/dashboard')
+  } catch (err) {
+    error.value = err.message || 'Login failed. Please check your credentials.'
+  } finally {
+    loading.value = false
+  }
+}
 
 // Check for error in query params (from failed OAuth)
 onMounted(() => {
