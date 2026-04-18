@@ -469,7 +469,8 @@ async function fetchBalance() {
     });
     if (response.ok) {
       const data = await response.json();
-      balance.value = data.minutes || 0;
+      // Support new api-server shape (minutes_balance / available_credits) and legacy (minutes)
+      balance.value = data.minutes_balance ?? data.available_credits ?? data.minutes ?? 0;
     }
   } catch (error) {
     console.error('Failed to fetch balance:', error);

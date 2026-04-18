@@ -14,9 +14,9 @@ const routes = [
     meta: { requiresGuest: true }
   },
   {
-    // Redirect /register to /login (registration happens via WorkOS AuthKit)
     path: '/register',
-    redirect: '/login'
+    name: 'Register',
+    component: () => import('../views/Register.vue')
   },
   {
     path: '/auth/callback',

@@ -1,10 +1,22 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
+// Safely parse a user object from localStorage. Returns null on any
+// invalid / corrupt input (e.g. literal "undefined" from earlier buggy code).
+function safeParseUser(raw) {
+  if (!raw || raw === 'undefined' || raw === 'null') return null
+  try {
+    return JSON.parse(raw)
+  } catch (e) {
+    console.warn('Corrupt user in localStorage, clearing:', e.message)
+    localStorage.removeItem('user')
+    return null
+  }
+}
+
 export const useAuthStore = defineStore('auth', () => {
   // Restore both token AND user from localStorage on init
-  const storedUser = localStorage.getItem('user')
-  const user = ref(storedUser ? JSON.parse(storedUser) : null)
+  const user = ref(safeParseUser(localStorage.getItem('user')))
   const token = ref(localStorage.getItem('token') || null)
 
   const isAuthenticated = computed(() => !!user.value && !!token.value)
@@ -297,26 +309,24 @@ export const useAuthStore = defineStore('auth', () => {
         })
         if (response.ok) {
           const data = await response.json()
-          user.value = data.user
-          localStorage.setItem('user', JSON.stringify(data.user))
+          if (data.user) {
+            user.value = data.user
+            localStorage.setItem('user', JSON.stringify(data.user))
+          }
         } else if (response.status === 401) {
           // Token invalid/expired, clear auth
           logout()
         } else {
           // Server error (500, 503, etc.) - keep existing user from localStorage
           // Don't logout on transient errors
-          const storedUser = localStorage.getItem('user')
-          if (storedUser) {
-            user.value = JSON.parse(storedUser)
-          }
+          const restored = safeParseUser(localStorage.getItem('user'))
+          if (restored) user.value = restored
         }
       } catch (error) {
         console.error('Auth check failed:', error)
         // On network error, keep existing localStorage user but don't block
-        const storedUser = localStorage.getItem('user')
-        if (storedUser) {
-          user.value = JSON.parse(storedUser)
-        }
+        const restored = safeParseUser(localStorage.getItem('user'))
+        if (restored) user.value = restored
       }
     }
   }
