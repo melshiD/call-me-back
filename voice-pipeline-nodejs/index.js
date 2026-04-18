@@ -5,6 +5,7 @@ import { readFileSync } from 'fs';
 import { randomUUID } from 'crypto';
 import WebSocket from 'ws';
 import { RealTimeVAD } from 'avr-vad';
+import pg from 'pg';
 
 /**
  * Mulaw decoding table - converts 8-bit mulaw to 16-bit PCM
@@ -85,6 +86,51 @@ envFile.split('\n').forEach(line => {
   const [key, value] = line.split('=');
   if (key && value) env[key.trim()] = value.trim();
 });
+
+// -----------------------------------------------------------------------------
+// TEMP DB SHIM — 2026-04-16/17
+// The old Raindrop-era db-proxy exposed POST /query with raw SQL passthrough.
+// The new api-server does not expose /query. Until Plan 2/3 refactors this
+// properly, intercept any fetch() to `${env.VULTR_DB_API_URL}/query` and run
+// it directly against Postgres via pg, returning a Response-shaped object so
+// the existing 14 call sites in this file keep working unchanged.
+//
+// TODO (Plan 2/3): replace every /query call site with proper REST endpoints
+// (e.g. /api/internal/personas/:id, /api/internal/calls/:id/context, etc.)
+// -----------------------------------------------------------------------------
+const _pgPool = new pg.Pool({
+  connectionString: env.DATABASE_URL,
+  max: 10,
+});
+_pgPool.on('error', (err) => console.error('[DB-SHIM] pg pool error:', err.message));
+
+const _origFetch = globalThis.fetch;
+globalThis.fetch = async function shimmedFetch(input, init) {
+  try {
+    const urlStr = typeof input === 'string' ? input : (input && input.url) || '';
+    const dbBase = env.VULTR_DB_API_URL;
+    if (dbBase && urlStr.startsWith(dbBase) && urlStr.endsWith('/query')) {
+      let body;
+      try { body = JSON.parse(init?.body || '{}'); } catch { body = {}; }
+      const { sql, params } = body;
+      if (!sql) {
+        return new Response(JSON.stringify({ error: 'missing sql' }), { status: 400 });
+      }
+      const result = await _pgPool.query(sql, params || []);
+      const payload = { rows: result.rows, rowCount: result.rowCount };
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  } catch (e) {
+    console.error('[DB-SHIM] query failed:', e.message);
+    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+  }
+  return _origFetch.call(this, input, init);
+};
+
+console.log('[DB-SHIM] Installed: fetch(' + env.VULTR_DB_API_URL + '/query) now routes through pg directly');
 
 /**
  * Service Pricing Cache - loaded from database on startup
@@ -454,10 +500,13 @@ class VoicePipeline {
         // Use custom system prompt if set, otherwise use persona's core prompt
         this.systemPrompt = row.custom_system_prompt || row.core_system_prompt ||
           'You are a supportive friend who keeps it real. Be conversational, direct, and encouraging. Keep responses SHORT (1-2 sentences max) for natural conversation flow.';
-        // Store AI params from database (configurable from admin panel)
-        this.maxTokens = row.max_tokens || 100;  // Default: 100 tokens (prevents mid-sentence truncation)
-        this.temperature = row.temperature || 0.7;  // Default: 0.7 (balanced creativity)
-        this.llmModel = row.llm_model || 'llama3.1-8b';  // Default: 8B model (faster, cheaper)
+        // Store AI params from database (configurable from admin panel).
+        // pg returns NUMERIC columns as strings by default; coerce to Number
+        // since OpenAI's JSON body strictly requires numeric types.
+        this.maxTokens = Number(row.max_tokens) || 100;  // Default: 100 tokens
+        this.temperature = Number(row.temperature);
+        if (!Number.isFinite(this.temperature)) this.temperature = 0.7;
+        this.llmModel = "gpt-4o-mini"; // Overridden for OpenAI
         // Note: smart_memory column doesn't exist in current schema - will be added later for static relationship context
         this.relationshipContext = '';
 
@@ -1035,12 +1084,12 @@ class VoicePipeline {
         console.log(`[VoicePipeline ${this.callId}] ⏳ EagerEndOfTurn - starting speculative response`);
         this.currentFluxTranscript = transcript;
 
-        // Cancel any existing draft and start new one
+        // TEMP (2026-04-17): speculative draft disabled to cut token spend
+        // while we rebuild the inference routing layer (Phase B).
+        // The draft path was firing an extra LLM call on EagerEndOfTurn AND on
+        // actual EndOfTurn, often redundant. Re-enable once Phase B lands with
+        // proper cost controls + abort semantics.
         this.clearDraft();
-        if (transcript && transcript.trim()) {
-          this.draftAbortController = new AbortController();
-          this.prepareDraftResponse(transcript, this.draftAbortController.signal);
-        }
         break;
 
       case 'TurnResumed':
@@ -1379,14 +1428,14 @@ Answer:`;
         setTimeout(() => reject(new Error('Turn evaluation timeout after 5 seconds')), 5000)
       );
 
-      const fetchPromise = fetch('https://api.cerebras.ai/v1/chat/completions', {
+      const fetchPromise = fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${env.CEREBRAS_API_KEY}`
+          'Authorization': `Bearer ${env.OPENAI_API_KEY}`
         },
         body: JSON.stringify({
-          model: 'llama3.1-8b',
+          model: 'gpt-4o-mini',
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 10,
           temperature: 0.3,
@@ -1396,7 +1445,11 @@ Answer:`;
 
       const response = await Promise.race([fetchPromise, timeoutPromise]);
       const data = await response.json();
-      const decision = data.choices[0]?.message?.content?.trim().toUpperCase();
+      if (!data.choices || !data.choices[0]) {
+        console.error(`[VoicePipeline ${this.callId}] Turn eval: OpenAI returned no choices. Status=${response.status} Body:`, JSON.stringify(data).slice(0, 500));
+        return 'RESPOND';
+      }
+      const decision = (data.choices[0]?.message?.content || '').trim().toUpperCase();
 
       if (decision.includes('RESPOND')) return 'RESPOND';
       if (decision.includes('WAIT')) return 'WAIT';
@@ -1621,11 +1674,11 @@ Answer:`;
         setTimeout(() => reject(new Error('AI response generation timeout')), 15000)
       );
 
-      const fetchPromise = fetch('https://api.cerebras.ai/v1/chat/completions', {
+      const fetchPromise = fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${env.CEREBRAS_API_KEY}`
+          'Authorization': `Bearer ${env.OPENAI_API_KEY}`
         },
         body: JSON.stringify({
           model: this.llmModel,
@@ -1638,6 +1691,14 @@ Answer:`;
 
       const response = await Promise.race([fetchPromise, timeoutPromise]);
       const data = await response.json();
+
+      // Surface any upstream error (e.g. 401 / 429 / 400 with no choices array)
+      if (!data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
+        console.error(`[VoicePipeline ${this.callId}] OpenAI response missing choices. Status=${response.status} Raw body:`, JSON.stringify(data).slice(0, 1000));
+        await this.speak("Sorry bro, I lost my train of thought. What were you saying?");
+        return;
+      }
+
       const aiResponse = data.choices[0]?.message?.content;
 
       if (aiResponse) {
@@ -1645,12 +1706,12 @@ Answer:`;
         console.log(`[VoicePipeline ${this.callId}] AI response length: ${aiResponse.length} chars`);
         console.log(`[VoicePipeline ${this.callId}] Finish reason:`, data.choices[0]?.finish_reason);
 
-        // Track Cerebras chat tokens for cost tracking
+        // Track chat tokens for cost tracking
         if (data.usage) {
           const tokens = data.usage.total_tokens || 0;
           this.costTracking.cerebrasChatTokens += tokens;
           this.costTracking.cerebrasTokens += tokens;  // Legacy total
-          console.log(`[VoicePipeline ${this.callId}] Cerebras chat: ${tokens} tokens (total chat: ${this.costTracking.cerebrasChatTokens}, total all: ${this.costTracking.cerebrasTokens})`);
+          console.log(`[VoicePipeline ${this.callId}] LLM chat: ${tokens} tokens (total chat: ${this.costTracking.cerebrasChatTokens})`);
         }
 
         this.conversationHistory.push({
@@ -1684,11 +1745,11 @@ Answer:`;
         { role: 'user', content: transcript }
       ];
 
-      const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${env.CEREBRAS_API_KEY}`
+          'Authorization': `Bearer ${env.OPENAI_API_KEY}`
         },
         body: JSON.stringify({
           model: this.llmModel,
@@ -2254,46 +2315,13 @@ Answer:`;
    * NOTE: This is duplicated from BrowserVoicePipeline - see PUNCHLIST for DRY refactor
    */
   async runPostCallEvaluation() {
-    const userId = this.userId;
-    const personaId = this.personaId;
-
-    // Skip if no valid user
-    if (!userId || userId === 'unknown' || userId === 'demo_user' || userId === 'anonymous_caller') {
-      console.log(`[PostCallEval ${this.callId}] Skipping - no valid userId (${userId})`);
-      return;
-    }
-
-    // Skip if conversation is too short (need at least 1 user message + 1 AI response)
-    if (this.conversationHistory.length < 2) {
-      console.log(`[PostCallEval ${this.callId}] Skipping - conversation too short (${this.conversationHistory.length} turns)`);
-      return;
-    }
-
-    try {
-      console.log(`[PostCallEval ${this.callId}] Starting fact extraction for user ${userId}...`);
-
-      // Fetch global extraction settings from SmartMemory
-      const extractionSettings = await this.getExtractionSettings();
-
-      // 1. Extract facts from conversation using Cerebras
-      const newFacts = await this.extractFactsFromConversation(extractionSettings);
-
-      if (newFacts.length === 0) {
-        console.log(`[PostCallEval ${this.callId}] No new facts extracted`);
-        return;
-      }
-
-      console.log(`[PostCallEval ${this.callId}] Extracted ${newFacts.length} facts:`, newFacts.map(f => f.content));
-
-      // 2. Store facts to KV Storage via API Gateway
-      await this.updateLongTermMemory(userId, personaId, newFacts);
-
-      console.log(`[PostCallEval ${this.callId}] ✅ Post-call evaluation complete - ${newFacts.length} facts learned`);
-
-    } catch (err) {
-      console.error(`[PostCallEval ${this.callId}] Evaluation failed:`, err);
-      // Don't throw - evaluation failure shouldn't break call completion
-    }
+    // TEMP (2026-04-17): Post-call fact extraction disabled until Phase B
+    // rebuilds the inference routing layer with proper cost controls. The
+    // existing path uses raindrop-era SmartMemory endpoints + hits OpenAI
+    // with a long conversation dump. Will be redesigned as part of Plan 2
+    // (memory) + Plan 3 (inference routing).
+    console.log(`[PostCallEval ${this.callId}] Skipping post-call evaluation (disabled pending Phase B refactor)`);
+    return;
   }
 
   /**
@@ -2302,7 +2330,7 @@ Answer:`;
   async getExtractionSettings() {
     const defaults = {
       enabled: true,
-      model: 'llama-3.3-70b',
+      model: 'gpt-4o-mini',
       temperature: 0.1,
       maxTokens: 500,
       extractionPrompt: null
@@ -2366,11 +2394,11 @@ Example:
     const extractionPrompt = settings.extractionPrompt || defaultPrompt;
 
     try {
-      const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${env.CEREBRAS_API_KEY}`
+          'Authorization': `Bearer ${env.OPENAI_API_KEY}`
         },
         body: JSON.stringify({
           model: settings.model || 'llama-3.3-70b',
@@ -3177,9 +3205,9 @@ class BrowserVoicePipeline {
       console.log(`[BrowserPipeline ${this.sessionId}] 📝 System prompt (first 200 chars):`, messages[0]?.content?.substring(0, 200));
 
       const startTime = Date.now();
-      const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.CEREBRAS_API_KEY}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${env.OPENAI_API_KEY}` },
         body: JSON.stringify({ model: this.llmModel, messages, max_tokens: this.maxTokens, temperature: this.temperature })
       });
 
@@ -3636,7 +3664,7 @@ class BrowserVoicePipeline {
   async getExtractionSettings() {
     const defaults = {
       enabled: true,
-      model: 'llama-3.3-70b',
+      model: 'gpt-4o-mini',
       temperature: 0.1,
       maxTokens: 500,
       extractionPrompt: null // Use default prompt if not set
@@ -3702,11 +3730,11 @@ Example:
 
     try {
       // Call Cerebras for fact extraction
-      const response = await fetch('https://api.cerebras.ai/v1/chat/completions', {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${env.CEREBRAS_API_KEY}`
+          'Authorization': `Bearer ${env.OPENAI_API_KEY}`
         },
         body: JSON.stringify({
           model: settings.model || 'llama-3.3-70b',
