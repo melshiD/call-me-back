@@ -157,8 +157,9 @@ export async function cancelScheduledCall(userId: string, callId: string) {
 
 export async function getUserBalance(userId: string) {
   const result = await query(
-    'SELECT minutes_balance, available_credits, subscription_tier, max_call_duration_minutes FROM user_credits WHERE user_id = $1',
+    'SELECT available_credits, subscription_tier, max_call_duration_minutes FROM user_credits WHERE user_id = $1',
     [userId]
   );
-  return result.rows[0] || { minutes_balance: 0, available_credits: 0, subscription_tier: 'free_trial', max_call_duration_minutes: 0 };
+  const row = result.rows[0] || { available_credits: 0, subscription_tier: 'free_trial', max_call_duration_minutes: 0 };
+  return { ...row, minutes_balance: row.available_credits };
 }

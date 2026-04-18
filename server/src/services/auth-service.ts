@@ -54,8 +54,8 @@ export async function register(input: RegisterInput): Promise<AuthResult> {
 
   // Give new users 5 free trial minutes
   await query(
-    `INSERT INTO user_credits (id, user_id, available_credits, minutes_balance, subscription_tier, max_call_duration_minutes, created_at, updated_at)
-     VALUES ($1, $2, 5, 5, 'free_trial', 30, $3, $3)`,
+    `INSERT INTO user_credits (id, user_id, available_credits, subscription_tier, max_call_duration_minutes, created_at, updated_at)
+     VALUES ($1, $2, 5, 'free_trial', 30, $3, $3)`,
     [generateId(), userId, now]
   );
 

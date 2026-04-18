@@ -19,7 +19,7 @@ export async function getDashboardData(period: string = '30d') {
            GROUP BY service`),
     query(`SELECT COALESCE(SUM(amount_cents), 0) as total_cents, COUNT(*) as purchase_count
            FROM purchases WHERE created_at >= ${since} AND status = 'completed'`),
-    query(`SELECT COALESCE(SUM(minutes_balance), 0) as total_balance, COUNT(*) as user_count
+    query(`SELECT COALESCE(SUM(available_credits), 0) as total_balance, COUNT(*) as user_count
            FROM user_credits`),
     query(`SELECT c.id, c.user_id, c.persona_id, c.duration_seconds, c.cost_usd, c.status, c.direction, c.created_at,
                   p.name as persona_name, u.name as user_name, u.email as user_email

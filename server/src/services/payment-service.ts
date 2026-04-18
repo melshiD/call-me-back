@@ -61,7 +61,7 @@ export async function handleStripeWebhook(payload: string, signature: string) {
 
       // Add minutes to user balance
       await query(
-        `UPDATE user_credits SET minutes_balance = minutes_balance + $1, available_credits = available_credits + $1, updated_at = $2 WHERE user_id = $3`,
+        `UPDATE user_credits SET available_credits = available_credits + $1, updated_at = $2 WHERE user_id = $3`,
         [minutes, now, userId]
       );
 
