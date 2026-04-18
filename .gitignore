@@ -13,6 +13,13 @@ dist
 dist-ssr
 *.local
 
+# pg_dump snapshots (not source of truth; migrations/ is)
+server/schema-dump.sql
+schema-dump.sql
+
+# voice-pipeline local env (populated on deploy from parent .env via load-env.sh)
+voice-pipeline-nodejs/.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
