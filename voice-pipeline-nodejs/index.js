@@ -488,6 +488,11 @@ class VoicePipeline {
     this.sentAudioChunks = 0;            // Count of audio chunks sent to Twilio
     this.sentAudioBytes = 0;             // Total bytes sent to Twilio
 
+    // Farewell coordination: resolved when ElevenLabs fires isFinal for the farewell utterance
+    this._farewellIsFinalResolve = null;
+    // Farewell coordination: resolved when Twilio echoes our 'farewell-end' mark
+    this._farewellMarkResolve = null;
+
     console.log(`[VoicePipeline ${this.callId}] Initialized`, callParams);
   }
 
@@ -848,24 +853,80 @@ class VoicePipeline {
    * Speak a brief farewell then terminate the call. Invoked when user signals they
    * want to end the call (hangup intent).
    *
-   * We send the farewell through the normal speak() pipeline so alignment tracking
-   * still works, then wait for the expected audio duration plus a small buffer
-   * before closing the Twilio WebSocket. If speak() fails we terminate immediately.
+   * Two-layer synchronization:
+   *   Layer 1 — wait for ElevenLabs `isFinal` so we know all TTS audio has been
+   *             generated and forwarded to Twilio. At this point `sentAudioBytes`
+   *             reflects the true farewell byte count.
+   *   Layer 2 — send a named Twilio `mark` after the last audio chunk, and wait for
+   *             Twilio to echo it back. Twilio only echoes the mark AFTER the
+   *             caller-facing audio buffer has drained, so this is the canonical
+   *             "caller has heard the whole thing" signal.
+   *
+   * Both layers have timeouts so a missed signal never strands the call open.
    */
   async sayFarewellAndTerminate() {
     // Pick a farewell that fits the context. Keep it short — user wants off the phone.
     const farewell = 'Alright, take care!';
+
+    // Snapshot bytes-sent BEFORE the farewell so we can compute farewell-only playback later.
+    const bytesBefore = this.sentAudioBytes || 0;
+
+    // Arm the isFinal promise BEFORE calling speak() so we don't miss a fast response.
+    const farewellGenerated = new Promise(resolve => {
+      this._farewellIsFinalResolve = resolve;
+    });
+
     try {
       await this.speak(farewell);
       this.conversationHistory.push({ role: 'assistant', content: farewell });
 
-      // Wait for ElevenLabs/Twilio to finish playing the audio before closing.
-      // totalAudioDurationMs is updated by the TTS alignment handler; add buffer for jitter.
-      const waitMs = Math.min(6000, Math.max(1500, (this.totalAudioDurationMs || 0) + 500));
-      console.log(`[VoicePipeline ${this.callId}] 👋 Farewell spoken; terminating in ${waitMs}ms`);
-      await new Promise(resolve => setTimeout(resolve, waitMs));
+      // --- Layer 1: wait for ElevenLabs to finish streaming all farewell audio ---
+      // Timeout generously (ElevenLabs TTS for ~3-word farewell is usually <1.5s).
+      const isFinalTimeout = new Promise(resolve => setTimeout(resolve, 8000));
+      await Promise.race([farewellGenerated, isFinalTimeout]);
+      // Clear any leftover resolver (e.g. if we hit the timeout path)
+      this._farewellIsFinalResolve = null;
+
+      // Compute farewell-only byte count and derived playback time.
+      // 8kHz mulaw → 8 bytes per ms.
+      const farewellBytes = Math.max(0, (this.sentAudioBytes || 0) - bytesBefore);
+      const farewellPlaybackMs = Math.ceil(farewellBytes / 8);
+      console.log(`[VoicePipeline ${this.callId}] 👋 Farewell audio sent: ${farewellBytes} bytes (~${farewellPlaybackMs}ms playback)`);
+
+      // --- Layer 2: send a Twilio mark after the last audio chunk; wait for echo ---
+      if (this.streamSid && this.twilioWs && this.twilioWs.readyState === WebSocket.OPEN) {
+        const markEchoed = new Promise(resolve => {
+          this._farewellMarkResolve = resolve;
+        });
+
+        try {
+          this.twilioWs.send(JSON.stringify({
+            event: 'mark',
+            streamSid: this.streamSid,
+            mark: { name: 'farewell-end' }
+          }));
+          console.log(`[VoicePipeline ${this.callId}] 📍 Sent farewell-end mark to Twilio`);
+        } catch (sendErr) {
+          console.warn(`[VoicePipeline ${this.callId}] Failed to send farewell mark:`, sendErr.message);
+          this._farewellMarkResolve = null;
+        }
+
+        // Timeout: max expected playback + network jitter + small safety buffer.
+        // Twilio typically echoes the mark within ~100-300ms after audio drains.
+        const markTimeoutMs = Math.max(2500, farewellPlaybackMs + 1500);
+        const markTimeout = new Promise(resolve => setTimeout(resolve, markTimeoutMs));
+        await Promise.race([markEchoed, markTimeout]);
+        this._farewellMarkResolve = null;
+      } else {
+        // No live Twilio socket: fall back to pure byte-based timing.
+        const waitMs = Math.max(1500, farewellPlaybackMs + 500);
+        console.log(`[VoicePipeline ${this.callId}] 👋 No mark path available; waiting ${waitMs}ms`);
+        await new Promise(resolve => setTimeout(resolve, waitMs));
+      }
     } catch (e) {
-      console.error(`[VoicePipeline ${this.callId}] Farewell speak() failed, terminating immediately:`, e.message);
+      console.error(`[VoicePipeline ${this.callId}] Farewell flow failed, terminating immediately:`, e.message);
+      this._farewellIsFinalResolve = null;
+      this._farewellMarkResolve = null;
     }
 
     await this.forceTerminate();
@@ -1042,6 +1103,13 @@ class VoicePipeline {
           if (message.isFinal) {
             console.log(`[VoicePipeline ${this.callId}] ElevenLabs finished speaking (received ${audioChunkCount} audio chunks total)`);
             audioChunkCount = 0; // Reset for next response
+            // If a farewell is waiting on the next isFinal, resolve it BEFORE finishSpeaking()
+            // so the farewell path knows all audio has been streamed out to Twilio.
+            if (this._farewellIsFinalResolve) {
+              const resolver = this._farewellIsFinalResolve;
+              this._farewellIsFinalResolve = null;
+              resolver();
+            }
             this.finishSpeaking();
           }
 
@@ -2689,6 +2757,16 @@ wss.on('connection', (twilioWs, req) => {
       else if (message.event === 'media' && pipeline) {
         const audioPayload = message.media.payload;
         pipeline.handleTwilioMedia(audioPayload);
+      }
+
+      else if (message.event === 'mark' && pipeline) {
+        const markName = message.mark?.name;
+        console.log(`[Voice Pipeline] Received MARK from Twilio: ${markName}`);
+        if (markName === 'farewell-end' && pipeline._farewellMarkResolve) {
+          const resolver = pipeline._farewellMarkResolve;
+          pipeline._farewellMarkResolve = null;
+          resolver();
+        }
       }
 
       else if (message.event === 'stop') {
