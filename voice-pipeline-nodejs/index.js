@@ -133,6 +133,83 @@ globalThis.fetch = async function shimmedFetch(input, init) {
 console.log('[DB-SHIM] Installed: fetch(' + env.VULTR_DB_API_URL + '/query) now routes through pg directly');
 
 /**
+ * Hang-up intent detection on user utterances.
+ *
+ * Returns true when the user's most recent turn clearly signals they want to
+ * end the call. Uses a whitelist of phrases plus stricter word-boundary
+ * matches for high-false-positive words ("bye", "later").
+ *
+ * This is the v1 implementation — keyword-only. A future LLM-based intent
+ * classifier can replace this (see Phase B inference routing).
+ */
+const HANGUP_PHRASES = [
+  // Explicit farewells
+  'goodbye',
+  'good bye',
+  'good night',
+  'goodnight',
+  'take care',
+  'talk to you later',
+  'talk later',
+  'catch you later',
+  'speak to you later',
+  // Explicit end-call requests
+  'hang up',
+  'hangup',
+  'end the call',
+  'end this call',
+  'end call',
+  "i'm done",
+  'i am done',
+  "i've gotta go",
+  'i gotta go',
+  "i've got to go",
+  'i have to go',
+  'gotta go',
+  'got to go',
+  'have to go',
+  'need to go',
+  'need to run',
+  'got to run',
+  'gotta run',
+  "i'm going to hang up",
+  'going to hang up',
+  "that's all",
+  "that's all for now",
+  "that'll be all",
+  'all set',
+  // Polite closers
+  'thanks bye',
+  'thank you bye',
+  'thanks goodbye',
+  'thank you goodbye',
+  'appreciate it bye',
+];
+
+// Words where casual use is common. Require them to appear as whole words AND
+// with some indication of finality (not mid-sentence "bye the way" typos etc).
+const HANGUP_STANDALONE_WORDS = ['bye', 'later'];
+
+function detectHangupIntent(utterance) {
+  if (!utterance || typeof utterance !== 'string') return false;
+  const text = utterance.toLowerCase().trim();
+  if (!text) return false;
+
+  // Phrase match
+  for (const phrase of HANGUP_PHRASES) {
+    if (text.includes(phrase)) return true;
+  }
+
+  // Standalone-word match: must be at end of utterance (e.g. "ok bye", "alright later")
+  // to avoid tripping on "maybe later" mid-sentence.
+  const endTokens = text.replace(/[.!?,;:]+$/g, '').split(/\s+/);
+  const lastToken = endTokens[endTokens.length - 1];
+  if (HANGUP_STANDALONE_WORDS.includes(lastToken)) return true;
+
+  return false;
+}
+
+/**
  * Service Pricing Cache - loaded from database on startup
  * Keys: "service:model" or "service:operation" for specificity
  * Values: { unitPrice, pricingType, lastLoaded }
@@ -765,6 +842,33 @@ class VoicePipeline {
         console.log(`[VoicePipeline ${this.callId}] Twilio WebSocket close error (ignored): ${e.message}`);
       }
     }
+  }
+
+  /**
+   * Speak a brief farewell then terminate the call. Invoked when user signals they
+   * want to end the call (hangup intent).
+   *
+   * We send the farewell through the normal speak() pipeline so alignment tracking
+   * still works, then wait for the expected audio duration plus a small buffer
+   * before closing the Twilio WebSocket. If speak() fails we terminate immediately.
+   */
+  async sayFarewellAndTerminate() {
+    // Pick a farewell that fits the context. Keep it short — user wants off the phone.
+    const farewell = 'Alright, take care!';
+    try {
+      await this.speak(farewell);
+      this.conversationHistory.push({ role: 'assistant', content: farewell });
+
+      // Wait for ElevenLabs/Twilio to finish playing the audio before closing.
+      // totalAudioDurationMs is updated by the TTS alignment handler; add buffer for jitter.
+      const waitMs = Math.min(6000, Math.max(1500, (this.totalAudioDurationMs || 0) + 500));
+      console.log(`[VoicePipeline ${this.callId}] 👋 Farewell spoken; terminating in ${waitMs}ms`);
+      await new Promise(resolve => setTimeout(resolve, waitMs));
+    } catch (e) {
+      console.error(`[VoicePipeline ${this.callId}] Farewell speak() failed, terminating immediately:`, e.message);
+    }
+
+    await this.forceTerminate();
   }
 
   /**
@@ -1638,6 +1742,16 @@ Answer:`;
   async generateResponse() {
     try {
       console.log(`[VoicePipeline ${this.callId}] Generating response...`);
+
+      // Hangup-intent detection on most recent user utterance.
+      // If user clearly signals they want to end the call, acknowledge once and terminate
+      // instead of continuing the conversation loop.
+      const lastUserMsg = [...this.conversationHistory].reverse().find(m => m.role === 'user');
+      if (lastUserMsg && detectHangupIntent(lastUserMsg.content)) {
+        console.log(`[VoicePipeline ${this.callId}] 👋 Hangup intent detected in user turn: "${lastUserMsg.content}"`);
+        await this.sayFarewellAndTerminate();
+        return;
+      }
 
       const systemPrompt = this.buildFullSystemPrompt();
 
