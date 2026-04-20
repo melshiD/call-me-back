@@ -218,6 +218,274 @@ Still outstanding:
 
 ---
 
+## Production Readiness Roadmap (NEW — discussed end of session)
+
+### Reframing: This product is opt-in-only
+
+Earlier session planning treated consent-withdrawal ("don't call me") as a TCPA/legal concern. User clarified: **the product only works for scheduled callers** — everyone is opted-in. That changes the calculus:
+
+- TCPA-exit detection is NOT a high priority for outbound (users scheduled the call).
+- The 3-min anonymous trial path (inbound to app-owned numbers) is a separate edge case with its own economics, not a legal risk.
+- **Hangup matcher as-is is probably sufficient for MVP launch.** People who scheduled a call want to talk.
+- Parallel sentiment detection (discussed) is deferred to the caller-dossier work — no separate infra build.
+
+### Production blocker inventory (ranked by risk reduction per effort)
+
+**Round 1 — foundation (unblocks everything else)**
+1. **CI/CD pipeline** — every change currently hand-`scp`'d to `/opt/voice-pipeline/` and hand-`pm2 restart`ed. No safety net, no rollback, no pre-flight checks. User explicitly flagged this.
+2. **Observability (Prometheus + Grafana)** — user wants unified dashboard across disparate apps. See dedicated section below.
+3. **Auth hardening + JWT_SECRET rotation** — rate-limited login, password reset (Resend), JWT refresh tokens, account lockout. One session, same blast radius.
+
+**Round 2 — correctness**
+4. **Inbound billing audit** — prior NSL flagged `updateCallStatus` was written for outbound. Inbound cost tracking may be under-reporting; 3-min trials may not be debited from anywhere.
+5. **Scheduled-call reliability** — the core product promise. Is there a job runner? If VPS reboots, do queued calls still fire? Is there a retry policy for transient Twilio failures?
+6. **DB backups + DR** — is `/opt/api-server` Postgres being backed up? RPO/RTO if the VPS dies?
+7. **Error recovery in voice-pipeline** — 11 restarts so far. If it crashes mid-call, does the caller hear silence or a recorded error? Does Twilio's statusCallback fire correctly to avoid double-billing?
+
+**Round 3 — polish for launch**
+8. **Caller experience of failures** — what does Twilio play if `/api/voice/answer` errors? Dead air or "we're sorry, try again"?
+9. **Payment flow end-to-end** — do credits actually buy minutes? What happens when a user runs out mid-call?
+10. **Persona quality floor** — gpt-4o-mini is cheap but inconsistent. Need kill-switch fallback to a different model if complaints spike, OR Phase B inference routing done first.
+11. **TOS + privacy + call recording disclosure** — if we store transcripts, the persona must disclose at call start (state laws vary).
+12. **STIR/SHAKEN attestation** — carriers are aggressive about outbound verification. Even opt-in calls from a fleet of numbers may need this.
+
+### Sequencing recommendation
+
+**Next session: CI/CD pipeline (Round 1 #1).** It's what unlocks safely doing every other fix.
+
+**Session after: Observability (Round 1 #2).** Get Prometheus/Grafana running so subsequent fixes can be measured.
+
+**Session after that: Auth hardening (Round 1 #3).** Must-have before any public signup.
+
+Then Round 2 items based on what observability reveals as the highest-pain issues.
+
+---
+
+## CI/CD Pipeline — Proposed Spec for Next Session
+
+### Current state of deploys
+| Component | Current method | Deploy script |
+|---|---|---|
+| Frontend | Manual `npx vite build && vercel --prod` | none |
+| API Server | tarball scp from `server/src/` → `/opt/api-server/` | `server/deploy.sh` |
+| Voice Pipeline | manual scp of `index.js` + pm2 restart | none (we use `scp` + manual commands from prior NSL) |
+
+### Target architecture
+
+**GitHub Actions** triggered on push/PR to main:
+
+| Trigger | Job | Steps |
+|---|---|---|
+| Any PR | CI — Frontend | `npm ci`, `npm run build` (Vite catches TS errors), `npm test` if tests exist |
+| Any PR | CI — API Server | `npm ci`, `npm run build`, `npm test` |
+| Any PR | CI — Voice Pipeline | `npm ci`, `node --check index.js`, run hangup-detection tests (currently in `/tmp/test-hangup.mjs` — need to commit into `voice-pipeline-nodejs/test/`) |
+| Merge to main | CD — Frontend | `vercel --prebuilt --prod && vercel alias set <url> callbackapp.ai` |
+| Merge to main | CD — API Server | SSH to VPS → upload tarball → `pm2 reload api-server` (cluster mode = zero-downtime) |
+| Merge to main | CD — Voice Pipeline | SSH to VPS → scp `index.js` → `node --check` → `pm2 reload voice-pipeline` (⚠️ fork mode — see drain note below) |
+| Post-deploy | Smoke tests | curl `api.callbackapp.ai/health`, verify WSS handshake succeeds, maybe synthetic call |
+
+### Branch + push strategy changes
+
+Currently `main` = dev = prod, direct pushes allowed. CI/CD requires:
+- **Branch protection**: PRs required, CI must pass before merge, no force push to main.
+- **Cultural change flag**: the current "scp to VPS then commit whenever" workflow must stop — deploys only happen via merge to main.
+
+### Voice-pipeline drain problem
+
+`pm2 reload` on a fork-mode process = kill + restart = dropped WebSocket connections = mid-call drops.
+
+**Options:**
+- (a) **Accept it now** — we have ~zero live traffic, deploy only during low-traffic windows. Tolerable for MVP.
+- (b) **Graceful drain** — set a flag, refuse new WebSocket connections, wait for in-flight calls to end (bounded timeout e.g. 15 min = max call duration), then restart. One session of work.
+- (c) **Cluster mode** — probably requires Redis-backed session state, major refactor. Defer until traffic warrants.
+
+**Recommendation: (a) now, (b) before public launch.** Note in a follow-up item.
+
+### Secrets management
+
+GitHub Actions repo secrets needed:
+- `SSH_PRIVATE_KEY` (separate deploy key, not `vultr_cmb`)
+- `VPS_HOST` = `144.202.15.249`
+- `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+
+**Critical**: the deploy script for voice-pipeline must scp ONLY `index.js`, NOT the whole directory — otherwise it'll overwrite the VPS `.env` (which `load-env.sh` generated and is gitignored). Prior NSL flagged this as a bus-factor risk.
+
+### Rollback strategy
+- **Frontend**: Vercel has 1-click rollback built-in.
+- **API server**: pm2 cluster mode can `pm2 startOrReload` from previous tarball; keep last N tarballs on disk (`/opt/api-server/releases/<timestamp>.tar.gz`).
+- **Voice pipeline**: already have `.bak.<epoch>` files on VPS from our scp-with-backup pattern; formalize a "`pm2 restart voice-pipeline` with previous index.js.bak" script.
+
+### Session scope
+
+**Minimum viable cut (single session):**
+- GitHub Actions workflows: CI for all 3 components, CD for all 3
+- Commit hangup-detection tests from `/tmp/test-hangup.mjs` into `voice-pipeline-nodejs/test/`
+- Branch protection rules
+- Update `documentation/deployment/COMMAND_REFERENCE.md` — replace "scp then pm2 restart" with "merge to main, check Actions"
+
+**Stretch:**
+- Post-deploy smoke tests
+- Slack/email alert on deploy failure
+- `.bak` cleanup cron on VPS (prevent disk fill)
+
+**Explicit non-goals for this session:**
+- Voice-pipeline graceful drain (defer to follow-up)
+- Migration to cluster mode for voice-pipeline (defer indefinitely)
+
+### Pre-session checklist (things to inventory first)
+- [ ] What's in `server/deploy.sh` — tarball mechanics, env var handling, `--sync-only`/`--restart` flags
+- [ ] Are there existing tests in `server/` or elsewhere
+- [ ] GitHub Actions budget (free tier = 2000 min/mo, likely enough but verify)
+- [ ] Confirm `vercel` CLI token vs GitHub Actions OIDC (Vercel supports both)
+
+---
+
+## Observability — Prometheus + Grafana Stack
+
+### User ask
+Unified dashboard across multiple disparate apps, including call-me-back. User specifically asked: "can I have a main dashboard hook into this app? A dashboard I have that pulls data from many of my disparate apps?" — **yes**, that's the standard Prometheus/Grafana use case.
+
+### Architecture
+
+```
+  apps (each expose /metrics)
+       │
+       ├── call-me-back api-server (Node, prom-client)
+       ├── call-me-back voice-pipeline (Node, prom-client)
+       ├── OTHER APP A
+       └── OTHER APP B
+       │
+       ▼
+  Prometheus (scrapes all endpoints every 15s)
+       │
+       ▼
+  Grafana (queries Prometheus, Loki, Tempo)
+       │ ◄── this is your unified UI
+       ▼
+  User dashboards (per-app + cross-app overview)
+```
+
+### Deployment option decision
+
+| Option | Pros | Cons | Cost |
+|---|---|---|---|
+| (a) Same VPS | cheapest, simple | couples lifecycle with call-me-back; if VPS dies, no postmortem data | $0 extra |
+| (b) Separate obs VPS | isolation, survives call-me-back crashes | maintenance overhead | ~$6/mo Vultr |
+| (c) **Grafana Cloud (free tier)** | zero-ops, separate failure domain, easy onboarding | 10k series / 14-day retention cap | $0 until scale |
+
+**Recommendation: (c) for v1**, migrate to (b) only if costs or data-privacy constraints demand.
+
+### Metrics to instrument
+
+**voice-pipeline:**
+- `voice_active_calls` (gauge) — calls in flight
+- `voice_call_duration_seconds` (histogram)
+- `voice_hangup_reason_total{reason="user_intent|max_duration|error|caller_disconnected"}` (counter)
+- `voice_tts_first_byte_latency_seconds` (histogram) — ElevenLabs
+- `voice_stt_first_transcript_latency_seconds` (histogram) — Deepgram
+- `voice_llm_response_latency_seconds{model}` (histogram)
+- `voice_farewell_mark_echo_duration_seconds` (histogram) — **validates the Layer-2 fix from this session**
+- `voice_external_api_errors_total{service="elevenlabs|deepgram|openai|twilio"}` (counter)
+- `voice_pipeline_process_up` (gauge, 0/1)
+
+**api-server:**
+- Standard HTTP metrics: `http_requests_total{method,path,status}`, `http_request_duration_seconds`
+- `db_query_duration_seconds{query_name}` (histogram)
+- `auth_login_failures_total{reason="bad_password|account_locked|rate_limited"}` (counter) — ties into auth hardening
+- `calls_scheduled_total`, `calls_completed_total`, `calls_failed_total` (counters)
+
+**Business-level (derived, query Postgres from Grafana):**
+- Active users, credits consumed per call, cost per call in dollars (ElevenLabs chars × rate + Deepgram secs + OpenAI tokens + Twilio min)
+
+### Logs (Loki — optional but valuable)
+
+Currently we tail `pm2 logs voice-pipeline` by hand. Loki would:
+- Ship all pm2/stdout logs to Grafana's UI
+- Full-text search with LogQL
+- Label-based filtering (`{app="voice-pipeline", call_id="..."}`)
+
+Grafana Cloud's free tier includes 50GB log ingest / 14-day retention.
+
+### Alerts (Round 2)
+
+Grafana Alerting rules:
+- `voice_active_calls > 0 for 10m AND voice_pipeline_process_up == 0` → "voice pipeline crashed during live calls"
+- `rate(http_requests_total{status=~"5.."}[5m]) > 0.1` → "API 5xx rate elevated"
+- `rate(voice_external_api_errors_total{service="elevenlabs"}[5m]) > 2` → "ElevenLabs flaky, consider failover"
+- `histogram_quantile(0.95, voice_tts_first_byte_latency_seconds) > 2` → "TTS slow"
+- `histogram_quantile(0.95, voice_llm_response_latency_seconds) > 3` → "LLM slow"
+
+Notifications: PagerDuty (paid) or email/Slack for MVP.
+
+### Cross-app dashboard pattern
+
+For the user's "main dashboard pulling data from many disparate apps":
+- **Consistent labeling across all apps**: `{env="prod", app="call-me-back", component="voice-pipeline"}`, `{env="prod", app="other-app", component="api"}`, etc.
+- **Dashboard variables**: Grafana `$app` dropdown lets one template render any app's metrics.
+- **Overview dashboard aggregates**: `sum by (app) (rate(http_requests_total{status=~"5.."}[5m]))` shows error rate per app, side by side.
+- **Row per app**: Health, latency, traffic, errors — four panels per app, stacked. You see all apps at a glance.
+
+### Session scope when we tackle observability
+
+**Single session (after CI/CD):**
+- Grafana Cloud account + Prometheus remote-write endpoint
+- Add `prom-client` to `server/` — instrument HTTP + DB query metrics
+- Add `prom-client` to `voice-pipeline-nodejs/` — instrument the voice-specific metrics above
+- Expose `/metrics` on a port (e.g. 9100 api-server, 9101 voice-pipeline) — use a Prometheus Agent (lightweight) on VPS to scrape and remote-write to Grafana Cloud
+- Build 1 dashboard: "call-me-back overview" with traffic, latency, error rate, active calls
+- Set 3 alerts: voice-pipeline down, API 5xx spike, external API errors
+
+**Stretch:**
+- Loki pipeline from pm2 logs
+- Second app instrumented to validate the cross-app dashboard pattern
+- Business-metric queries against Postgres
+
+**Non-goals:**
+- Tempo/distributed tracing (deferred)
+- Custom metrics for every single business event (start with the critical ones)
+
+---
+
+## Updated Next Session Priorities (REPLACES earlier "Next Session Priorities" above)
+
+### Highest priority — Production path
+
+1. **[NEXT SESSION] CI/CD pipeline** — detailed spec above. Unlocks everything else. User explicitly flagged.
+2. **[SESSION +1] Observability: Prometheus + Grafana** — detailed spec above. User explicitly asked for unified cross-app dashboard.
+3. **[SESSION +2] Auth hardening + JWT rotation** — rate limit, lockout, refresh tokens, Resend password reset.
+
+### Medium priority — Correctness before public launch
+
+4. Inbound billing audit (prior NSL item #7)
+5. Scheduled-call reliability (job runner, retry policy, reboot survival)
+6. DB backups + DR
+7. Voice-pipeline error recovery (mid-call crash behavior)
+
+### Near-term polish
+
+8. Live test of the hangup-timing fix (this session's Layer-1/Layer-2 work) — real phone call, watch for the expected log sequence
+9. Caller-experience-of-failures (Twilio fallback TwiML)
+10. Payment flow end-to-end verification
+11. gpt-4o-mini quality fallback kill-switch
+
+### Compliance / legal
+
+12. TOS + privacy policy + call recording disclosure in persona opening
+13. STIR/SHAKEN attestation for outbound numbers
+
+### Deferred indefinitely (noted, not scheduled)
+
+- Caller dossier Phase 2+ (blocks on Phase B inference routing)
+- Post-call memory reimplementation (shares infra with dossier)
+- Phase B inference routing itself (multi-model selection)
+- Latency research (Apr 2026 inference-provider comparison)
+- Parallel sentiment detection for hangup (fits into caller-dossier infra)
+- BrowserPipeline hangup support
+- Persona-specific farewell lines
+- Max-duration 100% path using `sayFarewellAndTerminate`
+
+---
+
 ## Docs That Need Updating
 
 Same list as prior NSL, plus:
