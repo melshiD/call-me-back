@@ -1,0 +1,42 @@
+name: CI — API Server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/ci-api-server.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/**'
+
+jobs:
+  build-and-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: ./server
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (tsc)
+        run: npm run build
+
+      - name: Test (if any)
+        run: npm test --if-present
+
+      # NOTE: Lint (`npm run lint`) is NOT enforced in CI yet. server/eslint.config.js
+      # is installed and usable locally, but a full lint-clean + CI enforcement
+      # pass is deferred to a dedicated session (see ci-frontend.yml comment).

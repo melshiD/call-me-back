@@ -1,0 +1,60 @@
+name: CI — Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.js'
+      - 'tsconfig.json'
+      - 'eslint.config.js'
+      - 'postcss.config.js'
+      - 'tailwind.config.js'
+      - 'vitest.config.ts'
+      - '.github/workflows/ci-frontend.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.js'
+      - 'tsconfig.json'
+      - 'eslint.config.js'
+      - 'postcss.config.js'
+      - 'tailwind.config.js'
+      - 'vitest.config.ts'
+
+jobs:
+  build-and-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test (if any)
+        run: npm test --if-present
+
+      # NOTE: Lint (`npm run lint`) is NOT enforced in CI yet. The existing
+      # eslint.config.js covers active frontend dirs but Vue SFC parsing
+      # requires eslint-plugin-vue/vue-eslint-parser setup plus cleanup of
+      # ~124 pre-existing errors (unused imports, any-types in src/stores,
+      # src/views, src/services). Tackle as a dedicated lint-cleanup session.

@@ -2,10 +2,40 @@ import js from '@eslint/js';
 import typescript from '@typescript-eslint/eslint-plugin';
 import typescriptParser from '@typescript-eslint/parser';
 
+// Frontend-only lint config. Scoped to the ACTIVE Vue frontend directories
+// (views, components, router, stores, services, shared, plus top-level entry
+// files). Dead Raindrop-era service directories (api-gateway, call-orchestrator,
+// persona-manager, webhook-handler, etc.) under src/ are intentionally ignored
+// — they pre-date the VPS api-server migration and are no longer in the build.
+const ACTIVE_FRONTEND_ALL = [
+  'src/App.vue',
+  'src/main.js',
+  'src/components/**/*.{js,ts,tsx,vue}',
+  'src/views/**/*.{js,ts,tsx,vue}',
+  'src/router/**/*.{js,ts,tsx}',
+  'src/stores/**/*.{js,ts,tsx}',
+  'src/services/**/*.{js,ts,tsx}',
+  'src/shared/**/*.{js,ts,tsx}',
+  'src/assets/**/*.{js,ts,tsx}',
+];
+
+const ACTIVE_FRONTEND_TS = [
+  'src/components/**/*.{ts,tsx}',
+  'src/views/**/*.{ts,tsx}',
+  'src/router/**/*.{ts,tsx}',
+  'src/stores/**/*.{ts,tsx}',
+  'src/services/**/*.{ts,tsx}',
+  'src/shared/**/*.{ts,tsx}',
+  'src/assets/**/*.{ts,tsx}',
+];
+
 export default [
-  js.configs.recommended,
   {
-    files: ['**/*.ts', '**/*.tsx'],
+    files: ACTIVE_FRONTEND_ALL,
+    ...js.configs.recommended,
+  },
+  {
+    files: ACTIVE_FRONTEND_TS,
     languageOptions: {
       parser: typescriptParser,
       parserOptions: {
@@ -38,6 +68,34 @@ export default [
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', 'reference/', 'db/'],
+    ignores: [
+      'dist/',
+      'node_modules/',
+      'reference/',
+      'db/',
+      // Everything outside src/ — legacy proxies, one-offs, scripts
+      '*.js',
+      '*.cjs',
+      '*.mjs',
+      'after_midterm/**',
+      'deepgram-proxy/**',
+      'design/**',
+      'docs/**',
+      'documentation/**',
+      'eval_images/**',
+      'log-query-service/**',
+      'migrations/**',
+      'public/**',
+      'scripts/**',
+      'server/**',
+      'social-media-assets/**',
+      'submission_docs/**',
+      'tool-logs/**',
+      'tools/**',
+      'use_cases/**',
+      'utilities/**',
+      'voice-pipeline-nodejs/**',
+      'vultr-db-proxy/**',
+    ],
   },
 ];
