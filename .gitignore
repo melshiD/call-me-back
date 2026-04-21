@@ -50,6 +50,8 @@ after_midterm
 !server/deploy.sh
 !server/build-env.sh
 !server/set-secrets.sh
+!voice-pipeline-nodejs/deploy.sh
+!voice-pipeline-nodejs/deploy.sh.old
 feature-to-add*
 .env.production
 .env.vercel.production
