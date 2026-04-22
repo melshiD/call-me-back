@@ -4,9 +4,9 @@ import typescriptParser from '@typescript-eslint/parser';
 
 // Frontend-only lint config. Scoped to the ACTIVE Vue frontend directories
 // (views, components, router, stores, services, shared, plus top-level entry
-// files). Dead Raindrop-era service directories (api-gateway, call-orchestrator,
-// persona-manager, webhook-handler, etc.) under src/ are intentionally ignored
-// — they pre-date the VPS api-server migration and are no longer in the build.
+// files). Raindrop-era service directories were deleted from src/ — see
+// commit that removed api-gateway/, call-orchestrator/, persona-manager/,
+// webhook-handler/, voice-pipeline/, etc.
 const ACTIVE_FRONTEND_ALL = [
   'src/App.vue',
   'src/main.js',
